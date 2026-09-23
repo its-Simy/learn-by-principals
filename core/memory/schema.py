@@ -2,7 +2,8 @@
 
 v1: the sync manifest, ledger and notebook cache. v2: learner memory. v3: the mastery audit
 trail. v4: Challenger probes. v5: concept weeks. v6: podcast episodes. v7: benchmarks and
-provider health (router v1). Later tables land with their ticket as new migrations.
+provider health (router v1). v8: the maintenance log. Later tables land with their ticket as
+new migrations.
 """
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
@@ -226,6 +227,17 @@ CREATE TABLE provider_health (
 )
 """
 
+# One row per `brightlearn maintain` run (manual or automatic): what it changed (BL-038).
+MAINTENANCE_RUNS = """
+CREATE TABLE maintenance_runs (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    ran_at   TEXT NOT NULL,
+    trigger  TEXT NOT NULL CHECK (trigger IN ('manual', 'auto')),
+    decayed  INTEGER NOT NULL,
+    archived INTEGER NOT NULL
+)
+"""
+
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         RESOURCES,
@@ -263,6 +275,7 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         BENCHMARKS_VIEW,
         PROVIDER_HEALTH,
     ),
+    8: (MAINTENANCE_RUNS,),
 }
 
 SCHEMA_VERSION = max(MIGRATIONS)

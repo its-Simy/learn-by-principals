@@ -5,6 +5,13 @@ import pytest
 from core.config import Config
 
 
+@pytest.fixture(autouse=True)
+def isolated_home(tmp_path: Path, monkeypatch) -> None:
+    """No test ever reads or writes the real ~/.brightlearn (tests may override these)."""
+    monkeypatch.setenv("BRIGHTLEARN_HOME", str(tmp_path / "isolated-home"))
+    monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "isolated-vault"))
+
+
 @pytest.fixture
 def config(tmp_path: Path) -> Config:
     home = tmp_path / "home"

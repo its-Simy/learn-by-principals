@@ -11,6 +11,7 @@ from cli.ask import ask
 from cli.dashboard import dashboard
 from cli.doctor import doctor
 from cli.generate import generate
+from cli.maintain import auto_maintain, maintain_cmd
 from cli.podcast import podcast
 from cli.sync import sync
 from cli.tutor import tutor
@@ -23,6 +24,7 @@ app.command()(generate)
 app.command()(tutor)
 app.command()(podcast)
 app.command()(dashboard)
+app.command("maintain")(maintain_cmd)
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")
 app.add_typer(sessions.app, name="sessions")
@@ -30,12 +32,16 @@ app.add_typer(exam.app, name="exam")
 
 
 @app.callback()
-def main(verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logging.")) -> None:
+def main(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logging."),
+) -> None:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(message)s",
         handlers=[RichHandler(console=Console(stderr=True), show_path=False)],
     )
+    auto_maintain(ctx.invoked_subcommand)
 
 
 if __name__ == "__main__":

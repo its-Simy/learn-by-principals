@@ -211,7 +211,7 @@ Principle 4 (and the spec) says every mastery row points at the evidence ids tha
 - **What I did:** `set_mastery` refuses an empty list or ids that aren't that concept's evidence. The ids themselves aren't stored. A `mastery_evidence` link table, or a JSON column, would fix it.
 
 ### P38. Values the tickets don't define
-- **Retention decay:** unchanged for 2 days after the last evidence, then halving every 14 days. It's computed from `confidence`, so running it twice gives the same result.
+- **Retention decay:** unchanged for 2 days after the last evidence, then halving every 14 days. It's computed from `confidence`, so running it twice gives the same result. **Changed in BL-038:** no grace period, and a 21-day half-life from config.
 - **`weakest` order:** level, then retention, then confidence, then name. A concept with no mastery row counts as level 0.
 - **`last_reviewed`:** set whenever `set_mastery` runs.
 
@@ -504,3 +504,15 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 - **Weakest concepts** span every course, in `weakest()` order. The concepts are shown as a table; there's no chart, because unseen concepts have no retention to draw.
 - **Charts:** calls per provider (one series, no legend) and sync status per course (stacked; states in fixed palette order, with a legend). Both use the documented palette, checked with the dataviz validator in light and dark: every check passes. Light mode's aqua, yellow and magenta are under 3:1 contrast, so every chart has its numbers in a table below it. Tooltips on hover and keyboard focus. Charts are drawn 1:1 and scroll sideways inside their card on a phone; the page itself never scrolls sideways.
 - **The Playwright test imports `playwright` outside `core/providers/`.** Principle 2 is enforced for `core/`, `cli/` and `dashboard/`, and tests already use SDK doubles (P19). The ticket asks for this test. It skips itself if Chromium isn't installed. The `dashboard` command opens the page with the stdlib `webbrowser`, not Playwright.
+
+## BL-038
+
+### P90. Decay rules
+- **Formula:** `retention = confidence × 0.5^(days since the latest evidence / half-life)`, with the half-life from `BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS` (default 21). The old 2-day grace period is gone, because the ticket wants exactly half at one half-life. The level never decays.
+- **"Latest evidence"** is the newest row in `evidence` for that concept, not `mastery.last_evidence_at`, which only moves when `set_mastery` runs.
+- **"No evidence since"** means since the previous maintenance run. A concept with evidence newer than that run is left untouched this time, and next time it decays from that fresh evidence, which nearly restores it. On the very first run every concept is eligible.
+
+### P91. Archive and auto-run
+- **Archive:** ended sessions that started more than 30 days ago. Their transcript and summary are **moved** to `vault/sessions/archive/`, never deleted, and `summary_path` follows. Open (crashed) sessions are never archived; close them with `brightlearn sessions close`.
+- **Auto-run:** the CLI's root callback runs maintenance first when the last run (`maintenance_runs`, migration v8) is 24+ hours old. It skips `maintain` itself and **`doctor`, whose contract is read-only**. It also skips when there's no database yet, so `--help` or a first command doesn't create one. A failure only logs a warning; the command still runs.
+- **Test isolation:** a conftest fixture now points `BRIGHTLEARN_HOME` and `BRIGHTLEARN_VAULT` at a temp folder for every test, so the auto-run can never reach your real `~/.brightlearn`. Your real database was never touched: it's still at schema v0.

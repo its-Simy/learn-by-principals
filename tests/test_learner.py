@@ -137,13 +137,16 @@ def test_decay_lowers_stale_rows_and_leaves_fresh_ones(mem, now):
 
     changed = mem.decay_retention("2026-09-23T12:00:00+00:00")
 
-    assert changed == 1
+    assert [c.concept_id for c in changed] == ["cse220/structs", "cse220/pointers"]
     stale = mem.get_mastery("cse220/structs")
     assert stale.retention_confidence == pytest.approx(retention(0.8, 22))
     assert stale.retention_confidence < 0.8
     assert stale.level == 3  # the level itself never decays
-    assert mem.get_mastery("cse220/pointers").retention_confidence == 0.8
-    assert mem.decay_retention("2026-09-23T12:00:00+00:00") == 0  # idempotent
+    # 12 hours: barely decayed at a 21-day half-life
+    assert mem.get_mastery("cse220/pointers").retention_confidence == pytest.approx(
+        retention(0.8, 0.5)
+    )
+    assert mem.decay_retention("2026-09-23T12:00:00+00:00") == []  # idempotent
 
 
 def test_sessions_round_trip(mem, now):

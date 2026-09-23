@@ -16,9 +16,9 @@ from datetime import datetime
 from core.ledger.ledger import utcnow
 from core.memory.schema import EVIDENCE_STRENGTHS, EVIDENCE_TYPES, MASTERY_CHANGERS
 
-# Retention decay: untouched for GRACE_DAYS, then halves every HALF_LIFE_DAYS.
-GRACE_DAYS = 2.0
-HALF_LIFE_DAYS = 14.0
+# Retention decay: halves every HALF_LIFE_DAYS since the concept's latest evidence (BL-038;
+# `retention_half_life_days` in config).
+HALF_LIFE_DAYS = 21.0
 
 
 class LearnerError(Exception):
@@ -90,10 +90,18 @@ def _as_datetime(value: str | datetime) -> datetime:
     return value if isinstance(value, datetime) else datetime.fromisoformat(value)
 
 
-def retention(confidence: float, days_since_evidence: float) -> float:
-    if days_since_evidence <= GRACE_DAYS:
-        return confidence
-    return confidence * 0.5 ** ((days_since_evidence - GRACE_DAYS) / HALF_LIFE_DAYS)
+def retention(
+    confidence: float, days_since_evidence: float, half_life_days: float = HALF_LIFE_DAYS
+) -> float:
+    return confidence * 0.5 ** (max(days_since_evidence, 0.0) / half_life_days)
+
+
+@dataclass(frozen=True)
+class RetentionChange:
+    concept_id: str
+    old: float | None
+    new: float
+    days_since_evidence: float
 
 
 def _concept(row: sqlite3.Row) -> Concept:
@@ -315,29 +323,46 @@ class LearnerMemory:
             result.append((_concept(row), mastery))
         return result
 
-    def decay_retention(self, now: str | datetime) -> int:
-        """Recompute retention_confidence from time since the last evidence. Returns rows changed.
+    def decay_retention(
+        self,
+        now: str | datetime,
+        half_life_days: float = HALF_LIFE_DAYS,
+        fresh_since: str | datetime | None = None,
+    ) -> list[RetentionChange]:
+        """Recompute retention_confidence from the time since each concept's latest evidence.
 
-        Idempotent for a given ``now``: retention is derived from ``confidence``, not from its own
-        previous value.
+        Concepts with evidence newer than ``fresh_since`` (the previous maintenance run) are left
+        untouched. Idempotent for a given ``now``: retention is derived from ``confidence``, not
+        from its own previous value. Returns the rows that changed.
         """
         now_dt = _as_datetime(now)
-        changed = 0
+        fresh_dt = _as_datetime(fresh_since) if fresh_since is not None else None
         rows = self.conn.execute(
-            "SELECT concept_id, confidence, last_evidence_at, retention_confidence FROM mastery"
-            " WHERE last_evidence_at IS NOT NULL"
+            "SELECT m.concept_id, m.confidence, m.retention_confidence,"
+            " coalesce((SELECT max(recorded_at) FROM evidence e"
+            "           WHERE e.concept_id = m.concept_id), m.last_evidence_at) AS latest"
+            " FROM mastery m"
         ).fetchall()
+        changes = []
+        for row in rows:
+            if row["latest"] is None:
+                continue
+            latest = _as_datetime(row["latest"])
+            if fresh_dt is not None and latest > fresh_dt:
+                continue  # fresh evidence since the last run: untouched
+            days = (now_dt - latest).total_seconds() / 86400
+            value = round(retention(row["confidence"], days, half_life_days), 6)
+            if value != row["retention_confidence"]:
+                changes.append(
+                    RetentionChange(row["concept_id"], row["retention_confidence"], value, days)
+                )
         with self.conn:
-            for row in rows:
-                days = (now_dt - _as_datetime(row["last_evidence_at"])).total_seconds() / 86400
-                value = round(retention(row["confidence"], days), 6)
-                if value != row["retention_confidence"]:
-                    self.conn.execute(
-                        "UPDATE mastery SET retention_confidence = ? WHERE concept_id = ?",
-                        (value, row["concept_id"]),
-                    )
-                    changed += 1
-        return changed
+            for change in changes:
+                self.conn.execute(
+                    "UPDATE mastery SET retention_confidence = ? WHERE concept_id = ?",
+                    (change.new, change.concept_id),
+                )
+        return changes
 
     # -- sessions ----------------------------------------------------------------------------
 

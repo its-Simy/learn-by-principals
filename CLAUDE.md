@@ -36,6 +36,7 @@ brightlearn/
 │   ├── podcast/          # compiler.py (learner state -> Audio Overview brief), episodes.py
 │   ├── personas.py       # load / list / render persona files
 │   ├── router/           # router.py (v1: config order, health, benchmarks), benchmarks.py, health.py
+│   ├── maintenance.py    # retention decay + session archive, auto-run daily (BL-038)
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
 ├── cli/                  # app.py (typer root), sync.py, exam.py, tutor.py, sessions.py, dev.py
@@ -60,6 +61,7 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 | `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
 | `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
+| `retention_half_life_days` | `21` | `BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS` |
 | `ollama_url` / `ollama_model` | `http://localhost:11434` / `llama3.2:3b` | `BRIGHTLEARN_OLLAMA_URL`, `BRIGHTLEARN_OLLAMA_MODEL` |
 | `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex, ollama`; classify `ollama, claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins) |
 
@@ -147,6 +149,7 @@ benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              -- a VIEW averaging benchmark_samples (provider, task_type, metric, value,
              -- recorded_at; append-only); sample_count = runs measured
 provider_health: provider (PK), state, checked_at, cooldown_until, detail               (BL-035)
+maintenance_runs: id, ran_at, trigger (manual|auto), decayed, archived                  (BL-038)
 ```
 
 Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.

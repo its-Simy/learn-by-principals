@@ -58,6 +58,7 @@ class Config:
     nlm_source_cap: int = 50
     nlm_artifact_timeout_s: float = 1200.0
     model_timeout_s: float = 300.0
+    retention_half_life_days: float = 21.0
     ollama_url: str = DEFAULT_OLLAMA_URL
     ollama_model: str = DEFAULT_OLLAMA_MODEL
     routing: dict[str, tuple[str, ...]] = field(default_factory=lambda: dict(DEFAULT_ROUTING))
@@ -99,6 +100,7 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         nlm_source_cap=int(env.get("BRIGHTLEARN_NLM_SOURCE_CAP", 50)),
         nlm_artifact_timeout_s=float(env.get("BRIGHTLEARN_NLM_ARTIFACT_TIMEOUT_S", 1200)),
         model_timeout_s=float(env.get("BRIGHTLEARN_MODEL_TIMEOUT_S", 300)),
+        retention_half_life_days=float(env.get("BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS", 21)),
         ollama_url=env.get("BRIGHTLEARN_OLLAMA_URL", DEFAULT_OLLAMA_URL).rstrip("/"),
         ollama_model=env.get("BRIGHTLEARN_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
         routing=load_routing(home / "config.toml"),
