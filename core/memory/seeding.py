@@ -202,6 +202,7 @@ def apply(path: Path, learner: LearnerMemory) -> ApplyResult:
             module=item.get("module"),
             prerequisites=[concept_id(course, p) for p in item.get("prerequisites") or []],
             exam_tags=list(item.get("exam_tags") or []),
+            week=int(week) if isinstance(week := item.get("week"), int | float) else None,
         )
         learner.upsert_concept(concept)
         applied.append(concept)

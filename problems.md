@@ -240,7 +240,7 @@ PyYAML is added to `pyproject.toml` and installed in `.venv` with `uv pip instal
 
 ### P44. `week` has nowhere to go
 The seed prompt asks for `week`, as the ticket says, but `concepts` in `CLAUDE.md` has no `week` column.
-- **What I did:** `week` stays in the draft YAML and is dropped on apply.
+- **What I did:** `week` stays in the draft YAML and is dropped on apply. **Fixed in BL-031:** migration v5 adds `concepts.week`, and `apply` stores it.
 
 ### P45. How "never applies without review" is enforced
 The draft is written with `reviewed: false`, and `concepts apply` refuses to load it until someone edits that line to `true`.
@@ -393,3 +393,23 @@ The Analyzer grades the probe's exchange alone and writes evidence as usual. Onl
 - The probe isn't tutoring. Its lines go into the transcript as `**Challenge …**` / `**Learner (challenge answer):**`, not as `**Learner:**`, so the end-of-session Analyzer can't count them twice, and the Challenger's provider isn't added to `tutor_provider`.
 - **A question asked in an earlier session** (after `/skip`, or when grading failed) is asked again word for word. The table doesn't record who wrote it, so in that case the grader isn't kept off that provider.
 - A challenge whose question can't be generated (model error) stays `pending`. One whose grading fails goes back to `asked`.
+
+## BL-031
+
+### P74. Concepts needed a week
+The planner selects concepts by the spec's `weeks`, but concepts had no week (P44).
+- **What I did:** migration v5 adds `concepts.week`, and `concepts apply` fills it from the draft. **(you)** Concepts applied before this have no week. Re-run `brightlearn concepts apply --course CSE220` once to fill them in. Until then, a spec with `weeks` leaves those concepts out; they're listed in `CoveragePlan.no_week` and can still be pulled in with `include`.
+
+### P75. Spec rules the ticket leaves open
+- **Required:** `course`, `exam`, `formats`, `difficulty`. `mode` defaults to `realistic`. `weeks` and `sources` default to "all". `include` and `exclude` default to none.
+- **`formats`** are question counts: `multiple_choice`, `short_answer` or `coding`, with at least 1 question and at most 100.
+- **`difficulty`** is `easy`/`medium`/`hard` given as either percentages summing to 100 or counts summing to the number of questions. Percentages are turned into counts by largest remainder (20/50/30 of 18 → 4/9/5).
+- **`sources`** are bucket names, plus `study-guides` (study guides are filed in `exams`). Only validated here; BL-032 uses them.
+- **Names in `include`/`exclude`** match a concept's name ignoring case and punctuation, or its id. A name in both is an error. Names that match nothing are reported, not errors.
+
+### P76. How the modes weigh concepts
+- **realistic:** each week weighs 1, split evenly among its concepts. An `include`d concept from outside the weeks gets the average concept weight.
+- **weakness:** 5 − level, floored at 0.5.
+- **diagnostic:** 1 − confidence, floored at 0.1. No mastery row counts as confidence 0.
+- **challenge:** level 3+ only, weighted evenly. Rows are tagged `transfer` (target level 4). With nothing at level 3+, it's an error.
+- **Rounding:** questions go to concepts by largest remainder, heaviest first. With more concepts than questions, the lightest get none and are left out. Each concept's questions are then split across formats and difficulties so every row and column sums exactly. Each row doesn't get the spec's exact mix: the heaviest concept gets its share of each column first, and later rows take what's left.

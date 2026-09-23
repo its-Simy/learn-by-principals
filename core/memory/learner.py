@@ -37,6 +37,7 @@ class Concept:
     module: str | None = None
     prerequisites: list[str] = field(default_factory=list)
     exam_tags: list[str] = field(default_factory=list)
+    week: int | None = None
 
 
 @dataclass
@@ -103,6 +104,7 @@ def _concept(row: sqlite3.Row) -> Concept:
         module=row["module"],
         prerequisites=json.loads(row["prerequisites"]),
         exam_tags=json.loads(row["exam_tags"]),
+        week=row["week"],
     )
 
 
@@ -120,10 +122,11 @@ class LearnerMemory:
     def upsert_concept(self, concept: Concept) -> None:
         with self.conn:
             self.conn.execute(
-                "INSERT INTO concepts (concept_id, course, name, module, prerequisites, exam_tags)"
-                " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (concept_id) DO UPDATE SET"
+                "INSERT INTO concepts (concept_id, course, name, module, prerequisites, exam_tags,"
+                " week) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (concept_id) DO UPDATE SET"
                 " course = excluded.course, name = excluded.name, module = excluded.module,"
-                " prerequisites = excluded.prerequisites, exam_tags = excluded.exam_tags",
+                " prerequisites = excluded.prerequisites, exam_tags = excluded.exam_tags,"
+                " week = excluded.week",
                 (
                     concept.concept_id,
                     concept.course,
@@ -131,6 +134,7 @@ class LearnerMemory:
                     concept.module,
                     json.dumps(concept.prerequisites),
                     json.dumps(concept.exam_tags),
+                    concept.week,
                 ),
             )
 

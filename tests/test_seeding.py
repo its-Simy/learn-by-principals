@@ -112,6 +112,7 @@ def test_apply_inserts_rows_and_is_idempotent(kp, db, tmp_path):
     assert [c.concept_id for c in concepts] == ["cse220/data-representation", "cse220/pointers"]
     assert learner.get_concept("cse220/pointers").prerequisites == ["cse220/data-representation"]
     assert learner.get_concept("cse220/pointers").exam_tags == ["midterm-1"]
+    assert learner.get_concept("cse220/pointers").week == 3  # kept for the ExamSpec (BL-031)
     assert first.unknown_prerequisites == [] and len(second.applied) == 2
     assert len(learner.concepts("CSE220")) == 2
 

@@ -1,7 +1,8 @@
 """SQLite DDL, applied as numbered migrations tracked in ``PRAGMA user_version``.
 
 v1: the sync manifest, ledger and notebook cache. v2: learner memory. v3: the mastery audit
-trail. v4: Challenger probes. Later tables land with their ticket as new migrations.
+trail. v4: Challenger probes. v5: concept weeks. Later tables land with their ticket as new
+migrations.
 """
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
@@ -186,6 +187,8 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE UNIQUE INDEX challenges_one_open ON challenges (concept_id)"
         " WHERE status != 'resolved'",
     ),
+    # The ExamSpec selects concepts by week (BL-031); `concepts apply` fills it from the draft.
+    5: ("ALTER TABLE concepts ADD COLUMN week INTEGER",),
 }
 
 SCHEMA_VERSION = max(MIGRATIONS)

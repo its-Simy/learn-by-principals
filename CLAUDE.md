@@ -124,7 +124,7 @@ resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identi
              -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
 model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
              input_tokens_est, output_tokens_est, fallback_from, error
-concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags            (Phase 4)
+concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags, week      (Phase 4)
 mastery:     concept_id, level 0-5, confidence, evidence_count, last_evidence_at,
              retention_confidence, last_reviewed                                         (Phase 4)
 evidence:    evidence_id, concept_id, session_id, type, strength, source_provider,
@@ -133,6 +133,9 @@ sessions:    session_id, course, started_at, ended_at, tutor_provider, analyzer_
              summary_path                                                                (Phase 4)
 mastery_history: id, concept_id, old_level, new_level, confidence, evidence_ids (JSON),
              changed_at, changed_by (analyzer|manual)   (append-only; one row per set_mastery)
+challenges:  id, concept_id, session_id, reason, question,
+             status (pending|asked|answered|resolved), created_at
+             -- at most one unresolved challenge per concept                             (BL-030)
 benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              latency_ms, learner_rating, sample_count                                    (Phase 10)
 ```
