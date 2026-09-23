@@ -10,6 +10,7 @@ from pathlib import Path
 
 DEFAULT_BASE_URL = "https://mycourses.stonybrook.edu"
 DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
+REPO_VAULT = Path(__file__).resolve().parents[1] / "memory"
 
 
 def default_term(today: date | None = None) -> str:
@@ -35,6 +36,7 @@ class Config:
     storage_root: Path
     tmp_dir: Path
     db_path: Path
+    vault_dir: Path = REPO_VAULT
     login_timeout_s: int = 600
     nlm_min_interval_s: float = 1.5
     nlm_source_cap: int = 50
@@ -68,6 +70,7 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         storage_root=Path(env.get("BRIGHTLEARN_STORAGE_ROOT", home / "courses")).expanduser(),
         tmp_dir=Path(env.get("BRIGHTLEARN_TMP_DIR", DEFAULT_TMP_DIR)).expanduser(),
         db_path=Path(env.get("BRIGHTLEARN_DB", home / "brightlearn.db")).expanduser(),
+        vault_dir=Path(env.get("BRIGHTLEARN_VAULT", REPO_VAULT)).expanduser(),
         nlm_min_interval_s=float(env.get("BRIGHTLEARN_NLM_MIN_INTERVAL_S", 1.5)),
         nlm_source_cap=int(env.get("BRIGHTLEARN_NLM_SOURCE_CAP", 50)),
         nlm_artifact_timeout_s=float(env.get("BRIGHTLEARN_NLM_ARTIFACT_TIMEOUT_S", 1200)),

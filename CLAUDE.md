@@ -52,6 +52,7 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 | `storage_root` | `~/.brightlearn/courses` | Canonical course files |
 | `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
+| `vault_dir` | `<repo>/memory` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
 
 ## Provider interfaces
 

@@ -181,3 +181,19 @@ Principle 4 (and the spec) says every mastery row points at the evidence ids tha
 - `prerequisites` and `exam_tags` are stored as JSON arrays.
 - `evidence` has triggers that block UPDATE and DELETE (append-only).
 - The `sessions` table isn't in `CLAUDE.md`'s data model, so I added it there, as the ticket defines it.
+
+## BL-019
+
+### P40. The vault lives inside the git repo by default
+`CLAUDE.md`'s layout and the spec ("Git-versioned") put the vault at `<repo>/memory/`. Session transcripts, mastery and misconceptions would then be committed with the code. If the GitHub repo is public, pushing it publishes them.
+- **What I did:** `vault_dir` defaults to `<repo>/memory`, and `BRIGHTLEARN_VAULT` overrides it. Nothing is gitignored.
+
+### P41. Misconceptions have no home
+`write_concept_note` takes misconceptions as a list of strings, and BL-025 needs "misconception notes", but no table or ticket defines where misconceptions are stored. The spec's `memory/misconceptions/` folder isn't built.
+- **What I did:** callers use the `excerpt_ref` of that concept's evidence rows of type `misconception`.
+
+### P42. Transcript and summary are separate files
+BL-026 appends the transcript to `memory/sessions/{id}.md`, so the BL-019 summary goes to `memory/sessions/{id}.summary.md`. `sessions.summary_path` points at the summary.
+
+### P43. New dependency: PyYAML
+PyYAML is added to `pyproject.toml` and installed in `.venv` with `uv pip install`. There's no `uv.lock` in the repo.
