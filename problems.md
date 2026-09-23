@@ -275,3 +275,20 @@ Each compile sends the learner's raw question to NotebookLM. Every turn costs qu
 
 ### P57. The tutor answers without sources when NotebookLM fails
 If the NotebookLM query fails (rate limit, auth, broken), the package is still built. Its source section reads "(course sources unavailable: …)", so the tutor answers from the model alone. The ticket doesn't say what should happen.
+
+## BL-026
+
+### P58. Router v0 hardcodes Claude, which conflicts with principle 8
+Principle 8 says model strengths are never hardcoded and routing reads `benchmarks`. The ticket asks for "Claude for teaching, Codex if Claude is RATE_LIMITED", and there is no `benchmarks` table yet (Phase 10). `CLAUDE.md` should win here, but that would mean not building the tutor.
+- **What I did:** built the ticket's v0 order, `["claude", "codex"]`, in `cli/tutor.py`, with a comment saying it's v0.
+
+### P59. The router only falls back on rate limits
+Following the ticket, a Claude that is missing from PATH, logged out or crashing fails the turn rather than falling back to Codex.
+- Once Claude is rate limited, it's skipped for the rest of the process; nothing checks when the limit resets.
+- Until P49 and P52 are fixed, neither CLI is installed, so every tutor turn prints "(no answer: `claude` is not on PATH)".
+
+### P60. A fallback mid-session leaves no model for the Analyzer
+If Codex takes over partway through a session, `sessions.tutor_provider` is `"claude,codex"`. Principle 6 then leaves no different provider to run the Analyzer (see BL-027).
+
+### P61. Manual acceptance pending (you)
+Run a 5-turn session on pointers with `brightlearn tutor --course CSE220 --persona simplifier`. It needs the NotebookLM setup (P18), a linked sync, and the Claude CLI (P49).

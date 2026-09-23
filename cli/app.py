@@ -11,12 +11,14 @@ from cli.ask import ask
 from cli.doctor import doctor
 from cli.generate import generate
 from cli.sync import sync
+from cli.tutor import tutor
 
 app = typer.Typer(no_args_is_help=True, help="BrightLearn personal learning platform.")
 app.command()(sync)
 app.command()(doctor)
 app.command()(ask)
 app.command()(generate)
+app.command()(tutor)
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")
 

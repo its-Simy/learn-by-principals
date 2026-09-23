@@ -30,7 +30,8 @@ brightlearn/
 │   ├── memory/           # schema.py, db.py, learner.py, vault.py
 │   ├── sync/             # classify.py, engine.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
-│   ├── router/           # routing, health, fallback, benchmarks (Phase 10)
+│   ├── tutor.py          # tutoring session (BL-026)
+│   ├── router/           # v0 fixed order (BL-026); benchmarks-driven in Phase 10
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
 ├── cli/                  # app.py (typer root), sync.py, exam.py, tutor.py, dev.py

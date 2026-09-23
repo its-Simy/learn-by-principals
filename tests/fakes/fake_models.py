@@ -19,10 +19,12 @@ class FakeModel(ModelProvider):
         self.replies = list(replies or [])
         self.tasks: list[TaskPackage] = []
         self.state = ProviderState.AVAILABLE
+        self.limited = False  # the next run hits the usage limit, like the real CLIs
 
     def run(self, task: TaskPackage) -> ModelResult:
         self.tasks.append(task)
-        if self.state is ProviderState.RATE_LIMITED:
+        if self.limited or self.state is ProviderState.RATE_LIMITED:
+            self.state = ProviderState.RATE_LIMITED
             raise ModelRateLimited(f"{self.name} usage limit reached")
         text = self.replies.pop(0) if self.replies else self.reply
         return ModelResult(text, self.name, f"{self.name}-model", 5, UsageHint(10, 2))

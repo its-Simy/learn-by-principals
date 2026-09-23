@@ -91,7 +91,7 @@ class ContextCompiler:
     ) -> TaskPackage:
         persona = load(persona) if isinstance(persona, str) else persona
         concepts = match_concepts(question, self._learner.concepts(course))
-        system = render(persona, {"course": course, "anchors": self._anchors(course)})
+        system = render(persona, {"course": course, "anchors": self.anchors(course)})
         source = truncate_tokens(self._source_context(question, course), SOURCE_CAP)
         learner = truncate_tokens(self._learner_context(concepts), LEARNER_CAP)
         recent = self._session_context(session)
@@ -189,7 +189,7 @@ class ContextCompiler:
             budget -= cost
         return "\n".join(reversed(kept))
 
-    def _anchors(self, course: str) -> list[dict]:
+    def anchors(self, course: str) -> list[dict]:
         """Concepts the learner has shown at level 3+, strongest first (for the Analogist)."""
         anchors = []
         for concept in self._learner.concepts(course):

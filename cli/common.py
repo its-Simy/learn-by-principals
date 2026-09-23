@@ -45,3 +45,8 @@ def open_model(name: str, config: Config) -> ModelProvider:
     if name not in MODEL_PROVIDERS:
         raise ValueError(f"Unknown model provider {name!r}; one of {sorted(MODEL_PROVIDERS)}")
     return MODEL_PROVIDERS[name].from_config(config)
+
+
+def session_end_hook(config: Config, conn: sqlite3.Connection, router: object):
+    """What runs when a tutoring session ends (the Analyzer arrives in BL-027)."""
+    return None
