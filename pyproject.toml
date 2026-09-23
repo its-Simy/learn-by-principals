@@ -9,6 +9,9 @@ dependencies = [
     "playwright>=1.45",
 ]
 
+[project.optional-dependencies]
+notebooklm = ["notebooklm-py[android,browser]>=0.8.2"]
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
 
@@ -32,3 +35,6 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument"]

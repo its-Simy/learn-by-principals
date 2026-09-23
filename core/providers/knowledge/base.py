@@ -13,6 +13,7 @@ __all__ = [
     "Citation",
     "GroundedAnswer",
     "KnowledgeError",
+    "KnowledgeRateLimited",
     "KnowledgeProvider",
     "ProviderState",
     "SourceMeta",
@@ -46,6 +47,10 @@ class GroundedAnswer:
 
 class KnowledgeError(Exception):
     pass
+
+
+class KnowledgeRateLimited(KnowledgeError):
+    """Quota or rate limit hit; retrying right away won't help."""
 
 
 class KnowledgeProvider(ABC):

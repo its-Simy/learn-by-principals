@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 from core.config import Config
+from core.providers.knowledge.gemini_notebook import GeminiNotebookProvider
 from core.providers.lms.base import LMSProvider
 from core.providers.lms.brightspace import BrightspaceSessionProvider
 from core.providers.lms.session import PlaywrightSession
@@ -23,3 +25,12 @@ def open_lms(config: Config) -> Iterator[LMSProvider]:
         yield BrightspaceSessionProvider(session)
     finally:
         session.close()
+
+
+@contextmanager
+def open_knowledge(config: Config, conn: sqlite3.Connection) -> Iterator[GeminiNotebookProvider]:
+    provider = GeminiNotebookProvider.from_config(config, conn)
+    try:
+        yield provider
+    finally:
+        provider.close()

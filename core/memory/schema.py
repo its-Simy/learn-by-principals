@@ -46,11 +46,20 @@ CREATE TABLE IF NOT EXISTS model_runs (
 )
 """
 
+NOTEBOOKS = """
+CREATE TABLE notebooks (
+    course      TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+)
+"""
+
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         RESOURCES,
         "CREATE INDEX resources_course ON resources (course, bucket)",
         MODEL_RUNS,
+        NOTEBOOKS,
     ),
 }
 

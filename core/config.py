@@ -36,6 +36,9 @@ class Config:
     tmp_dir: Path
     db_path: Path
     login_timeout_s: int = 600
+    nlm_min_interval_s: float = 1.5
+    nlm_source_cap: int = 50
+    nlm_artifact_timeout_s: float = 1200.0
 
     @property
     def browser_profile_dir(self) -> Path:
@@ -44,6 +47,15 @@ class Config:
     @property
     def storage_state_path(self) -> Path:
         return self.home / "storage_state.json"
+
+    @property
+    def notebooklm_home(self) -> Path:
+        """``NOTEBOOKLM_HOME`` for notebooklm-py: its master token and cookies live here."""
+        return self.home / "notebooklm"
+
+    @property
+    def notebooklm_storage_path(self) -> Path:
+        return self.notebooklm_home / "profiles" / "default" / "storage_state.json"
 
 
 def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -> Config:
@@ -56,6 +68,9 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         storage_root=Path(env.get("BRIGHTLEARN_STORAGE_ROOT", home / "courses")).expanduser(),
         tmp_dir=Path(env.get("BRIGHTLEARN_TMP_DIR", DEFAULT_TMP_DIR)).expanduser(),
         db_path=Path(env.get("BRIGHTLEARN_DB", home / "brightlearn.db")).expanduser(),
+        nlm_min_interval_s=float(env.get("BRIGHTLEARN_NLM_MIN_INTERVAL_S", 1.5)),
+        nlm_source_cap=int(env.get("BRIGHTLEARN_NLM_SOURCE_CAP", 50)),
+        nlm_artifact_timeout_s=float(env.get("BRIGHTLEARN_NLM_ARTIFACT_TIMEOUT_S", 1200)),
     )
 
 

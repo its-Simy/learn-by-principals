@@ -90,3 +90,15 @@ def test_unbuilt_providers_are_not_configured(config, monkeypatch):
     names = {name for name, _ in doctor.checks(config)}
     assert {"NotebookLM", "Claude Code", "Codex"} <= names
     assert doctor.not_configured("Codex", "BL-023").status is Status.OFF
+
+
+def test_notebooklm_not_installed_warns(config, monkeypatch):
+    monkeypatch.setattr(doctor.gemini_notebook, "library_installed", lambda: False)
+    assert doctor.check_notebooklm(config).status is Status.WARN
+
+
+@pytest.mark.parametrize(("ok", "status"), [(True, Status.OK), (False, Status.FAIL)])
+def test_notebooklm_auth_check(config, monkeypatch, ok, status):
+    monkeypatch.setattr(doctor.gemini_notebook, "library_installed", lambda: True)
+    monkeypatch.setattr(doctor.gemini_notebook, "auth_check", lambda config: (ok, "detail"))
+    assert doctor.check_notebooklm(config).status is status

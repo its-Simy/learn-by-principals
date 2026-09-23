@@ -17,6 +17,7 @@ from rich.table import Table
 from cli import common
 from core.config import Config, load_config
 from core.memory.schema import SCHEMA_VERSION
+from core.providers.knowledge import gemini_notebook
 from core.providers.lms.session import chromium_executable
 from core.providers.state import ProviderState
 from core.providers.storage.local import LocalStorageBackend
@@ -107,6 +108,13 @@ def check_brightspace(config: Config) -> Check:
     return Check("Brightspace", Status.FAIL, f"{state}; see log")
 
 
+def check_notebooklm(config: Config) -> Check:
+    if not gemini_notebook.library_installed():
+        return Check("NotebookLM", Status.WARN, f"not installed: {gemini_notebook.INSTALL_HINT}")
+    ok, detail = gemini_notebook.auth_check(config)
+    return Check("NotebookLM", Status.OK if ok else Status.FAIL, detail)
+
+
 def not_configured(name: str, ticket: str) -> Check:
     return Check(name, Status.OFF, f"arrives in {ticket}")
 
@@ -120,7 +128,7 @@ def checks(config: Config) -> list[tuple[str, Callable[[], Check]]]:
         ("ANTHROPIC_API_KEY", lambda: check_api_key(os.environ)),
         ("Chromium", check_chromium),
         ("Brightspace", lambda: check_brightspace(config)),
-        ("NotebookLM", lambda: not_configured("NotebookLM", "BL-014")),
+        ("NotebookLM", lambda: check_notebooklm(config)),
         ("Claude Code", lambda: not_configured("Claude Code", "BL-022")),
         ("Codex", lambda: not_configured("Codex", "BL-023")),
     ]

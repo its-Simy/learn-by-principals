@@ -98,3 +98,40 @@ Principle 2 bans that, but the ticket asks for a spike against the raw library. 
 - **Find-by-title** doesn't exist; the code filters `notebooks.list()`.
 - **Removing a source** needs the notebook id. The ticket's `remove_source(source_id)` doesn't take one.
 - **Only some file types upload:** `.pdf .docx .pptx .txt .md .csv .epub`. Code files (`.c`, `.s`) and other extensions can't be added, which is one more reason BL-015 skips `code`.
+
+## BL-014
+
+### P22. Provider built before the spike ran
+The provider follows the 0.8.2 source, not observed behaviour. Unit tests use mocked transports and a mocked client. **(you)** Install the library (P18), then run `brightlearn dev nlm-test`. It finds or creates `BrightLearn-spike`, adds the syllabus, queries it, and removes the source.
+
+### P23. Fallback rules beyond the ticket
+The ticket says: a failed Android call retries once on web and marks the provider `LIMITED`; both failing → `BROKEN`. I added these exceptions:
+- **Rate limits:** a `RateLimitError` sets `RATE_LIMITED` and does **not** retry on web. The quota is per account, so a retry burns a call.
+- **Caller errors:** not-found errors, validation errors, and a generation that NotebookLM itself failed are raised straight away. They don't fall back and the state doesn't change.
+- **Auth:** if both transports fail with auth errors, the state is `AUTH_EXPIRED`, not `BROKEN`.
+- **No sticky state:** every call tries Android first again, so the state goes back to `AVAILABLE` once Android works.
+
+### P24. A web retry can create duplicates
+If Android actually did the work but the response failed, retrying `add_file`, notebook creation or a generation on web creates a second source, notebook or artifact. Generating twice also costs quota twice.
+- **What I did:** nothing.
+
+### P25. Every query continues the last conversation
+Without a `conversation_id`, `chat.ask` extends the notebook's most recent conversation, so each BrightLearn question is answered as a follow-up to the one before.
+- **What I did:** nothing.
+
+### P26. Downloads fetch "the latest completed artifact"
+Downloads pass `artifact_id=None`. That is correct only while nothing else generates in the same notebook at the same time.
+
+### P27. Schema v1 changed after it was committed
+The `notebooks` table (BL-014) and the `deferred` sync state (BL-015) went into migration v1 after BL-009R had already committed v1. A database created between those commits would miss both and needs deleting. None exists: your database is still v0.
+
+### P28. Ledger fields for NotebookLM calls
+- `model` holds the transport (`android`/`web`), because NotebookLM doesn't report a model.
+- Token estimates are recorded for queries only.
+- `core/ledger/ledger.py` (`ModelRun`, `Ledger.record`) was created here, because this ticket needs it before BL-021.
+
+### P29. Finding a source's notebook
+`remove_source`, `source_fulltext` and `refresh_source` get only a source id, but the library needs the notebook too. The provider looks it up in the ids it has seen, then in `resources.notebook_source_id`. Otherwise it raises.
+
+### P30. Doctor shows NotebookLM as a yellow warning until the library is installed
+Once installed, doctor runs `python -m notebooklm --storage ~/.brightlearn/notebooklm/profiles/default/storage_state.json auth check --json`. That checks web cookies only, not the Android master token.
