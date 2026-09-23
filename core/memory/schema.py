@@ -1,8 +1,8 @@
 """SQLite DDL, applied as numbered migrations tracked in ``PRAGMA user_version``.
 
 v1: the sync manifest, ledger and notebook cache. v2: learner memory. v3: the mastery audit
-trail. v4: Challenger probes. v5: concept weeks. Later tables land with their ticket as new
-migrations.
+trail. v4: Challenger probes. v5: concept weeks. v6: podcast episodes. Later tables land with
+their ticket as new migrations.
 """
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
@@ -160,6 +160,19 @@ CREATE TABLE challenges (
 )
 """
 
+# Which concepts each generated episode targeted (a JSON array of concept ids), so later evidence
+# can be tied back to it (BL-034).
+PODCASTS = """
+CREATE TABLE podcasts (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    course           TEXT NOT NULL,
+    concepts         TEXT NOT NULL,
+    instruction_path TEXT NOT NULL,
+    audio_path       TEXT NOT NULL,
+    created_at       TEXT NOT NULL
+)
+"""
+
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         RESOURCES,
@@ -189,6 +202,7 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     ),
     # The ExamSpec selects concepts by week (BL-031); `concepts apply` fills it from the draft.
     5: ("ALTER TABLE concepts ADD COLUMN week INTEGER",),
+    6: (PODCASTS,),
 }
 
 SCHEMA_VERSION = max(MIGRATIONS)

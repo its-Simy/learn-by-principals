@@ -10,6 +10,7 @@ from cli import concepts, dev, exam, sessions
 from cli.ask import ask
 from cli.doctor import doctor
 from cli.generate import generate
+from cli.podcast import podcast
 from cli.sync import sync
 from cli.tutor import tutor
 
@@ -19,6 +20,7 @@ app.command()(doctor)
 app.command()(ask)
 app.command()(generate)
 app.command()(tutor)
+app.command()(podcast)
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")
 app.add_typer(sessions.app, name="sessions")

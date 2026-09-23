@@ -33,6 +33,7 @@ brightlearn/
 │   ├── tutor.py          # tutoring session (BL-026)
 │   ├── analysis/         # Analyzer (BL-027), Challenger loop (BL-030)
 │   ├── exams/            # spec, coverage, generate, paper, take, grade (BL-031–033)
+│   ├── podcast/          # compiler.py (learner state -> Audio Overview brief), episodes.py
 │   ├── personas.py       # load / list / render persona files
 │   ├── router/           # v0 fixed order (BL-026); benchmarks-driven in Phase 10
 │   └── ledger/
@@ -137,6 +138,8 @@ mastery_history: id, concept_id, old_level, new_level, confidence, evidence_ids 
 challenges:  id, concept_id, session_id, reason, question,
              status (pending|asked|answered|resolved), created_at
              -- at most one unresolved challenge per concept                             (BL-030)
+podcasts:    id, course, concepts (JSON concept ids), instruction_path, audio_path,
+             created_at                                                                  (BL-034)
 benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              latency_ms, learner_rating, sample_count                                    (Phase 10)
 ```

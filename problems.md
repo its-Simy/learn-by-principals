@@ -443,3 +443,19 @@ The Questioner's output shape listed `concept, level, question, answer, source`,
 - **The `.md` file has the answer key and rubrics at the end**, after a rule, so the top half can be printed. Don't open it before taking the exam.
 - Coding answers are typed line by line and end with a `/done` line. Multiple choice takes a letter or the option's text.
 - **Spec files can live anywhere** (the ticket's example is `exams/cse220-midterm1.yaml`). No example spec is committed.
+
+## BL-034
+
+### P82. The podcast brief's rules
+- **"The master spec's template" doesn't exist.** The spec only lists what the brief must say. My template has these sections: teaching preference, skip, dwell on, misconceptions to confront, exam framing, how to end.
+- **Focus:** the five weakest concepts not on the skip list. With `--exam`, the candidates are the exam's coverage plan re-weighted as `weakness`, whatever mode the spec says, plus any in-scope concepts too light to get a question. Otherwise it's `weakest()` order over the whole course.
+- **Skip:** level ≥ 4 and retention ≥ 0.7, from the same candidates.
+- **Misconceptions:** misconception evidence plus the `## Misconceptions` bullets in the vault's concept notes, for the focus concepts only, at most three. The spec's `misconceptions/` folder still isn't built (P41).
+- **Teaching preference:** `vault/learner/profile.md` (front matter and headings dropped, first 60 words). If the file is missing, a plain default is used. **(you)** Write that file if you want episodes shaped to you.
+- **Word cap:** 400 words. The skip list, misconceptions, focus list and preference are trimmed in that order. As a last resort, whole lines past the cap are dropped.
+
+### P83. Podcast CLI details
+- `--exam` takes a spec YAML path, or the name of an exam already created (matched ignoring case and punctuation, so `midterm1` finds "Midterm 1"). The name is looked up in the newest matching exam JSON in the vault.
+- `--format` defaults to `deep-dive`. `--length` defaults to NotebookLM's own default.
+- The audio keeps the extension the provider downloads (`.m4a` from NotebookLM, P36). The `podcasts.concepts` column holds the focus concept ids.
+- It doesn't check for an open tutor session, because generating audio doesn't touch NotebookLM chat.
