@@ -251,3 +251,12 @@ All of these come from memory. **(you)** Install Codex, run `codex --help`, and 
 - **Allowance:** I know of no way to read the `/status` allowance from `exec` mode, so only limit messages are parsed.
 - **System prompt:** `codex exec` has no system-prompt flag, so the persona prompt is prepended to the user prompt with a `---` separator.
 - **API keys:** `OPENAI_API_KEY` is removed from Codex's environment as well as `ANTHROPIC_API_KEY`, in case an API key would switch Codex to metered billing (principle 1). The ticket only names `ANTHROPIC_API_KEY`.
+
+## BL-024
+
+### P54. Persona details the spec doesn't give
+- **Challenger has no task type:** none in the spec's list fits, so it uses `question_gen`.
+- **Coverage isn't built:** the spec says the eighth persona is "mostly code", and the ticket doesn't list it.
+- **`min_anchor_level`:** `null` for every persona except Analogist (3).
+- **Wording:** the text of each file is my own, following the spec's table. Each renders to roughly 250–330 tokens.
+- **Module name:** `core.personas.list` shadows the builtin, as the ticket names it. `list_personas` is the same function.
