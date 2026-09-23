@@ -1,4 +1,8 @@
-"""A tutoring session: compile each question, route it, keep the transcript in the vault."""
+"""A tutoring session: compile each question, route it, keep the transcript in the vault.
+
+A session on a course with pending challenges opens with them (BL-030): one Challenger probe per
+concept, each answer graded alone before tutoring starts.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,15 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
+from core.analysis.analyzer import AnalysisError
+from core.analysis.challenge import (
+    Challenge,
+    ChallengeRunner,
+    Probe,
+    estimate_task,
+    format_estimate,
+    parse_estimate,
+)
 from core.context.compiler import ContextCompiler, Turn, TutorSession
 from core.ledger.ledger import utcnow
 from core.memory.learner import LearnerMemory, SessionRow
@@ -18,7 +31,7 @@ log = logging.getLogger(__name__)
 
 HELP = (
     "Commands: /ask <question> asks the course sources directly, /persona <name> switches"
-    " persona, /end closes the session, /help shows this."
+    " persona, /skip defers open challenges, /end closes the session, /help shows this."
 )
 
 
@@ -32,6 +45,7 @@ class Tutor:
         learner: LearnerMemory,
         vault: Vault,
         on_end: Callable[[Tutor], str | None] | None = None,
+        challenges: ChallengeRunner | None = None,
     ) -> None:
         self.course = course
         self.persona = load(persona).name
@@ -44,6 +58,9 @@ class Tutor:
         self.session: TutorSession | None = None
         self.providers_used: list[str] = []
         self.ended = False
+        self._challenges = challenges
+        self._queue: list[Challenge] = []
+        self.probe: Probe | None = None  # the Challenger question awaiting an answer
 
     @property
     def transcript_path(self) -> Path:
@@ -60,7 +77,13 @@ class Tutor:
             f"started_at: '{self.row.started_at}'\n---\n\n"
             f"# Tutor session {self.row.session_id} · {self.course}\n"
         )
+        if self._challenges is not None:
+            self._queue = self._challenges.pending(self.course)
         return self.row
+
+    def opening(self) -> str | None:
+        """The first Challenger probe, when the course has pending challenges."""
+        return self._next_probe()
 
     def handle(self, line: str) -> str | None:
         """One line of input: a command or a question. Returns what to show the learner."""
@@ -71,12 +94,16 @@ class Tutor:
             return HELP
         if line == "/end":
             return self.end()
+        if line == "/skip":
+            return self.skip()
         if line.startswith("/persona"):
             return self.switch(line.removeprefix("/persona").strip())
         if line == "/ask" or line.startswith("/ask "):
             return self.ground(line.removeprefix("/ask").strip())
         if line.startswith("/"):
             return f"Unknown command {line.split()[0]}. {HELP}"
+        if self.probe is not None:
+            return self.answer_probe(line)
         return self.ask(line)
 
     def switch(self, name: str) -> str:
@@ -121,6 +148,67 @@ class Tutor:
             f"**Tutor ({self.persona} · {result.provider}):** {result.text}\n"
         )
         return result.text
+
+    # -- challenges --------------------------------------------------------------------------
+
+    def _next_probe(self) -> str | None:
+        """Ask the next queued challenge (at most one per concept per session)."""
+        assert self.session is not None, "call start() first"
+        while self._queue and self._challenges is not None:
+            challenge = self._queue.pop(0)
+            try:
+                probe = self._challenges.ask(challenge, self.session)
+            except ModelError as exc:
+                log.warning("Challenge %d not asked: %s", challenge.id, exc)
+                continue  # stays pending for next session
+            self.probe = probe
+            self._append(
+                f"\n**Challenge (challenger · {probe.provider or 'asked before'}) on "
+                f"{probe.concept.name}:** {probe.question}\n"
+            )
+            return f"**Challenge · {probe.concept.name}**\n\n{probe.question}"
+        return None
+
+    def answer_probe(self, answer: str) -> str:
+        assert self.probe is not None and self.row is not None and self._challenges is not None
+        probe, self.probe = self.probe, None
+        self._append(f"\n**Learner (challenge answer):** {answer}\n")
+        try:
+            report = self._challenges.grade(probe, answer, self.row)
+            note = f"Challenge graded by {report.provider}: {len(report.evidence_ids)} evidence."
+        except AnalysisError as exc:
+            log.warning("Challenge %d not graded: %s", probe.challenge.id, exc)
+            note = f"Challenge not graded ({exc}); it will be asked again next session."
+        self._append(f"\n_{note}_\n")
+        following = self._next_probe()
+        return f"{note}\n\n{following}" if following else f"{note} Now, what shall we work on?"
+
+    def skip(self) -> str:
+        if self.probe is None and not self._queue:
+            return "No open challenges."
+        skipped = len(self._queue) + (self.probe is not None)
+        self.probe, self._queue = None, []
+        self._append(f"\n_{skipped} challenge(s) deferred._\n")
+        return f"{skipped} challenge(s) deferred to a later session."
+
+    def self_estimate(self) -> tuple[dict[str, int], str] | None:
+        """The tutor's own one-line estimate of the concepts that came up, from the provider(s)
+        that tutored. None when there was no tutoring or the call failed."""
+        if not self.session or not self.session.turns or not self.providers_used:
+            return None
+        concepts = self._learner.concepts(self.course)
+        if not concepts:
+            return None
+        others = set(self._router.providers) - set(self.providers_used)
+        try:
+            result = self._router.run(
+                estimate_task(self.course, concepts, self.session.turns), exclude=others
+            )
+        except ModelError as exc:
+            log.warning("No tutor estimate: %s", exc)
+            return None
+        estimate = parse_estimate(result.text, concepts)
+        return estimate, format_estimate(estimate, concepts)
 
     def end(self) -> str:
         assert self.row is not None

@@ -1,7 +1,7 @@
 """SQLite DDL, applied as numbered migrations tracked in ``PRAGMA user_version``.
 
 v1: the sync manifest, ledger and notebook cache. v2: learner memory. v3: the mastery audit
-trail. Later tables (benchmarks) land with their phase as new migrations.
+trail. v4: Challenger probes. Later tables land with their ticket as new migrations.
 """
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
@@ -143,6 +143,22 @@ MASTERY_HISTORY_APPEND_ONLY = (
     " BEGIN SELECT RAISE(ABORT, 'mastery_history is append-only'); END",
 )
 
+CHALLENGE_STATUSES = ("pending", "asked", "answered", "resolved")
+
+# A disagreement about a concept's level becomes one Challenger probe (BL-030).
+CHALLENGES = f"""
+CREATE TABLE challenges (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    concept_id TEXT NOT NULL REFERENCES concepts (concept_id),
+    session_id TEXT,
+    reason     TEXT NOT NULL,
+    question   TEXT,
+    status     TEXT NOT NULL DEFAULT 'pending'
+               CHECK (status IN ({_in(CHALLENGE_STATUSES)})),
+    created_at TEXT NOT NULL
+)
+"""
+
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         RESOURCES,
@@ -163,6 +179,12 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         MASTERY_HISTORY,
         "CREATE INDEX mastery_history_concept ON mastery_history (concept_id, changed_at)",
         *MASTERY_HISTORY_APPEND_ONLY,
+    ),
+    4: (
+        CHALLENGES,
+        # At most one open challenge per concept: a second disagreement collapses into it.
+        "CREATE UNIQUE INDEX challenges_one_open ON challenges (concept_id)"
+        " WHERE status != 'resolved'",
     ),
 }
 

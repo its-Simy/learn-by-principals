@@ -86,8 +86,13 @@ class Vault:
         return _write(self.concept_path(concept), concept_row(concept, mastery), "\n".join(lines))
 
     def write_session_summary(
-        self, session: SessionRow, summary: str = "", evidence: list[Evidence] | None = None
+        self,
+        session: SessionRow,
+        summary: str = "",
+        evidence: list[Evidence] | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> Path:
+        """``extra`` adds front-matter fields that aren't session columns (e.g. tutor_estimate)."""
         lines = [
             f"# Session {session.session_id} · {session.course}",
             "",
@@ -97,7 +102,9 @@ class Vault:
             lines += ["", "## Evidence extracted", ""]
             lines += [f"- {e.concept_id}: {e.type} ({e.strength})" for e in evidence]
         return _write(
-            self.session_summary_path(session.session_id), asdict(session), "\n".join(lines)
+            self.session_summary_path(session.session_id),
+            {**asdict(session), **(extra or {})},
+            "\n".join(lines),
         )
 
     def vault_check(self, learner: LearnerMemory) -> list[Mismatch]:

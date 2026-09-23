@@ -48,11 +48,15 @@ def tutor(
                     learner,
                     Vault(config.vault_root),
                     on_end=common.session_end_hook(config, conn, providers),
+                    challenges=common.challenge_runner(config, conn, providers, compiler),
                 )
             except PersonaError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             row = session.start()
             console.print(f"Session {row.session_id} · {course} · {session.persona}. {HELP}")
+            opening = session.opening()
+            if opening:
+                console.print(Markdown(opening))
             while not session.ended:
                 try:
                     line = console.input("[bold]you>[/] ")

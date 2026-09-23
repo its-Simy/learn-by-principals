@@ -3,7 +3,7 @@
 Principle 6: the Analyzer never runs on a provider that tutored the session.
 Principle 4: every mastery change it makes points at the evidence rows written for it.
 A proposed level exactly one away from the level at session start is applied; bigger jumps are
-recorded as ``needs_challenge`` for the Challenger (Phase 6+) and not applied.
+recorded as ``needs_challenge`` and not applied (``core.analysis.challenge`` queues a probe).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from core.jsonutil import extract_json_array
 from core.ledger.ledger import estimate_tokens
-from core.memory.learner import LearnerError, LearnerMemory, SessionRow
+from core.memory.learner import Concept, LearnerError, LearnerMemory, SessionRow
 from core.memory.schema import EVIDENCE_STRENGTHS, EVIDENCE_TYPES
 from core.memory.vault import Vault
 from core.personas import load, render
@@ -64,6 +64,8 @@ class AnalysisReport:
     applied: list[LevelChange] = field(default_factory=list)
     needs_challenge: list[LevelChange] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    # The Analyzer's finding: the last valid proposed level per concept it wrote evidence for.
+    proposals: dict[str, int] = field(default_factory=dict)
 
     def summary(self) -> str:
         return (
@@ -85,8 +87,49 @@ class Analyzer:
         self._learner = learner
         self._vault = vault
 
-    def analyze(self, row: SessionRow, transcript: str) -> AnalysisReport:
+    def analyze(
+        self, row: SessionRow, transcript: str, tutor_estimate: str | None = None
+    ) -> AnalysisReport:
+        """Analyze a whole session; ``tutor_estimate`` (one line) goes into its summary."""
         concepts = self._learner.concepts(row.course)
+        report = self._run(row, transcript, concepts, tutor_providers(row))
+
+        row.analyzer_provider = report.provider
+        if self._vault is not None:
+            ids = set(report.evidence_ids)
+            evidence = [
+                e
+                for c in concepts
+                for e in self._learner.evidence(c.concept_id)
+                if e.evidence_id in ids
+            ]
+            extra = {"tutor_estimate": tutor_estimate} if tutor_estimate else None
+            row.summary_path = str(
+                self._vault.write_session_summary(row, self._summary_text(report), evidence, extra)
+            )
+        self._learner.update_session(row)
+        for change in report.needs_challenge:
+            log.warning(
+                "needs_challenge: %s proposed %d -> %d (not applied)",
+                change.concept_id,
+                change.current,
+                change.proposed,
+            )
+        return report
+
+    def grade_exchange(
+        self, row: SessionRow, concept: Concept, transcript: str, exclude: set[str]
+    ) -> AnalysisReport:
+        """Grade one short exchange (a Challenger probe and its answer) for one concept alone.
+
+        The session row and summary are left alone; ``exclude`` keeps the provider that asked the
+        question from grading it (principle 6).
+        """
+        return self._run(row, transcript, [concept], exclude)
+
+    def _run(
+        self, row: SessionRow, transcript: str, concepts: list[Concept], exclude: set[str]
+    ) -> AnalysisReport:
         by_name = {c.name.lower(): c for c in concepts} | {c.concept_id: c for c in concepts}
         start_levels = {
             c.concept_id: (m.level if (m := self._learner.get_mastery(c.concept_id)) else 0)
@@ -94,7 +137,7 @@ class Analyzer:
         }
         task = self._task(row, transcript, concepts, start_levels)
         try:
-            result = self._router.run(task, exclude=tutor_providers(row))
+            result = self._router.run(task, exclude=exclude)
         except ModelError as exc:
             raise AnalysisError(f"Analyzer could not run: {exc}") from exc
         items = extract_json_array(result.text)
@@ -107,26 +150,6 @@ class Analyzer:
         for item in items:
             self._apply_item(
                 item, row, result.provider, by_name, start_levels, support, report, spoken
-            )
-
-        row.analyzer_provider = result.provider
-        if self._vault is not None:
-            evidence = [
-                e
-                for c in concepts
-                for e in self._learner.evidence(c.concept_id)
-                if e.evidence_id in set(report.evidence_ids)
-            ]
-            row.summary_path = str(
-                self._vault.write_session_summary(row, self._summary_text(report), evidence)
-            )
-        self._learner.update_session(row)
-        for change in report.needs_challenge:
-            log.warning(
-                "needs_challenge: %s proposed %d -> %d (not applied)",
-                change.concept_id,
-                change.current,
-                change.proposed,
             )
         return report
 
@@ -184,6 +207,8 @@ class Analyzer:
             return
         current = start_levels[concept.concept_id]
         change = LevelChange(concept.concept_id, current, proposed)
+        if 0 <= proposed <= 5:
+            report.proposals[concept.concept_id] = proposed
         if abs(proposed - current) == 1 and 0 <= proposed <= 5:
             self._learner.set_mastery(
                 concept.concept_id,

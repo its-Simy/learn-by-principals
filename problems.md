@@ -375,3 +375,21 @@ The ticket names `ask`, but anything that starts a fresh conversation on a cours
 
 ### P69. The version-integrity test relies on hard links
 `_versions` copies are hard links, so an in-place write would change the kept copy, and the test catches that (a second test proves it by patching in an in-place write). On a filesystem without hard links the kept copy is a real copy, and an in-place write wouldn't be caught. APFS, where the tests run, has hard links.
+
+## BL-030
+
+### P70. Migration numbers follow ticket order
+`challenges` is migration v4. BL-035 calls `benchmarks` "migration v4", but by then v4 is taken, so each ticket takes the next free number.
+- A unique partial index allows one open (unresolved) challenge per concept. A second disagreement merges its reason into the open row. That is how "two pending challenges collapse to one" and "max one per concept per session" are enforced.
+
+### P71. The tutor's estimate costs a model call
+At `/end`, the provider that tutored gets one extra call (task type `tutor_estimate`, not in the spec's list) asking for one line, `Concept: level; …`. It's parsed against the course's concept names and stored as `tutor_estimate` in the session summary's front matter. It's only compared where the Analyzer also proposed a level for that concept. If the call fails, the session is analyzed without it.
+
+### P72. A probe's grade follows the ±1 rule and is never re-challenged
+The Analyzer grades the probe's exchange alone and writes evidence as usual. Only a proposal exactly one level from the current one changes mastery. A bigger jump, even one the probe confirms, is **not** applied and doesn't queue another challenge (principle 7: at most two rounds). So a probe that confirms "0 → 3" records strong evidence but leaves the level at 0. **Your call:** should a confirmed probe apply the jump?
+
+### P73. Who asks and who grades
+- The Challenger runs on the `[routing] teaching` order, and its grader on `analysis` minus the provider that wrote the question (principle 6). Its question is grounded with one NotebookLM query in the session's own conversation.
+- The probe isn't tutoring. Its lines go into the transcript as `**Challenge …**` / `**Learner (challenge answer):**`, not as `**Learner:**`, so the end-of-session Analyzer can't count them twice, and the Challenger's provider isn't added to `tutor_provider`.
+- **A question asked in an earlier session** (after `/skip`, or when grading failed) is asked again word for word. The table doesn't record who wrote it, so in that case the grader isn't kept off that provider.
+- A challenge whose question can't be generated (model error) stays `pending`. One whose grading fails goes back to `asked`.
