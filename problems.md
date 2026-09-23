@@ -197,3 +197,20 @@ BL-026 appends the transcript to `memory/sessions/{id}.md`, so the BL-019 summar
 
 ### P43. New dependency: PyYAML
 PyYAML is added to `pyproject.toml` and installed in `.venv` with `uv pip install`. There's no `uv.lock` in the repo.
+
+## BL-020
+
+### P44. `week` has nowhere to go
+The seed prompt asks for `week`, as the ticket says, but `concepts` in `CLAUDE.md` has no `week` column.
+- **What I did:** `week` stays in the draft YAML and is dropped on apply.
+
+### P45. How "never applies without review" is enforced
+The draft is written with `reviewed: false`, and `concepts apply` refuses to load it until someone edits that line to `true`.
+
+### P46. Concept ids come from names
+A concept's id is `{course}/{slug(name)}`, for example `cse220/pointer-arithmetic`.
+- **Renames:** renaming a concept in the draft creates a new concept. The old row is never deleted.
+- **Prerequisites:** a prerequisite is linked by its name's slug. Names that aren't concepts in the draft are reported but still stored.
+
+### P47. Seeding relies on NotebookLM answering in raw JSON
+The prompt asks for a JSON array only, and the parser tolerates code fences, prose and `[n]` citation markers. A prose-only answer fails with an error, and nothing is written. Seeding also inherits P25: the query continues the notebook's last conversation.
