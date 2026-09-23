@@ -172,3 +172,35 @@ def test_health(storage, tmp_path):
 def test_health_does_not_create_the_root(storage):
     storage.health()
     assert not storage.root.exists()
+
+
+# -- version integrity (BL-029) --------------------------------------------------------------
+
+
+def _store_twice_and_check_versions(storage, tmp_path) -> None:
+    v1, v2 = b"lecture v1", b"lecture v2 (corrected)"
+    first = storage.store(src(tmp_path, v1), REL, "lec1.pdf")
+    storage.store(src(tmp_path, v2), REL, "lec1.pdf")
+
+    (kept,) = storage.versions(REL, "lec1.pdf")
+    assert hashlib.sha256(kept.read_bytes()).hexdigest() == first.sha256, "old version changed"
+    assert (storage.root / REL / "lec1.pdf").read_bytes() == v2
+
+
+def test_versions_file_still_hashes_to_v1_after_v2_is_stored(storage, tmp_path):
+    _store_twice_and_check_versions(storage, tmp_path)
+
+
+def test_version_check_catches_an_in_place_write(storage, tmp_path, monkeypatch):
+    """The version is a hard link, so writing the new bytes into the current file would change
+    the kept copy too. Only rename-into-place leaves it intact; the check above must notice."""
+
+    def write_in_place(src_path, dest, digest):
+        with dest.open("r+b" if dest.exists() else "wb") as f:
+            f.truncate(0)
+            f.write(src_path.read_bytes())
+        src_path.unlink()
+
+    monkeypatch.setattr(storage, "_move", write_in_place)
+    with pytest.raises(AssertionError, match="old version changed"):
+        _store_twice_and_check_versions(storage, tmp_path)

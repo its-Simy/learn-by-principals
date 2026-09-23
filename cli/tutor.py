@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 
 from cli import common
+from cli.sessions import refuse_if_session_open
 from core.config import load_config
 from core.context.compiler import ContextCompiler
 from core.ledger.ledger import Ledger
@@ -28,12 +29,14 @@ def tutor(
     conn = connect(config.db_path)
     learner = LearnerMemory(conn)
     try:
-        providers = common.model_providers(config, ("teaching", "analysis"))
-    except (KeyError, ValueError) as exc:
-        raise typer.BadParameter(f"[routing] in {config.config_path}: {exc}") from exc
-    # v0: the order comes from config.toml [routing] teaching (default claude, then codex).
-    router = Router(providers, Ledger(conn), list(config.routing["teaching"]))
-    try:
+        # A second session's first query would delete this course's live conversation (P66).
+        refuse_if_session_open(conn, course)
+        try:
+            providers = common.model_providers(config, ("teaching", "analysis"))
+        except (KeyError, ValueError) as exc:
+            raise typer.BadParameter(f"[routing] in {config.config_path}: {exc}") from exc
+        # v0: the order comes from config.toml [routing] teaching (default claude, then codex).
+        router = Router(providers, Ledger(conn), list(config.routing["teaching"]))
         with common.open_knowledge(config, conn) as knowledge:
             compiler = ContextCompiler(knowledge, learner, Manifest(conn))
             try:

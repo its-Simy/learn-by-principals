@@ -129,6 +129,10 @@ class ContextCompiler:
             },
         )
 
+    def ground(self, question: str, course: str, session: TutorSession) -> str:
+        """A grounded answer with citations, asked in the session's own conversation (``/ask``)."""
+        return self._source_context(question, course, session.conversation)
+
     # -- sections ----------------------------------------------------------------------------
 
     def _source_context(self, question: str, course: str, conversation: Conversation | None) -> str:

@@ -1,5 +1,6 @@
 import json
 from contextlib import contextmanager
+from datetime import datetime
 
 import pytest
 import yaml
@@ -14,7 +15,11 @@ from core.memory.seeding import (
     DraftNotReviewed,
     SeedingError,
     apply,
-    draft_path,
+    draft_diff,
+    drafts_dir,
+    latest_draft,
+    list_drafts,
+    new_draft_path,
     parse_concepts,
     seed,
 )
@@ -75,9 +80,9 @@ def mark_reviewed(path):
 
 
 def test_seed_writes_an_unreviewed_draft(kp, db, tmp_path):
-    path, concepts = seed(kp, db, "CSE220", tmp_path / "memory")
+    path, concepts = seed(kp, db, "CSE220", tmp_path / "memory", now=datetime(2026, 9, 23, 14, 30))
 
-    assert path == tmp_path / "memory/courses/CSE220/concepts.draft.yaml"
+    assert path == tmp_path / "memory/courses/CSE220/concepts.draft.20260923-143000.yaml"
     doc = yaml.safe_load(path.read_text())
     assert doc["reviewed"] is False
     assert [c["name"] for c in doc["concepts"]] == ["Pointers", "Data representation"]
@@ -112,7 +117,7 @@ def test_apply_inserts_rows_and_is_idempotent(kp, db, tmp_path):
 
 
 def test_apply_reports_prerequisites_missing_from_the_draft(tmp_path, db):
-    path = draft_path(tmp_path, "CSE220")
+    path = new_draft_path(tmp_path, "CSE220")
     path.parent.mkdir(parents=True)
     path.write_text(
         yaml.safe_dump(
@@ -149,8 +154,105 @@ def test_cli_seed_then_apply(kp, tmp_path, monkeypatch):
     refused = runner.invoke(app, ["concepts", "apply", "--course", "CSE220"])
     assert refused.exit_code == 1
 
-    mark_reviewed(tmp_path / "memory/courses/CSE220/concepts.draft.yaml")
+    mark_reviewed(latest_draft(tmp_path / "memory", "CSE220"))
     applied = runner.invoke(app, ["concepts", "apply", "--course", "CSE220"])
     assert applied.exit_code == 0, applied.output
     conn = connect(load_config().db_path)
     assert len(LearnerMemory(conn).concepts("CSE220")) == 2
+
+
+# -- P65: seed never overwrites a draft ------------------------------------------------------
+
+
+def test_reseeding_keeps_the_reviewed_draft_and_writes_a_new_one(kp, db, tmp_path):
+    vault = tmp_path / "memory"
+    first, _ = seed(kp, db, "CSE220", vault, now=datetime(2026, 9, 23, 14, 30))
+    mark_reviewed(first)
+    reviewed = first.read_text()
+
+    kp.answer_text = canned_answer().replace("Pointers", "Pointer basics")
+    second, _ = seed(kp, db, "CSE220", vault, now=datetime(2026, 9, 24, 9, 0))
+
+    assert first.read_text() == reviewed
+    assert second.name == "concepts.draft.20260924-090000.yaml"
+    assert list_drafts(vault, "CSE220") == [first, second]
+    diff = draft_diff(first, second)
+    assert diff.startswith("--- concepts.draft.20260923-143000.yaml\n+++ ")
+    assert "-reviewed: true\n+reviewed: false" in diff
+    assert "+- name: Pointer basics" in diff
+
+
+def test_same_second_seed_gets_a_suffix_not_an_overwrite(kp, db, tmp_path):
+    now = datetime(2026, 9, 23, 14, 30)
+    first, _ = seed(kp, db, "CSE220", tmp_path, now=now)
+    second, _ = seed(kp, db, "CSE220", tmp_path, now=now)
+    third, _ = seed(kp, db, "CSE220", tmp_path, now=now)
+
+    assert [p.name for p in (first, second, third)] == [
+        "concepts.draft.20260923-143000.yaml",
+        "concepts.draft.20260923-143000-2.yaml",
+        "concepts.draft.20260923-143000-3.yaml",
+    ]
+    assert list_drafts(tmp_path, "CSE220") == [first, second, third]
+
+
+def test_legacy_draft_counts_as_the_oldest(kp, db, tmp_path):
+    legacy = drafts_dir(tmp_path, "CSE220") / "concepts.draft.yaml"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("course: CSE220\nreviewed: true\nconcepts: []\n")
+    new, _ = seed(kp, db, "CSE220", tmp_path)
+    assert list_drafts(tmp_path, "CSE220") == [legacy, new]
+    assert legacy.read_text().startswith("course: CSE220")
+
+
+def test_cli_seed_prints_a_diff_against_the_newest_draft(kp, tmp_path, monkeypatch):
+    monkeypatch.setenv("BRIGHTLEARN_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "memory"))
+
+    @contextmanager
+    def fake_open_knowledge(config, conn):
+        yield kp
+
+    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    assert runner.invoke(app, ["concepts", "seed", "--course", "CSE220"]).exit_code == 0
+    first = latest_draft(tmp_path / "memory", "CSE220")
+    mark_reviewed(first)
+
+    kp.answer_text = canned_answer().replace("Pointers", "Pointer basics")
+    again = runner.invoke(app, ["concepts", "seed", "--course", "CSE220"])
+
+    assert again.exit_code == 0, again.output
+    assert f"--- {first.name}" in again.output
+    assert "+- name: Pointer basics" in again.output
+    assert "reviewed: true" in first.read_text()
+    assert len(list_drafts(tmp_path / "memory", "CSE220")) == 2
+
+    # apply takes the newest draft, which isn't reviewed yet; --draft picks the reviewed one
+    refused = runner.invoke(app, ["concepts", "apply", "--course", "CSE220"])
+    assert refused.exit_code == 1
+    assert "pick one with --draft" in refused.output
+    chosen = runner.invoke(app, ["concepts", "apply", "--course", "CSE220", "--draft", first.name])
+    assert chosen.exit_code == 0, chosen.output
+    conn = connect(load_config().db_path)
+    assert [c.name for c in LearnerMemory(conn).concepts("CSE220")] == [
+        "Data representation",
+        "Pointers",
+    ]
+
+
+def test_cli_seed_refuses_while_a_tutor_session_is_open(kp, tmp_path, monkeypatch):
+    monkeypatch.setenv("BRIGHTLEARN_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "memory"))
+    conn = connect(load_config().db_path)
+    LearnerMemory(conn).start_session("CSE220")
+    conn.close()
+
+    @contextmanager
+    def fake_open_knowledge(config, conn):
+        yield kp
+
+    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    result = runner.invoke(app, ["concepts", "seed", "--course", "CSE220"])
+    assert result.exit_code == 1
+    assert "is open on CSE220" in result.output
+    assert kp.queries == []

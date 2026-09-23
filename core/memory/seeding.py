@@ -1,12 +1,16 @@
 """Seed a course's concept graph from NotebookLM, via a draft YAML that a human reviews first.
 
-``seed`` writes ``memory/courses/{course}/concepts.draft.yaml`` with ``reviewed: false``;
-``apply`` refuses to load it until that flag has been set to ``true`` by hand.
+``seed`` writes a new ``vault/courses/{course}/concepts.draft.{timestamp}.yaml`` with
+``reviewed: false`` and never overwrites an earlier draft (P65); ``apply`` refuses to load a draft
+until that flag has been set to ``true`` by hand.
 """
 
 from __future__ import annotations
 
+import difflib
+import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -52,8 +56,58 @@ def concept_id(course: str, name: str) -> str:
     return f"{course.lower()}/{slug(name)}"
 
 
-def draft_path(vault_root: Path, course: str) -> Path:
-    return vault_root / "courses" / course / "concepts.draft.yaml"
+LEGACY_DRAFT = "concepts.draft.yaml"  # the single, overwritten draft written before BL-029
+_DRAFT_NAME = re.compile(r"^concepts\.draft\.(\d{8}-\d{6})(?:-(\d+))?\.yaml$")
+
+
+def drafts_dir(vault_root: Path, course: str) -> Path:
+    return vault_root / "courses" / course
+
+
+def _draft_order(path: Path) -> tuple[str, int]:
+    match = _DRAFT_NAME.match(path.name)
+    if match is None:  # the legacy draft is older than every timestamped one
+        return ("", 0)
+    return (match.group(1), int(match.group(2) or 0))
+
+
+def list_drafts(vault_root: Path, course: str) -> list[Path]:
+    """Every concept draft for ``course``, oldest first."""
+    folder = drafts_dir(vault_root, course)
+    if not folder.is_dir():
+        return []
+    drafts = [p for p in folder.iterdir() if p.name == LEGACY_DRAFT or _DRAFT_NAME.match(p.name)]
+    return sorted(drafts, key=_draft_order)
+
+
+def latest_draft(vault_root: Path, course: str) -> Path | None:
+    drafts = list_drafts(vault_root, course)
+    return drafts[-1] if drafts else None
+
+
+def new_draft_path(vault_root: Path, course: str, now: datetime | None = None) -> Path:
+    """``concepts.draft.{YYYYmmdd-HHMMSS}.yaml``, with ``-N`` added if that name is taken."""
+    stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
+    folder = drafts_dir(vault_root, course)
+    path, n = folder / f"concepts.draft.{stamp}.yaml", 1
+    while path.exists():
+        n += 1
+        path = folder / f"concepts.draft.{stamp}-{n}.yaml"
+    return path
+
+
+def draft_diff(previous: Path | None, current: Path) -> str:
+    """Unified diff from ``previous`` to ``current`` ("" when there is no previous draft)."""
+    if previous is None:
+        return ""
+    return "".join(
+        difflib.unified_diff(
+            previous.read_text().splitlines(keepends=True),
+            current.read_text().splitlines(keepends=True),
+            fromfile=previous.name,
+            tofile=current.name,
+        )
+    )
 
 
 def parse_concepts(text: str) -> list[DraftConcept]:
@@ -79,8 +133,13 @@ def parse_concepts(text: str) -> list[DraftConcept]:
 
 
 def seed(
-    knowledge: KnowledgeProvider, db: Manifest, course: str, vault_root: Path
+    knowledge: KnowledgeProvider,
+    db: Manifest,
+    course: str,
+    vault_root: Path,
+    now: datetime | None = None,
 ) -> tuple[Path, list[DraftConcept]]:
+    """Query NotebookLM and write a new draft; earlier drafts are never touched."""
     rows = [r for r in db.all(course) if r.bucket in SEED_BUCKETS]
     titles = "\n".join(f"- {r.title}" for r in rows if r.bucket == "lectures") or "- (none)"
     source_ids = [r.notebook_source_id for r in rows if r.notebook_source_id] or None
@@ -89,12 +148,13 @@ def seed(
     concepts = parse_concepts(answer.text)
     if not concepts:
         raise SeedingError("NotebookLM returned no concepts")
-    path = draft_path(vault_root, course)
+    path = new_draft_path(vault_root, course, now)
     write_draft(path, course, concepts)
     return path, concepts
 
 
 def write_draft(path: Path, course: str, concepts: list[DraftConcept]) -> None:
+    """Create ``path``; refuses if it already exists (a draft is never overwritten)."""
     doc: dict[str, Any] = {
         "course": course,
         "reviewed": False,
@@ -112,9 +172,10 @@ def write_draft(path: Path, course: str, concepts: list[DraftConcept]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     header = (
         "# Draft from NotebookLM. Edit freely, then set `reviewed: true` and run\n"
-        f"# `brightlearn concepts apply --course {course}`.\n"
+        f"# `brightlearn concepts apply --course {course}` (newest draft; --draft picks another).\n"
     )
-    path.write_text(header + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
+    with path.open("x") as f:
+        f.write(header + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
 
 
 @dataclass(frozen=True)

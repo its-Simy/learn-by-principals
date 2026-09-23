@@ -157,6 +157,7 @@ Newest first. Add a row whenever a principle is bent or a provider choice change
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| Sept 23, 2026 | While a course has an open tutor session, nothing else starts a NotebookLM conversation on it: `ask`, `concepts seed` and a second `tutor` refuse; `/ask` inside the session uses its conversation. `brightlearn sessions close` ends a stuck one. | A fresh conversation deletes the latest one, which is the live tutor's (P66). |
 | Sept 23, 2026 | Model routing v0 is a fixed order per purpose, read from `[routing]` in `~/.brightlearn/config.toml` (teaching `claude, codex`; analysis `codex, claude`). A temporary exception to principle 8 until the benchmarks table exists (Phase 10). | The ticket asked for v0; keeping the order in config makes it data, not code. |
 | Sept 23, 2026 | The vault moves out of the repo to `~/.brightlearn/vault/`; it is no longer git-versioned. | Transcripts and mastery are personal; nothing personal should be committable. |
 | Sept 23, 2026 | Every NotebookLM query starts a fresh conversation (the provider deletes the notebook's latest one first); a tutor session keeps one conversation of its own. NotebookLM's chat history for BrightLearn notebooks is not kept; the ledger and transcripts are the record. | Otherwise NotebookLM carries hidden history into the Context Compiler's minimal package. |

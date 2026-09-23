@@ -1,4 +1,4 @@
-# Problems — TICKETS-2 build
+# Problems — TICKETS-2 and TICKETS-3 builds
 
 Problems that the tickets don't settle. Each one says what I did (usually the most literal reading, or nothing) so work could move on. The triage below (BL-028) records which have since been fixed.
 
@@ -32,7 +32,7 @@ Problems that the tickets don't settle. Each one says what I did (usually the mo
 | P26, P31, P32, P33 | Single user. Failures are loud but lose nothing. |
 | P35, P38, P41, P44, P46, P47 | Nothing is lost: misconceptions are evidence rows, and `week` stays in the draft YAML. Tunable or re-derivable later. |
 | P48, P51, P53, P54, P55, P57, P59, P60, P62 | Behaviour to tune once there's real usage. `needs_challenge` stays in session summaries until a Challenger exists. |
-| P65, P66 | New, listed below. |
+| ~~P65, P66~~ | Fixed in BL-029 (TICKETS-3). |
 
 ### Resolved, accepted or informational
 P1, P2 (decided as done) · P6 (historical) · P7 (your cleanup, whenever) · P8, P9, P11, P13, P14, P17, P27, P28, P29, P39, P42, P43, P45, P56, P63 · P19, P21, P36 (accepted) · P30 (superseded by P20).
@@ -350,8 +350,28 @@ Nothing checks that an excerpt actually appears in the transcript, or that it's 
 
 ### P65. Re-running `concepts seed` overwrites the reviewed draft
 `seed` always writes `concepts.draft.yaml`, even over one that says `reviewed: true`. Applied concepts are safe in SQLite, but the reviewed file, including its `week` values (P44), is lost.
-- **What I did:** nothing (triaged as later).
+- **What I did:** nothing (triaged as later). **Fixed in BL-029.**
 
 ### P66. Fresh conversations delete NotebookLM chat history
 Starting a fresh conversation means deleting the notebook's latest one. If `brightlearn ask` runs while a tutor session is open on the same course, it deletes the tutor's live conversation, and the tutor's next follow-up fails or starts over. The NotebookLM web UI also shows no chat history for BrightLearn notebooks. The decision log records this as accepted.
-- **What I did:** nothing more.
+- **What I did:** nothing more. **Fixed in BL-029** (see P67).
+
+---
+
+# TICKETS-3
+
+## BL-029
+
+### P67. The open-session guard covers more than `ask`
+The ticket names `ask`, but anything that starts a fresh conversation on a course deletes a live tutor's conversation the same way.
+- **What I did:** `ask`, `concepts seed` and `tutor` (a second session on the same course) all refuse while `sessions` has an open row for that course, and say how to close it. Other courses aren't blocked.
+- **`/ask` added to the tutor REPL.** The ticket's "`/ask` hint" had nothing to point at, so `/ask <question>` now asks NotebookLM inside the session's own conversation and prints the grounded answer with citations. It runs no model, and its lines go into the transcript as `**Ask (NotebookLM):**`, so the Analyzer doesn't read them as learner turns.
+- **A crash leaves the session open.** EOF and Ctrl-C still end the session normally. Any other crash leaves the row open, and `ask`/`seed`/`tutor` refuse until `brightlearn sessions close --id X` (or `--all`). `close` only sets `ended_at`; it doesn't run the Analyzer on that transcript.
+
+### P68. Which draft `concepts apply` loads
+`seed` now writes `concepts.draft.{YYYYmmdd-HHMMSS}.yaml` (adding `-2`, `-3` if that second is taken) and never opens an existing file for writing. The old single `concepts.draft.yaml`, if present, counts as the oldest draft.
+- **What I did:** `apply` loads the newest draft by default and `--draft FILE` picks another. If the newest isn't reviewed, `apply` refuses and lists the earlier drafts, so a reviewed older draft is never applied by accident.
+- The diff `seed` prints is against the newest earlier draft, reviewed or not.
+
+### P69. The version-integrity test relies on hard links
+`_versions` copies are hard links, so an in-place write would change the kept copy, and the test catches that (a second test proves it by patching in an in-place write). On a filesystem without hard links the kept copy is a real copy, and an in-place write wouldn't be caught. APFS, where the tests run, has hard links.

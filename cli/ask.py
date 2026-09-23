@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 
 from cli import common
+from cli.sessions import ASK_HINT, refuse_if_session_open
 from core.config import load_config
 from core.memory.db import Manifest, connect
 from core.sync.classify import BUCKETS
@@ -33,6 +34,8 @@ def ask(
     config = load_config()
     conn = connect(config.db_path)
     try:
+        # A fresh query deletes the course's latest conversation: never a live tutor's (P66).
+        refuse_if_session_open(conn, course.upper(), ASK_HINT)
         rows = [r for r in Manifest(conn).all(course.upper()) if r.notebook_source_id]
         titles = {r.notebook_source_id: r for r in rows}
         source_ids = None

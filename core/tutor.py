@@ -16,7 +16,10 @@ from core.router.router import Router
 
 log = logging.getLogger(__name__)
 
-HELP = "Commands: /persona <name> switches persona, /end closes the session, /help shows this."
+HELP = (
+    "Commands: /ask <question> asks the course sources directly, /persona <name> switches"
+    " persona, /end closes the session, /help shows this."
+)
 
 
 class Tutor:
@@ -70,6 +73,8 @@ class Tutor:
             return self.end()
         if line.startswith("/persona"):
             return self.switch(line.removeprefix("/persona").strip())
+        if line == "/ask" or line.startswith("/ask "):
+            return self.ground(line.removeprefix("/ask").strip())
         if line.startswith("/"):
             return f"Unknown command {line.split()[0]}. {HELP}"
         return self.ask(line)
@@ -89,6 +94,16 @@ class Tutor:
         self.persona = persona.name
         self._append(f"\n_Persona switched to {persona.name}._\n")
         return f"Persona: {persona.name}"
+
+    def ground(self, question: str) -> str:
+        """``/ask``: NotebookLM's grounded answer, in this session's conversation (P66)."""
+        assert self.session is not None, "call start() first"
+        if not question:
+            return "Usage: /ask <question>"
+        answer = self._compiler.ground(question, self.course, self.session)
+        quoted = "\n".join(f"> {line}" for line in answer.splitlines())
+        self._append(f"\n**Ask (NotebookLM):** {question}\n\n{quoted}\n")
+        return answer
 
     def ask(self, question: str) -> str:
         assert self.session is not None, "call start() first"

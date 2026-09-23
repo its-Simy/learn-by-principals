@@ -372,3 +372,29 @@ class LearnerMemory:
             "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
         ).fetchone()
         return SessionRow(**dict(row)) if row else None
+
+    def sessions(self, course: str | None = None, open_only: bool = False) -> list[SessionRow]:
+        """Newest first."""
+        sql, args = "SELECT * FROM sessions WHERE 1 = 1", []
+        if course is not None:
+            sql += " AND course = ?"
+            args.append(course)
+        if open_only:
+            sql += " AND ended_at IS NULL"
+        rows = self.conn.execute(sql + " ORDER BY started_at DESC, rowid DESC", args)
+        return [SessionRow(**dict(r)) for r in rows]
+
+    def open_sessions(self, course: str | None = None) -> list[SessionRow]:
+        """Sessions with no ``ended_at``: each holds a live NotebookLM conversation (P66)."""
+        return self.sessions(course, open_only=True)
+
+    def close_session(self, session_id: str) -> SessionRow:
+        """Mark an open session ended now. Transcript and analysis are left as they are."""
+        session = self.get_session(session_id)
+        if session is None:
+            raise LearnerError(f"No session {session_id!r}")
+        if session.ended_at is not None:
+            raise LearnerError(f"Session {session_id} already ended at {session.ended_at}")
+        session.ended_at = self._now()
+        self.update_session(session)
+        return session

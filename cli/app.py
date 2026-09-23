@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 
-from cli import concepts, dev
+from cli import concepts, dev, sessions
 from cli.ask import ask
 from cli.doctor import doctor
 from cli.generate import generate
@@ -21,6 +21,7 @@ app.command()(generate)
 app.command()(tutor)
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")
+app.add_typer(sessions.app, name="sessions")
 
 
 @app.callback()
