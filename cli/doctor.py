@@ -142,7 +142,7 @@ def checks(config: Config) -> list[tuple[str, Callable[[], Check]]]:
             "Claude Code",
             lambda: check_model_cli("Claude Code", common.open_model("claude", config)),
         ),
-        ("Codex", lambda: not_configured("Codex", "BL-023")),
+        ("Codex", lambda: check_model_cli("Codex", common.open_model("codex", config))),
     ]
 
 

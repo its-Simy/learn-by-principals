@@ -65,6 +65,7 @@ def limit_hint(text: str) -> UsageHint:
 class CLIModelProvider(ModelProvider):
     name = "cli"
     binary = "cli"
+    scrubbed_env: tuple[str, ...] = SCRUBBED_ENV
 
     def __init__(
         self,
@@ -146,7 +147,7 @@ class CLIModelProvider(ModelProvider):
 
     def env(self) -> dict[str, str]:
         env = dict(os.environ)
-        for key in SCRUBBED_ENV:
+        for key in self.scrubbed_env:
             env.pop(key, None)
         return env
 

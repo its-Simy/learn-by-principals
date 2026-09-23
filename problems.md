@@ -236,3 +236,18 @@ The only copy is the one bundled with the VS Code extension, at `~/.vscode/exten
 - **Settings still load:** `--tools ""` disables tools. The scratch working directory keeps the repo's `CLAUDE.md` out. User-level `~/.claude` settings, hooks and plugins still load. `--bare` would skip them, but it only accepts `ANTHROPIC_API_KEY` auth, which breaks principle 1.
 - **Health checks cost quota:** `health()` makes a real one-token call, at most once every 10 minutes. Doctor only runs `claude --version`.
 - **Timeouts:** a timeout sets the state to `LIMITED`.
+
+## BL-023
+
+### P52. `codex` isn't installed, so nothing about it is verified
+The ticket says to check the flags with `codex --help`, but `codex` isn't on this machine. So nothing below has been checked:
+- **Flags:** `codex exec --skip-git-repo-check --sandbox read-only --color never -o <file> <prompt>`.
+- **Output:** a `model: …` line in the header and a `tokens used: N` line.
+- **Limit messages:** "You've hit your usage limit…" and "429 Too Many Requests".
+
+All of these come from memory. **(you)** Install Codex, run `codex --help`, and compare. Then run `brightlearn dev model-test codex "Say hi"`. Doctor shows Codex as a yellow warning until then.
+
+### P53. Codex quirks
+- **Allowance:** I know of no way to read the `/status` allowance from `exec` mode, so only limit messages are parsed.
+- **System prompt:** `codex exec` has no system-prompt flag, so the persona prompt is prepended to the user prompt with a `---` separator.
+- **API keys:** `OPENAI_API_KEY` is removed from Codex's environment as well as `ANTHROPIC_API_KEY`, in case an API key would switch Codex to metered billing (principle 1). The ticket only names `ANTHROPIC_API_KEY`.

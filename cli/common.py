@@ -13,8 +13,9 @@ from core.providers.lms.brightspace import BrightspaceSessionProvider
 from core.providers.lms.session import PlaywrightSession
 from core.providers.models.base import ModelProvider
 from core.providers.models.claude_code import ClaudeCodeProvider
+from core.providers.models.codex import CodexProvider
 
-MODEL_PROVIDERS = {"claude": ClaudeCodeProvider}
+MODEL_PROVIDERS = {"claude": ClaudeCodeProvider, "codex": CodexProvider}
 
 
 @contextmanager

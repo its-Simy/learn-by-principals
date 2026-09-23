@@ -19,6 +19,10 @@ if args == ["--version"]:
     sys.exit(0)
 if mode == "sleep":
     time.sleep(10)
+for flag in ("-o", "--output-last-message"):
+    if flag in args and "FAKE_LAST_MESSAGE" in os.environ:
+        with open(args[args.index(flag) + 1], "w") as out:
+            out.write(os.environ["FAKE_LAST_MESSAGE"])
 print(os.environ.get("FAKE_STDOUT", ""), end="")
 print(os.environ.get("FAKE_STDERR", ""), end="", file=sys.stderr)
 sys.exit(int(os.environ.get("FAKE_EXIT", "0")))
