@@ -31,6 +31,8 @@ brightlearn/
 │   ├── sync/             # classify.py, engine.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
 │   ├── tutor.py          # tutoring session (BL-026)
+│   ├── analysis/         # Analyzer (BL-027)
+│   ├── personas.py       # load / list / render persona files
 │   ├── router/           # v0 fixed order (BL-026); benchmarks-driven in Phase 10
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex

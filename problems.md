@@ -292,3 +292,18 @@ If Codex takes over partway through a session, `sessions.tutor_provider` is `"cl
 
 ### P61. Manual acceptance pending (you)
 Run a 5-turn session on pointers with `brightlearn tutor --course CSE220 --persona simplifier`. It needs the NotebookLM setup (P18), a linked sync, and the Claude CLI (P49).
+
+## BL-027
+
+### P62. `needs_challenge` has no table
+Jumps of more than one level are logged, and written to the session summary (`memory/sessions/{id}.summary.md`). Nothing stores them where a later Challenger could query them.
+
+### P63. Analyzer choices the ticket leaves open
+- **Which level counts as "current":** the level at the **start** of the session. Two +1 proposals in one session can't stack into +2.
+- **Confidence:** the evidence strength sets the new mastery's confidence: weak 0.4, moderate 0.6, strong 0.8.
+- **What `set_mastery` cites:** all of that concept's evidence from the session.
+- **Unknown concepts:** items naming a concept that isn't seeded are skipped. Until `concepts seed/apply` has run for a course, the Analyzer records nothing.
+- **Transcript length:** the transcript sent is capped at its last ~6,000 tokens.
+
+### P64. The Analyzer's output is trusted
+Nothing checks that an excerpt actually appears in the transcript, or that it's the learner's words rather than the tutor's. The persona's rules ask for this, but the code doesn't verify it.

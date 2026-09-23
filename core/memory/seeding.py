@@ -6,14 +6,13 @@
 
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from core.jsonutil import extract_json_array
 from core.memory.db import Manifest
 from core.memory.learner import Concept, LearnerMemory
 from core.memory.vault import slug
@@ -59,18 +58,8 @@ def draft_path(vault_root: Path, course: str) -> Path:
 
 def parse_concepts(text: str) -> list[DraftConcept]:
     """The JSON array in a model answer, tolerating code fences and surrounding prose."""
-    items: Any = None
-    # NotebookLM puts citation markers like [1] or [2, 3] inline; try as-is, then without them.
-    for candidate in (text, re.sub(r"\[\d+(?:,\s*\d+)*\]", "", text)):
-        start = candidate.find("[{")
-        if start == -1:
-            continue
-        try:
-            items, _ = json.JSONDecoder().raw_decode(candidate[start:])
-            break
-        except json.JSONDecodeError:
-            continue
-    if not isinstance(items, list):
+    items = extract_json_array(text)
+    if not items:
         raise SeedingError("No JSON array of concepts in the NotebookLM answer")
     concepts = []
     for item in items:
