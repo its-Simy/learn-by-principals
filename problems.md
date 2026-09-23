@@ -221,3 +221,18 @@ The prompt asks for a JSON array only, and the parser tolerates code fences, pro
 The spec says the Model Router is the only thing that talks to models and that it logs each call. So Claude and Codex runs are recorded by the router (BL-026) with `ModelRun.from_result` / `ModelRun.from_error`. NotebookLM calls are still recorded inside that provider (BL-014), so there are two recording paths.
 - `UsageHint` isn't defined anywhere. I gave it: tokens, `limit_message`, `resets_at`, `raw`.
 - `today_summary()` uses the UTC date, so evening runs in New York count toward tomorrow.
+
+## BL-022
+
+### P49. `claude` isn't on PATH on this machine
+The only copy is the one bundled with the VS Code extension, at `~/.vscode/extensions/anthropic.claude-code-2.1.280-darwin-arm64/resources/native-binary/claude`. **(you)** Install the CLI, or put it on PATH, then run `brightlearn dev model-test claude "Say hi"`. Doctor shows Claude Code as a yellow warning until then.
+
+### P50. Claude's JSON output wasn't checked live
+- **What was checked:** the flags, against the bundled `claude --help` (2.1.280).
+- **What wasn't:** the output shape (`result`, `is_error`, `subtype`, `usage`, `modelUsage`) and the usage-limit wording (e.g. "Claude AI usage limit reached|<epoch>", "5-hour limit reached ∙ resets 3pm"). Both come from memory, not from a run, because a run spends your quota. The manual test will show whether the parser is right.
+
+### P51. Claude CLI limits
+- **Output length:** `claude -p` has no max-output-tokens flag, so `TaskPackage.max_output_tokens` is ignored.
+- **Settings still load:** `--tools ""` disables tools. The scratch working directory keeps the repo's `CLAUDE.md` out. User-level `~/.claude` settings, hooks and plugins still load. `--bare` would skip them, but it only accepts `ANTHROPIC_API_KEY` auth, which breaks principle 1.
+- **Health checks cost quota:** `health()` makes a real one-token call, at most once every 10 minutes. Doctor only runs `claude --version`.
+- **Timeouts:** a timeout sets the state to `LIMITED`.

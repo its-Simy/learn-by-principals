@@ -11,7 +11,9 @@ from rich.table import Table
 
 from cli import common
 from core.config import ensure_home, load_config
+from core.ledger.ledger import Ledger, ModelRun, utcnow
 from core.memory.db import Manifest, connect
+from core.providers.models.base import ModelError, TaskPackage
 
 SPIKE_NOTEBOOK = "BrightLearn-spike"
 
@@ -66,3 +68,34 @@ def nlm_test(
             step("remove_source", lambda: kp.remove_source(source_id))
     finally:
         conn.close()
+
+
+@app.command("model-test")
+def model_test(
+    provider: str = typer.Argument(..., help="claude or codex"),
+    prompt: str = typer.Argument("Say hi", help="What to send."),
+) -> None:
+    """Send one prompt through a model provider and print the reply (logged to the ledger)."""
+    config = load_config()
+    try:
+        model = common.open_model(provider, config)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    task = TaskPackage("model_test", None, "", prompt, 256)
+    conn = connect(config.db_path)
+    ledger = Ledger(conn)
+    started, t0 = utcnow(), time.monotonic()
+    try:
+        result = model.run(task)
+    except ModelError as exc:
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        ledger.record(ModelRun.from_error(task, model.name, exc, started, duration_ms))
+        conn.close()
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+    ledger.record(ModelRun.from_result(task, result, started))
+    conn.close()
+    console.print(result.text)
+    console.print(
+        f"[dim]{result.provider} · {result.model or 'model unknown'} · {result.duration_ms} ms[/]"
+    )

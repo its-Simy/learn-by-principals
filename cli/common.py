@@ -11,6 +11,10 @@ from core.providers.knowledge.gemini_notebook import GeminiNotebookProvider
 from core.providers.lms.base import LMSProvider
 from core.providers.lms.brightspace import BrightspaceSessionProvider
 from core.providers.lms.session import PlaywrightSession
+from core.providers.models.base import ModelProvider
+from core.providers.models.claude_code import ClaudeCodeProvider
+
+MODEL_PROVIDERS = {"claude": ClaudeCodeProvider}
 
 
 @contextmanager
@@ -34,3 +38,9 @@ def open_knowledge(config: Config, conn: sqlite3.Connection) -> Iterator[GeminiN
         yield provider
     finally:
         provider.close()
+
+
+def open_model(name: str, config: Config) -> ModelProvider:
+    if name not in MODEL_PROVIDERS:
+        raise ValueError(f"Unknown model provider {name!r}; one of {sorted(MODEL_PROVIDERS)}")
+    return MODEL_PROVIDERS[name].from_config(config)

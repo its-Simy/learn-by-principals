@@ -19,6 +19,7 @@ from core.config import Config, load_config
 from core.memory.schema import SCHEMA_VERSION
 from core.providers.knowledge import gemini_notebook
 from core.providers.lms.session import chromium_executable
+from core.providers.models.cli_base import CLIModelProvider
 from core.providers.state import ProviderState
 from core.providers.storage.local import LocalStorageBackend
 
@@ -115,6 +116,14 @@ def check_notebooklm(config: Config) -> Check:
     return Check("NotebookLM", Status.OK if ok else Status.FAIL, detail)
 
 
+def check_model_cli(name: str, provider: CLIModelProvider) -> Check:
+    """``<binary> --version`` only: an auth check would spend subscription quota."""
+    version = provider.version()
+    if version is None:
+        return Check(name, Status.WARN, f"`{provider.binary}` not on PATH")
+    return Check(name, Status.OK, f"{version}; login not checked")
+
+
 def not_configured(name: str, ticket: str) -> Check:
     return Check(name, Status.OFF, f"arrives in {ticket}")
 
@@ -129,7 +138,10 @@ def checks(config: Config) -> list[tuple[str, Callable[[], Check]]]:
         ("Chromium", check_chromium),
         ("Brightspace", lambda: check_brightspace(config)),
         ("NotebookLM", lambda: check_notebooklm(config)),
-        ("Claude Code", lambda: not_configured("Claude Code", "BL-022")),
+        (
+            "Claude Code",
+            lambda: check_model_cli("Claude Code", common.open_model("claude", config)),
+        ),
         ("Codex", lambda: not_configured("Codex", "BL-023")),
     ]
 

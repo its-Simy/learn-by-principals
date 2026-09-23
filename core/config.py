@@ -41,6 +41,7 @@ class Config:
     nlm_min_interval_s: float = 1.5
     nlm_source_cap: int = 50
     nlm_artifact_timeout_s: float = 1200.0
+    model_timeout_s: float = 300.0
 
     @property
     def browser_profile_dir(self) -> Path:
@@ -74,6 +75,7 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         nlm_min_interval_s=float(env.get("BRIGHTLEARN_NLM_MIN_INTERVAL_S", 1.5)),
         nlm_source_cap=int(env.get("BRIGHTLEARN_NLM_SOURCE_CAP", 50)),
         nlm_artifact_timeout_s=float(env.get("BRIGHTLEARN_NLM_ARTIFACT_TIMEOUT_S", 1200)),
+        model_timeout_s=float(env.get("BRIGHTLEARN_MODEL_TIMEOUT_S", 300)),
     )
 
 

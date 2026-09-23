@@ -102,3 +102,13 @@ def test_notebooklm_auth_check(config, monkeypatch, ok, status):
     monkeypatch.setattr(doctor.gemini_notebook, "library_installed", lambda: True)
     monkeypatch.setattr(doctor.gemini_notebook, "auth_check", lambda config: (ok, "detail"))
     assert doctor.check_notebooklm(config).status is status
+
+
+def test_model_cli_check_reports_version_or_missing(tmp_path, monkeypatch):
+    from core.providers.models.claude_code import ClaudeCodeProvider
+
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    provider = ClaudeCodeProvider(tmp_path / "scratch")
+    assert doctor.check_model_cli("Claude Code", provider).status is Status.WARN
+    monkeypatch.setattr(provider, "version", lambda: "2.1.280 (Claude Code)")
+    assert doctor.check_model_cli("Claude Code", provider).status is Status.OK
