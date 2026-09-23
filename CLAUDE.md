@@ -27,7 +27,7 @@ brightlearn/
 │   │   ├── storage/      # base.py, local.py
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
 │   │   └── models/       # base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
-│   ├── memory/           # schema.py, db.py, vault.py
+│   ├── memory/           # schema.py, db.py, learner.py, vault.py
 │   ├── sync/             # classify.py, engine.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
 │   ├── router/           # routing, health, fallback, benchmarks (Phase 10)
@@ -119,6 +119,8 @@ mastery:     concept_id, level 0-5, confidence, evidence_count, last_evidence_at
              retention_confidence, last_reviewed                                         (Phase 4)
 evidence:    evidence_id, concept_id, session_id, type, strength, source_provider,
              excerpt_ref, recorded_at   (append-only)                                    (Phase 4)
+sessions:    session_id, course, started_at, ended_at, tutor_provider, analyzer_provider,
+             summary_path                                                                (Phase 4)
 benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              latency_ms, learner_rating, sample_count                                    (Phase 10)
 ```

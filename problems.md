@@ -165,3 +165,19 @@ After P18 and a linked sync, run `brightlearn ask --course CSE220 "How are point
 ### P36. The audio artifact will be `.m4a`, not MP3
 The acceptance asks for "one short MP3", but NotebookLM returns AAC/MP4 (P21). The file keeps the extension the provider downloads.
 - **(you)** Manual acceptance is pending: `brightlearn generate quiz --course CSE220` and `brightlearn generate audio --course CSE220 --format brief --length short`.
+
+## BL-018
+
+### P37. `mastery` can't point at its evidence
+Principle 4 (and the spec) says every mastery row points at the evidence ids that justify it, but the `mastery` table in `CLAUDE.md` only has `evidence_count` and `last_evidence_at`.
+- **What I did:** `set_mastery` refuses an empty list or ids that aren't that concept's evidence. The ids themselves aren't stored. A `mastery_evidence` link table, or a JSON column, would fix it.
+
+### P38. Values the tickets don't define
+- **Retention decay:** unchanged for 2 days after the last evidence, then halving every 14 days. It's computed from `confidence`, so running it twice gives the same result.
+- **`weakest` order:** level, then retention, then confidence, then name. A concept with no mastery row counts as level 0.
+- **`last_reviewed`:** set whenever `set_mastery` runs.
+
+### P39. Other schema choices
+- `prerequisites` and `exam_tags` are stored as JSON arrays.
+- `evidence` has triggers that block UPDATE and DELETE (append-only).
+- The `sessions` table isn't in `CLAUDE.md`'s data model, so I added it there, as the ticket defines it.
