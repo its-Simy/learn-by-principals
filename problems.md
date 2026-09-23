@@ -428,3 +428,18 @@ The Questioner's output shape listed `concept, level, question, answer, source`,
 - **Grounding:** one fresh NotebookLM query per concept, reused for that concept's retries and rewrites. It's limited to the spec's `sources` buckets (`study-guides` → `exams`); if none of those are linked, every source is used and a warning is logged. Because the query is fresh, `exam create` must refuse while a tutor session is open on the course (P66); BL-033 does this.
 - **Critique:** one Critic call over the whole draft, kept off every provider that wrote a question. If no other provider is left (both tutored, or only one installed), critique is skipped and recorded in `critique_skipped`.
 - **Rewrites:** each flagged question is rewritten once, off the Critic's provider. An invalid rewrite keeps the original, valid question, with a warning. Nothing is critiqued a second time (principle 7).
+
+## BL-033
+
+### P80. How exam grades become evidence and mastery
+- **Evidence:** one row per graded answer. `session_id` is `exam:{exam id}:{attempt}`, `excerpt_ref` is `Q{n}: <the learner's answer>`, and `source_provider` is `local` for multiple choice or the grader's name. Strength: easy → weak, medium → moderate, hard → strong.
+- **Skipped questions** write no evidence (principle 5: skipping isn't a demonstrated failure). The score reports them as skipped.
+- **Mastery:** once every answered question on a concept is graded, its results propose a level. At least 75% correct proposes `max(current, the plan's target level)`, at most 25% proposes `current − 1`, and anything else proposes no change. The proposal then goes through the Analyzer's own rule (`apply_proposal`, now shared): exactly ±1 is applied with `set_mastery(changed_by="analyzer")`, citing that concept's exam evidence. ±2 or more queues a Challenger probe instead. A concept at level 0 answering its level-2 questions correctly therefore gets a challenge, not an instant level 2. Each concept is decided once per attempt.
+- **Grader:** short-answer and coding answers go to one `critic` call (task `grade`) on the `[routing] analysis` order. It isn't kept off the providers that wrote the questions, because principle 6 separates teaching from evaluation, and writing questions isn't teaching. Answers it doesn't return, or all of them if it fails, stay ungraded until the next `grade` run.
+
+### P81. Attempts and files
+- `take` resumes an unfinished attempt. After a finished one, it starts attempt 2. `grade` refuses an unfinished attempt and grades the latest finished one. Answers are saved after each question by atomic rename.
+- **Idempotent grading:** a question is graded once per attempt. That's checked in the exam file, and also against the evidence table (by `session_id` + `Q{n}:`), in case the file wasn't saved after an evidence row was written.
+- **The `.md` file has the answer key and rubrics at the end**, after a rule, so the top half can be printed. Don't open it before taking the exam.
+- Coding answers are typed line by line and end with a `/done` line. Multiple choice takes a letter or the option's text.
+- **Spec files can live anywhere** (the ticket's example is `exams/cse220-midterm1.yaml`). No example spec is committed.

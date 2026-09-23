@@ -13,8 +13,9 @@ from core.exams.spec import parse_spec
 from core.ledger.ledger import Ledger
 from core.memory.db import Manifest, ResourceRow, connect
 from core.memory.learner import Concept, LearnerMemory
-from core.providers.models.base import ModelResult, UsageHint
 from core.router.router import Router
+from tests.fakes.fake_exam import FakeQuestioner as Questioner
+from tests.fakes.fake_exam import question
 from tests.fakes.fake_knowledge import FakeKnowledge
 from tests.fakes.fake_models import FakeModel
 
@@ -22,37 +23,6 @@ CONCEPTS = [
     Concept("cse220/pointers", "CSE220", "Pointers", week=3),
     Concept("cse220/bitwise-operators", "CSE220", "Bitwise operators", week=1),
 ]
-SLOT = re.compile(r"^\d+\. (multiple_choice|short_answer|coding), (easy|medium|hard)$", re.M)
-CONCEPT_ID = re.compile(r"\(concept_id ([^\s)]+)\)")
-
-
-def question(concept_id, fmt, difficulty, n=0):
-    q = {
-        "stem": f"Q{n} about {concept_id}?",
-        "answer": "B",
-        "rubric": "Mentions the key idea.",
-        "difficulty": difficulty,
-        "concept_id": concept_id,
-        "format": fmt,
-    }
-    if fmt == "multiple_choice":
-        q["options"] = ["A", "B", "C", "D"]
-    return q
-
-
-class Questioner(FakeModel):
-    """Writes valid questions for whatever slots the task lists; ``spoil`` can corrupt them."""
-
-    def __init__(self, name, spoil=None):
-        super().__init__(name)
-        self.spoil = spoil or (lambda task, items: items)
-
-    def run(self, task):
-        self.tasks.append(task)
-        concept_id = CONCEPT_ID.search(task.user).group(1)
-        items = [question(concept_id, f, d, len(self.tasks)) for f, d in SLOT.findall(task.user)]
-        text = "```json\n" + json.dumps(self.spoil(task, items)) + "\n```"
-        return ModelResult(text, self.name, None, 5, UsageHint())
 
 
 def spec(**changes):

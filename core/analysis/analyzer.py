@@ -77,6 +77,28 @@ class AnalysisReport:
         )
 
 
+def apply_proposal(
+    learner: LearnerMemory,
+    report: AnalysisReport,
+    concept_id: str,
+    current: int,
+    proposed: int,
+    confidence: float,
+    evidence_ids: list[str],
+) -> None:
+    """The Analyzer's rule for a proposed level: exactly one level from ``current`` is applied
+    (``set_mastery`` citing ``evidence_ids``); two or more is recorded as ``needs_challenge``."""
+    change = LevelChange(concept_id, current, proposed)
+    if 0 <= proposed <= 5:
+        report.proposals[concept_id] = proposed
+    if abs(proposed - current) == 1 and 0 <= proposed <= 5:
+        learner.set_mastery(concept_id, proposed, confidence, evidence_ids, changed_by="analyzer")
+        report.applied = [c for c in report.applied if c.concept_id != concept_id]
+        report.applied.append(change)
+    elif abs(proposed - current) > 1:
+        report.needs_challenge.append(change)
+
+
 def tutor_providers(row: SessionRow) -> set[str]:
     return {p for p in (row.tutor_provider or "").split(",") if p}
 
@@ -205,22 +227,15 @@ class Analyzer:
             proposed = int(item.get("proposed_level"))
         except (TypeError, ValueError):
             return
-        current = start_levels[concept.concept_id]
-        change = LevelChange(concept.concept_id, current, proposed)
-        if 0 <= proposed <= 5:
-            report.proposals[concept.concept_id] = proposed
-        if abs(proposed - current) == 1 and 0 <= proposed <= 5:
-            self._learner.set_mastery(
-                concept.concept_id,
-                proposed,
-                STRENGTH_CONFIDENCE[strength],
-                support[concept.concept_id],
-                changed_by="analyzer",
-            )
-            report.applied = [c for c in report.applied if c.concept_id != concept.concept_id]
-            report.applied.append(change)
-        elif abs(proposed - current) > 1:
-            report.needs_challenge.append(change)
+        apply_proposal(
+            self._learner,
+            report,
+            concept.concept_id,
+            start_levels[concept.concept_id],
+            proposed,
+            STRENGTH_CONFIDENCE[strength],
+            support[concept.concept_id],
+        )
 
     @staticmethod
     def _summary_text(report: AnalysisReport) -> str:
