@@ -57,3 +57,16 @@ The skip check reads only the manifest. If a file is deleted from `storage_root`
 ### P13. `--force` isn't defined
 The ticket lists `--force` without saying what it does.
 - **What I did:** it re-downloads every file, even ones the manifest says are current. `sync_course` takes `force=`.
+
+## BL-010R
+
+### P14. Term label format changed to `Fall-2026`
+The acceptance path is `~/.brightlearn/courses/Fall-2026/CSE220/…`, but the date-based default made `2026-Fall`.
+- **What I did:** `default_term` now returns `{Season}-{Year}`. Reading the term from Brightspace (questions.md items 6 and 25) is still open.
+
+### P15. `--all` still files past courses under the current term
+`myenrollments` returns Summer 2025 through Fall 2026, plus non-course offerings (questions.md items 25–26). `--all` syncs every one of them into the current term's folder.
+- **What I did:** nothing. Use `--course` until the term is parsed from the course name.
+
+### P16. Manual acceptance pending (you)
+Run `brightlearn sync --course CSE220` twice. Check that files land in `~/.brightlearn/courses/Fall-2026/CSE220/{bucket}/` and that the second run shows everything skipped. CLI tests with a fake LMS pass.

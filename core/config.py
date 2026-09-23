@@ -13,7 +13,7 @@ DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
 
 
 def default_term(today: date | None = None) -> str:
-    """Best-guess term label from the calendar, e.g. ``2026-Fall``.
+    """Best-guess term label from the calendar, e.g. ``Fall-2026``.
 
     Placeholder until the term can be read from Brightspace (see questions.md).
     """
@@ -24,7 +24,7 @@ def default_term(today: date | None = None) -> str:
         season = "Summer"
     else:
         season = "Fall"
-    return f"{today.year}-{season}"
+    return f"{season}-{today.year}"
 
 
 @dataclass(frozen=True)
