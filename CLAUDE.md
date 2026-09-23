@@ -28,7 +28,7 @@ brightlearn/
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
 │   │   └── models/       # base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
 │   ├── memory/           # schema.py, db.py, vault.py
-│   ├── sync/             # classify.py, engine.py
+│   ├── sync/             # classify.py, engine.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
 │   ├── router/           # routing, health, fallback, benchmarks (Phase 10)
 │   └── ledger/
@@ -40,7 +40,7 @@ brightlearn/
 └── memory/               # the vault
 ```
 
-Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`, `master_token.json`. All gitignored. Never write them into the repo, tests, or logs.
+Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json` (Brightspace), and notebooklm-py's `master_token.json` + `storage_state.json` under `~/.brightlearn/notebooklm/` (set `NOTEBOOKLM_HOME` there when running `notebooklm login`). All gitignored. Never write them into the repo, tests, or logs.
 
 ## Config
 
@@ -110,7 +110,7 @@ Versioned migrations in `core/memory/schema.py`, tracked in `PRAGMA user_version
 resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identifier, url,
              filename, size, last_modified, hash, local_path, bucket,
              notebook_id, notebook_source_id, source_hash,
-             sync_state (pending|synced|stale|failed|link), last_seen
+             sync_state (pending|synced|stale|failed|link|deferred), last_seen
              -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
 model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
              input_tokens_est, output_tokens_est, fallback_from, error

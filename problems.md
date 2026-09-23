@@ -75,3 +75,26 @@ Run `brightlearn sync --course CSE220` twice. Check that files land in `~/.brigh
 
 ### P17. "All green" needs one sync first
 Doctor shows `DB schema` as a yellow warning (v0, migrates on next run) until `brightlearn sync` has run once. Everything else on this machine is green: Chromium is installed and Brightspace `whoami` returns 200. NotebookLM, Claude Code and Codex show "not configured" in grey until their tickets land.
+
+## BL-013R
+
+### P18. Spike not run (you)
+`scripts/spike_c.py` is written. `docs/spike_c_results.md` holds the API as read from the notebooklm-py 0.8.2 wheel, but not the output of a live run. Setup steps:
+1. `uv pip install "notebooklm-py[android,browser]"`. The venv has no `pip`, so plain `pip install` won't work.
+2. `NOTEBOOKLM_HOME=~/.brightlearn/notebooklm notebooklm login --master-token --account <gmail>`.
+3. Run `brightlearn sync --course CSE220`, then the spike. Paste its output into `docs/spike_c_results.md`.
+
+### P19. The spike imports `notebooklm` outside `core/providers/`
+Principle 2 bans that, but the ticket asks for a spike against the raw library. `tests/test_principles.py` doesn't scan `scripts/`.
+- **What I did:** built it as the ticket says.
+
+### P20. NotebookLM credentials land outside `~/.brightlearn/` by default
+`notebooklm login` writes `master_token.json` and `storage_state.json` to `~/.notebooklm/profiles/default/`. `CLAUDE.md` says secrets live under `~/.brightlearn/` only.
+- **What I did:** documented `NOTEBOOKLM_HOME=~/.brightlearn/notebooklm` in the spike and in `CLAUDE.md`. Don't use `NOTEBOOKLM_HOME=~/.brightlearn` itself: the library falls back to `$NOTEBOOKLM_HOME/storage_state.json`, which there is Brightspace's cookie file.
+
+### P21. Things the tickets assume that the library doesn't do
+- **`notebooklm auth status`** doesn't exist. The nearest command is `notebooklm auth check`.
+- **Audio downloads** are `.m4a` (AAC), not MP3.
+- **Find-by-title** doesn't exist; the code filters `notebooks.list()`.
+- **Removing a source** needs the notebook id. The ticket's `remove_source(source_id)` doesn't take one.
+- **Only some file types upload:** `.pdf .docx .pptx .txt .md .csv .epub`. Code files (`.c`, `.s`) and other extensions can't be added, which is one more reason BL-015 skips `code`.
