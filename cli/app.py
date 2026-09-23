@@ -34,7 +34,6 @@ def doctor() -> None:
     """Report every provider's health. Never opens a login window."""
     from core.providers.lms.brightspace import BrightspaceSessionProvider
     from core.providers.lms.session import PlaywrightSession
-    from core.providers.storage.gdrive import GoogleDriveBackend
 
     config = load_config()
     rows: list[tuple[str, ProviderState, str]] = []
@@ -52,12 +51,6 @@ def doctor() -> None:
         rows.append(("Brightspace", state, hints[state]))
     finally:
         session.close()
-
-    try:
-        drive = GoogleDriveBackend.from_config(config, interactive=False)
-        rows.append(("Google Drive", drive.health(), "files.list ok"))
-    except Exception as exc:
-        rows.append(("Google Drive", ProviderState.AUTH_EXPIRED, str(exc)))
 
     rows.append(("NotebookLM", ProviderState.DISABLED, "not built yet (Phase 2)"))
     for name, binary in (("Claude Code", "claude"), ("Codex", "codex")):
@@ -85,7 +78,7 @@ def doctor() -> None:
         colour = "green" if state is ProviderState.AVAILABLE else "yellow"
         table.add_row(name, f"[{colour}]{state}[/]", detail)
     console.print(table)
-    required = [s for n, s, _ in rows if n in ("Brightspace", "Google Drive", "ANTHROPIC_API_KEY")]
+    required = [s for n, s, _ in rows if n in ("Brightspace", "ANTHROPIC_API_KEY")]
     if any(s is not ProviderState.AVAILABLE for s in required):
         raise typer.Exit(1)
 

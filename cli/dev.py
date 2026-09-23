@@ -16,7 +16,7 @@ console = Console()
 
 @app.command()
 def courses() -> None:
-    """List active course offerings with the code BrightLearn derives for Drive."""
+    """List active course offerings with the code BrightLearn derives for folders."""
     config = load_config()
     ensure_home(config)
     session = PlaywrightSession(
@@ -28,7 +28,7 @@ def courses() -> None:
     try:
         lms = BrightspaceSessionProvider(session)
         lms.ensure_session()
-        table = Table("Org unit", "Code (Drive folder)", "Name")
+        table = Table("Org unit", "Code (folder)", "Name")
         for c in lms.list_courses():
             table.add_row(str(c.org_unit_id), c.code, c.name)
     finally:

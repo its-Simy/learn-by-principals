@@ -19,6 +19,7 @@ def test_env_overrides(tmp_path):
     assert config.db_path == tmp_path / "brightlearn.db"
     assert config.storage_state_path == tmp_path / "storage_state.json"
     assert config.tmp_dir == Path("/tmp/brightlearn")
+    assert config.storage_root == tmp_path / "courses"
 
 
 def test_secrets_live_under_home(tmp_path):
@@ -26,7 +27,5 @@ def test_secrets_live_under_home(tmp_path):
     for secret in (
         config.browser_profile_dir,
         config.storage_state_path,
-        config.drive_token_path,
-        config.drive_client_secret_path,
     ):
         assert tmp_path in secret.parents

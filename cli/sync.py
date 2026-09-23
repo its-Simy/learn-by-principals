@@ -8,7 +8,7 @@ from core.config import ensure_home, load_config
 from core.memory.db import Manifest, connect
 from core.providers.lms.brightspace import BrightspaceSessionProvider
 from core.providers.lms.session import PlaywrightSession
-from core.providers.storage.gdrive import GoogleDriveBackend
+from core.providers.storage.local import LocalStorageBackend
 from core.sync.engine import SyncEngine
 
 console = Console()
@@ -16,9 +16,9 @@ console = Console()
 
 def sync(
     course: str | None = typer.Option(None, help="Only this course code (CSE220) or org unit id."),
-    term: str | None = typer.Option(None, help="Drive term folder, e.g. 2026-Fall."),
+    term: str | None = typer.Option(None, help="Term folder, e.g. 2026-Fall."),
 ) -> None:
-    """Copy new or changed Brightspace files into Google Drive."""
+    """Copy new or changed Brightspace files into the local course folder."""
     config = load_config(term=term)
     ensure_home(config)
     conn = connect(config.db_path)
@@ -29,7 +29,7 @@ def sync(
         config.login_timeout_s,
     )
     try:
-        storage = GoogleDriveBackend.from_config(config)
+        storage = LocalStorageBackend(config.storage_root)
         engine = SyncEngine(BrightspaceSessionProvider(session), storage, Manifest(conn), config)
         report = engine.run(course=course)
     finally:

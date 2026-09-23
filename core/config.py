@@ -9,7 +9,6 @@ from datetime import date
 from pathlib import Path
 
 DEFAULT_BASE_URL = "https://mycourses.stonybrook.edu"
-DEFAULT_DRIVE_ROOT = "BrightLearn"
 DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
 
 
@@ -33,7 +32,7 @@ class Config:
     home: Path
     brightspace_base_url: str
     term: str
-    drive_root: str
+    storage_root: Path
     tmp_dir: Path
     db_path: Path
     login_timeout_s: int = 600
@@ -46,14 +45,6 @@ class Config:
     def storage_state_path(self) -> Path:
         return self.home / "storage_state.json"
 
-    @property
-    def drive_token_path(self) -> Path:
-        return self.home / "drive_token.json"
-
-    @property
-    def drive_client_secret_path(self) -> Path:
-        return self.home / "client_secret.json"
-
 
 def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -> Config:
     env = os.environ if env is None else env
@@ -62,7 +53,7 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         home=home,
         brightspace_base_url=env.get("BRIGHTLEARN_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
         term=term or env.get("BRIGHTLEARN_TERM") or default_term(),
-        drive_root=env.get("BRIGHTLEARN_DRIVE_ROOT", DEFAULT_DRIVE_ROOT),
+        storage_root=Path(env.get("BRIGHTLEARN_STORAGE_ROOT", home / "courses")).expanduser(),
         tmp_dir=Path(env.get("BRIGHTLEARN_TMP_DIR", DEFAULT_TMP_DIR)).expanduser(),
         db_path=Path(env.get("BRIGHTLEARN_DB", home / "brightlearn.db")).expanduser(),
     )
