@@ -260,3 +260,18 @@ All of these come from memory. **(you)** Install Codex, run `codex --help`, and 
 - **`min_anchor_level`:** `null` for every persona except Analogist (3).
 - **Wording:** the text of each file is my own, following the spec's table. Each renders to roughly 250–330 tokens.
 - **Module name:** `core.personas.list` shadows the builtin, as the ticket names it. `list_personas` is the same function.
+
+## BL-025
+
+### P55. One NotebookLM query per tutor turn
+Each compile sends the learner's raw question to NotebookLM. Every turn costs quota, and a short follow-up like "why?" is a poor grounding query. Because of P25, NotebookLM also treats every question as a follow-up to the notebook's previous one, including questions from other sessions.
+
+### P56. Choices beyond the ticket's caps
+- **Token counts:** estimated at 4 characters per token.
+- **Question cap:** the learner's question is capped at 400 tokens, which keeps the 3,500 total guaranteed. The ticket doesn't cap it.
+- **Citations first:** citations get up to a third of the 1,200-token source budget, and the answer text is cut before they are.
+- **Concept matching:** a concept matches when every significant word of its name appears in the question. Plurals are stripped naively ("pointers" matches "Pointer").
+- **Anchors:** the Analogist's anchors are the learner's five strongest concepts at level 3 or higher.
+
+### P57. The tutor answers without sources when NotebookLM fails
+If the NotebookLM query fails (rate limit, auth, broken), the package is still built. Its source section reads "(course sources unavailable: …)", so the tutor answers from the model alone. The ticket doesn't say what should happen.
