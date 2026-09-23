@@ -42,16 +42,14 @@ class LocalStorageBackend(StorageBackend):
         self.root = root.expanduser().resolve()
 
     def health(self) -> ProviderState:
-        """AVAILABLE when ``root`` can be created and written to."""
-        probe = self.root / f".write-probe-{uuid.uuid4().hex}"
-        try:
-            self.root.mkdir(parents=True, exist_ok=True)
-            probe.write_bytes(b"")
-            probe.unlink()
-        except OSError:
-            log.exception("Storage root %s is not writable", self.root)
-            return ProviderState.BROKEN
-        return ProviderState.AVAILABLE
+        """AVAILABLE when ``root``, or the nearest existing parent, is a writable directory."""
+        target = self.root
+        while not target.exists() and target != target.parent:
+            target = target.parent
+        if target.is_dir() and os.access(target, os.W_OK | os.X_OK):
+            return ProviderState.AVAILABLE
+        log.warning("Storage root %s is not writable (checked %s)", self.root, target)
+        return ProviderState.BROKEN
 
     def ensure_folder(self, path: str) -> Path:
         folder = self._resolve(path)

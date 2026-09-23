@@ -50,6 +50,13 @@ class Session(Protocol):
     def close(self) -> None: ...
 
 
+def chromium_executable() -> Path | None:
+    """Playwright's Chromium binary, or None when ``playwright install chromium`` hasn't run."""
+    with sync_playwright() as pw:
+        path = Path(pw.chromium.executable_path)
+    return path if path.exists() else None
+
+
 def on_site(url: str, base_url: str) -> bool:
     """True when ``url`` is on the Brightspace host and not its login page."""
     target, base = urlsplit(url), urlsplit(base_url)

@@ -70,3 +70,8 @@ The acceptance path is `~/.brightlearn/courses/Fall-2026/CSE220/…`, but the da
 
 ### P16. Manual acceptance pending (you)
 Run `brightlearn sync --course CSE220` twice. Check that files land in `~/.brightlearn/courses/Fall-2026/CSE220/{bucket}/` and that the second run shows everything skipped. CLI tests with a fake LMS pass.
+
+## BL-011R
+
+### P17. "All green" needs one sync first
+Doctor shows `DB schema` as a yellow warning (v0, migrates on next run) until `brightlearn sync` has run once. Everything else on this machine is green: Chromium is installed and Brightspace `whoami` returns 200. NotebookLM, Claude Code and Codex show "not configured" in grey until their tickets land.

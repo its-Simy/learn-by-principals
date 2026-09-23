@@ -142,3 +142,8 @@ def test_health(storage, tmp_path):
     blocked = tmp_path / "file"
     blocked.write_text("not a dir")
     assert LocalStorageBackend(blocked / "courses").health() is ProviderState.BROKEN
+
+
+def test_health_does_not_create_the_root(storage):
+    storage.health()
+    assert not storage.root.exists()
