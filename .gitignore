@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets: these belong under ~/.brightlearn/ only. Ignored here in case a copy ever lands in the repo.
+.brightlearn/
+browser-profile/
+storage_state.json
+master_token.json
+client_secret*.json
+brightspace_login*.json
+credentials*.json
+drive_token.json
+token*.json
+
+# Local databases
+*.db
+*.sqlite3

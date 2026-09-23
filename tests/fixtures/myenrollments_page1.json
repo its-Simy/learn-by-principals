@@ -1,0 +1,15 @@
+{
+  "PagingInfo": {"Bookmark": "bm-1", "HasMoreItems": true},
+  "Items": [
+    {
+      "OrgUnit": {"Id": 100001, "Type": {"Id": 3, "Code": "Course Offering", "Name": "Course Offering"},
+                  "Name": "CSE 220: Systems Fundamentals I (Fall 2026)", "Code": "2268-CSE-220-01"},
+      "Access": {"IsActive": true, "CanAccess": true, "ClasslistRoleName": "Student"}
+    },
+    {
+      "OrgUnit": {"Id": 100002, "Type": {"Id": 3, "Code": "Course Offering", "Name": "Course Offering"},
+                  "Name": "AMS 161: Applied Calculus II (Spring 2026)", "Code": "2261-AMS-161-02"},
+      "Access": {"IsActive": false, "CanAccess": true, "ClasslistRoleName": "Student"}
+    }
+  ]
+}

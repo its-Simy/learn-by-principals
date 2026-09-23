@@ -1,0 +1,36 @@
+[project]
+name = "brightlearn"
+version = "0.1.0"
+description = "Personal learning platform: Brightspace -> Google Drive -> NotebookLM -> learner memory."
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "playwright>=1.45",
+    "google-api-python-client>=2.130",
+    "google-auth-oauthlib>=1.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+brightlearn = "cli.app:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core", "cli"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

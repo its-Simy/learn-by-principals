@@ -1,0 +1,15 @@
+{
+  "PagingInfo": {"Bookmark": null, "HasMoreItems": false},
+  "Items": [
+    {
+      "OrgUnit": {"Id": 6606, "Type": {"Id": 2, "Code": "Organization", "Name": "Organization"},
+                  "Name": "Stony Brook University", "Code": "SBU"},
+      "Access": {"IsActive": true, "CanAccess": true}
+    },
+    {
+      "OrgUnit": {"Id": 100003, "Type": {"Id": 3, "Code": "Course Offering", "Name": "Course Offering"},
+                  "Name": "Writing Seminar", "Code": "WRTSEM-F26"},
+      "Access": {"IsActive": true, "CanAccess": true, "ClasslistRoleName": "Student"}
+    }
+  ]
+}
