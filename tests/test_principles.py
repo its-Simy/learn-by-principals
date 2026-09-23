@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 FORBIDDEN = ("playwright", "googleapiclient", "google_auth_oauthlib", "notebooklm")
-SCANNED = ("core", "cli")  # provider tests may use SDK test doubles (see questions.md)
+SCANNED = ("core", "cli", "dashboard")  # tests may use SDK test doubles (see questions.md)
 
 
 def _imports(path: Path) -> set[str]:

@@ -494,3 +494,13 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 - **"Ambiguous"** means no keyword rule matched, which used to mean `other`. Only then is `ModelClassifier` asked. A reply that isn't a bucket name is ignored.
 - **Only Ollama, only when AVAILABLE.** The sync router holds Ollama alone. So an ambiguous title never spends Claude or Codex quota, even though the default `[routing] classify` order is `ollama, claude, codex` ("first, not last"). The order applies to anything else that runs `classify` through a full router; nothing does yet.
 - **Housekeeping** (`extract_metadata`, `summarize`) defaults to `claude, codex, ollama`, following the master spec's "can fall all the way to Ollama". Nothing uses those task types yet.
+
+## BL-037
+
+### P89. Dashboard choices
+- **Where it lives:** top-level `dashboard/` (`data.py` queries, `render.py` HTML), as `CLAUDE.md`'s layout shows. It's added to the wheel's packages and to the principle-2 import scan.
+- **"Today"** is the UTC day, like `Ledger.today_summary` (P48). "7 days" is the last 168 hours.
+- **NotebookLM artifact counts** are successful `generate_audio`, `generate_quiz` and `generate` ledger runs (last 7 days, and all time), plus the rows in `podcasts`. The ledger doesn't record which kind a plain `generate` was (report, flashcards, slides), so those are grouped as "other artifacts".
+- **Weakest concepts** span every course, in `weakest()` order. The concepts are shown as a table; there's no chart, because unseen concepts have no retention to draw.
+- **Charts:** calls per provider (one series, no legend) and sync status per course (stacked; states in fixed palette order, with a legend). Both use the documented palette, checked with the dataviz validator in light and dark: every check passes. Light mode's aqua, yellow and magenta are under 3:1 contrast, so every chart has its numbers in a table below it. Tooltips on hover and keyboard focus. Charts are drawn 1:1 and scroll sideways inside their card on a phone; the page itself never scrolls sideways.
+- **The Playwright test imports `playwright` outside `core/providers/`.** Principle 2 is enforced for `core/`, `cli/` and `dashboard/`, and tests already use SDK doubles (P19). The ticket asks for this test. It skips itself if Chromium isn't installed. The `dashboard` command opens the page with the stdlib `webbrowser`, not Playwright.

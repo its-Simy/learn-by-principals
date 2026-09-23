@@ -39,7 +39,7 @@ brightlearn/
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
 ├── cli/                  # app.py (typer root), sync.py, exam.py, tutor.py, sessions.py, dev.py
-├── dashboard/
+├── dashboard/            # data.py (queries), render.py (self-contained HTML, inline SVG)
 ├── scripts/              # throwaway spikes
 └── tests/                # fixtures/, fakes/
 ```
