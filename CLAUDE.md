@@ -60,7 +60,8 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 | `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
 | `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
-| `routing` | teaching `claude, codex`; analysis `codex, claude` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins) |
+| `ollama_url` / `ollama_model` | `http://localhost:11434` / `llama3.2:3b` | `BRIGHTLEARN_OLLAMA_URL`, `BRIGHTLEARN_OLLAMA_MODEL` |
+| `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex, ollama`; classify `ollama, claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins) |
 
 Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far.
 

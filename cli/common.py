@@ -20,10 +20,11 @@ from core.providers.lms.session import PlaywrightSession
 from core.providers.models.base import ModelProvider
 from core.providers.models.claude_code import ClaudeCodeProvider
 from core.providers.models.codex import CodexProvider
+from core.providers.models.ollama import OllamaProvider
 from core.router.router import Router
 from core.tutor import Tutor
 
-MODEL_PROVIDERS = {"claude": ClaudeCodeProvider, "codex": CodexProvider}
+MODEL_PROVIDERS = {"claude": ClaudeCodeProvider, "codex": CodexProvider, "ollama": OllamaProvider}
 
 
 @contextmanager

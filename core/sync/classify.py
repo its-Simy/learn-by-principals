@@ -1,17 +1,25 @@
-"""Drive bucket for a resource, from keywords in its module path, title and filename.
+"""Bucket for a resource, from keywords in its module path, title and filename.
 
 Rules are checked in order; the first match wins. Source-code extensions are checked after the
 syllabus/exam/lab/assignment keywords (starter code stays with its assignment) and before the
-lecture/reading keywords (lecture demo code goes to ``code``). Deterministic on purpose: a
-model-backed ``classify`` task can replace this once the router exists.
+lecture/reading keywords (lecture demo code goes to ``code``). When no rule matches, the title is
+ambiguous: a ``fallback`` (``ModelClassifier``: the local Ollama model, only when it's AVAILABLE)
+may name the bucket instead of ``other`` (BL-036).
 """
 
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Callable
 from pathlib import PurePath
 
 from core.providers.lms.base import Resource
+from core.providers.models.base import ModelError, TaskPackage
+from core.providers.state import ProviderState
+from core.router.router import Router
+
+log = logging.getLogger(__name__)
 
 BUCKETS = ("syllabus", "lectures", "assignments", "labs", "readings", "exams", "code", "other")
 
@@ -56,7 +64,12 @@ def _normalise(text: str) -> str:
     return re.sub(r"[_\-.]+", " ", text).lower()
 
 
-def classify(resource: Resource, filename: str | None = None) -> str:
+Fallback = Callable[[Resource, str | None], str | None]
+
+
+def classify(
+    resource: Resource, filename: str | None = None, fallback: Fallback | None = None
+) -> str:
     haystack = _normalise(" ".join([resource.module_path, resource.title, filename or ""]))
     is_code = bool(filename) and PurePath(filename).suffix.lower() in CODE_EXTENSIONS
     for bucket, pattern in _RULES:
@@ -65,4 +78,42 @@ def classify(resource: Resource, filename: str | None = None) -> str:
                 return bucket
         elif pattern.search(haystack):
             return bucket
+    if fallback is not None:
+        guess = fallback(resource, filename)
+        if guess in BUCKETS:
+            return guess
     return "other"
+
+
+CLASSIFY_SYSTEM = (
+    "You sort files from a university course site into one bucket: "
+    + ", ".join(BUCKETS)
+    + ". Reply with the bucket name only."
+)
+
+
+class ModelClassifier:
+    """The ``classify`` task on the local model, asked only when that provider is AVAILABLE."""
+
+    def __init__(self, router: Router, provider: str = "ollama") -> None:
+        self._router = router
+        self._provider = provider
+
+    def __call__(self, resource: Resource, filename: str | None) -> str | None:
+        if self._provider not in self._router.providers:
+            return None
+        if self._router.state(self._provider) is not ProviderState.AVAILABLE:
+            return None
+        user = (
+            f"Module: {resource.module_path}\nTitle: {resource.title}\n"
+            f"Filename: {filename or '(none)'}"
+        )
+        others = set(self._router.providers) - {self._provider}
+        task = TaskPackage("classify", None, CLASSIFY_SYSTEM, user, 10)
+        try:
+            text = self._router.run(task, exclude=others).text
+        except ModelError as exc:
+            log.warning("Model classification failed for %r: %s", resource.title, exc)
+            return None
+        words = re.findall(r"[a-z]+", text.lower())
+        return next((w for w in words if w in BUCKETS), None)

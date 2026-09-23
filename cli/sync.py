@@ -6,8 +6,11 @@ from rich.table import Table
 
 from cli import common
 from core.config import ensure_home, load_config
+from core.ledger.ledger import Ledger
 from core.memory.db import Manifest, connect
 from core.providers.storage.local import LocalStorageBackend
+from core.router.router import Router
+from core.sync.classify import ModelClassifier
 from core.sync.engine import SyncEngine, SyncReport, select_courses
 from core.sync.link import LinkReport, LinkStep
 
@@ -44,7 +47,16 @@ def sync(
             courses = select_courses(lms.list_courses(), course)
             if not courses:
                 raise typer.BadParameter(f"No active Brightspace course matches {course!r}.")
-            engine = SyncEngine(lms, LocalStorageBackend(config.storage_root), db, config)
+            # Ambiguous titles go to the local model, and only to it (BL-036): no quota spent.
+            local = {"ollama": common.open_model("ollama", config)}
+            fallback = ModelClassifier(Router(local, Ledger(conn), config.routing))
+            engine = SyncEngine(
+                lms,
+                LocalStorageBackend(config.storage_root),
+                db,
+                config,
+                classify_fallback=fallback,
+            )
             for c in courses:
                 reports.append(engine.sync_course(c, config.term, dry_run=dry_run, force=force))
         if not (dry_run or no_link):

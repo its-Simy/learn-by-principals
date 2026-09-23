@@ -17,7 +17,12 @@ DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
 DEFAULT_ROUTING: dict[str, tuple[str, ...]] = {
     "teaching": ("claude", "codex"),
     "analysis": ("codex", "claude"),
+    # Housekeeping can fall all the way to the local model; classify tries it first (BL-036).
+    "housekeeping": ("claude", "codex", "ollama"),
+    "classify": ("ollama", "claude", "codex"),
 }
+DEFAULT_OLLAMA_URL = "http://localhost:11434"
+DEFAULT_OLLAMA_MODEL = "llama3.2:3b"
 
 
 class ConfigError(Exception):
@@ -53,6 +58,8 @@ class Config:
     nlm_source_cap: int = 50
     nlm_artifact_timeout_s: float = 1200.0
     model_timeout_s: float = 300.0
+    ollama_url: str = DEFAULT_OLLAMA_URL
+    ollama_model: str = DEFAULT_OLLAMA_MODEL
     routing: dict[str, tuple[str, ...]] = field(default_factory=lambda: dict(DEFAULT_ROUTING))
 
     @property
@@ -92,6 +99,8 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         nlm_source_cap=int(env.get("BRIGHTLEARN_NLM_SOURCE_CAP", 50)),
         nlm_artifact_timeout_s=float(env.get("BRIGHTLEARN_NLM_ARTIFACT_TIMEOUT_S", 1200)),
         model_timeout_s=float(env.get("BRIGHTLEARN_MODEL_TIMEOUT_S", 300)),
+        ollama_url=env.get("BRIGHTLEARN_OLLAMA_URL", DEFAULT_OLLAMA_URL).rstrip("/"),
+        ollama_model=env.get("BRIGHTLEARN_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
         routing=load_routing(home / "config.toml"),
     )
 

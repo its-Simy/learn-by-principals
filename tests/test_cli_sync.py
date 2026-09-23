@@ -6,7 +6,9 @@ from typer.testing import CliRunner
 from cli import common
 from cli.app import app
 from core.providers.lms.base import Course, Resource
+from core.providers.state import ProviderState
 from tests.fakes.fake_knowledge import FakeKnowledge
+from tests.fakes.fake_models import FakeModel
 from tests.fakes.lms import FakeLMS
 
 runner = CliRunner()
@@ -30,6 +32,16 @@ def lms(tmp_path, monkeypatch) -> FakeLMS:
 
     monkeypatch.setattr(common, "open_lms", fake_open_lms)
     return lms
+
+
+@pytest.fixture(autouse=True)
+def ollama(monkeypatch) -> FakeModel:
+    """A local model that's off unless a test turns it on; sync never reaches a real one."""
+    model = FakeModel("ollama", "labs")
+    model.task_types = frozenset({"classify", "extract_metadata", "summarize"})
+    model.state = ProviderState.DISABLED
+    monkeypatch.setattr(common, "open_model", lambda name, config: model)
+    return model
 
 
 @pytest.fixture(autouse=True)
@@ -105,3 +117,20 @@ def test_link_failures_exit_nonzero(lms, knowledge, monkeypatch):
     result = runner.invoke(app, ["sync", "--course", "CSE220"])
     assert result.exit_code == 1
     assert "upload refused" in result.output
+
+
+@pytest.mark.parametrize(
+    "state, bucket", [(ProviderState.AVAILABLE, "labs"), (ProviderState.DISABLED, "other")]
+)
+def test_ambiguous_titles_go_to_the_local_model_only_when_available(
+    lms, ollama, tmp_path, state, bucket
+):
+    lms.add(Resource(100001, 9, "Week 1", "dweight2", "File", None, "t1"), "dweight2", b"?")
+    ollama.state = state
+
+    result = runner.invoke(app, ["sync", "--course", "CSE220", "--no-link"])
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / f"home/courses/Fall-2026/CSE220/{bucket}/dweight2").exists()
+    asked = [t for t in ollama.tasks if t.task_type == "classify"]
+    assert len(asked) == (1 if state is ProviderState.AVAILABLE else 0)  # clear titles never ask

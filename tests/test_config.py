@@ -41,6 +41,8 @@ def test_routing_defaults_and_config_toml(tmp_path):
     assert load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing == {
         "teaching": ("claude", "codex"),
         "analysis": ("codex", "claude"),
+        "housekeeping": ("claude", "codex", "ollama"),
+        "classify": ("ollama", "claude", "codex"),
     }
     (tmp_path / "config.toml").write_text('[routing]\nteaching = ["codex", "claude"]\n')
     routing = load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing

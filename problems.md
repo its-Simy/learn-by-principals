@@ -482,3 +482,15 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 
 ### P86. Routing by task type
 `[routing]` keys may now be task types as well as purposes. A task type's own key wins, then its purpose (`TASK_PURPOSE`: teaching, analysis, housekeeping), then every configured provider. Each CLI command builds one router from `config.routing`; the separate teaching/analysis routers are gone. `question_gen` (Questioner and Challenger) and `tutor_estimate` count as teaching; `critique`, `grade` and `analyze_transcript` count as analysis. Unknown task types fall back to teaching. Providers can declare `task_types` to refuse others (BL-036 Ollama).
+
+## BL-036
+
+### P87. Ollama details
+- **HTTP:** stdlib `urllib`, no new dependency. `POST /api/generate` with `stream: false`, and `num_predict` from `max_output_tokens`. Tests use a mocked Ollama server on 127.0.0.1, which is loopback only.
+- **`health()`** is `GET /api/tags`, cached for 60 s. It's AVAILABLE only if the configured model is pulled. It's DISABLED when the server isn't running or the model is missing (the detail says `ollama pull …`), and BROKEN on other HTTP errors. The provider has no state until the first check, so the router's first look at it triggers a real (local, free) health check.
+- **Model:** `BRIGHTLEARN_OLLAMA_MODEL`, default `llama3.2:3b`. URL: `BRIGHTLEARN_OLLAMA_URL`. Doctor shows Ollama as an optional yellow warning when it's not running. **(you)** `brew install ollama && ollama pull llama3.2:3b` if you want it; nothing requires it.
+
+### P88. How the classifier uses it
+- **"Ambiguous"** means no keyword rule matched, which used to mean `other`. Only then is `ModelClassifier` asked. A reply that isn't a bucket name is ignored.
+- **Only Ollama, only when AVAILABLE.** The sync router holds Ollama alone. So an ambiguous title never spends Claude or Codex quota, even though the default `[routing] classify` order is `ollama, claude, codex` ("first, not last"). The order applies to anything else that runs `classify` through a full router; nothing does yet.
+- **Housekeeping** (`extract_metadata`, `summarize`) defaults to `claude, codex, ollama`, following the master spec's "can fall all the way to Ollama". Nothing uses those task types yet.

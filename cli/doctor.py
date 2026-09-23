@@ -125,6 +125,14 @@ def check_model_cli(name: str, provider: CLIModelProvider) -> Check:
     return Check(name, Status.OK, f"{version}; login not checked")
 
 
+def check_ollama(provider) -> Check:
+    """``GET /api/tags`` on the local server: free, and optional (housekeeping only)."""
+    state = provider.health()
+    if state is ProviderState.AVAILABLE:
+        return Check("Ollama", Status.OK, f"{provider.model} at {provider.base_url}")
+    return Check("Ollama", Status.WARN, f"{provider.detail or state}; optional (housekeeping only)")
+
+
 def not_configured(name: str, ticket: str) -> Check:
     return Check(name, Status.OFF, f"arrives in {ticket}")
 
@@ -144,6 +152,7 @@ def checks(config: Config) -> list[tuple[str, Callable[[], Check]]]:
             lambda: check_model_cli("Claude Code", common.open_model("claude", config)),
         ),
         ("Codex", lambda: check_model_cli("Codex", common.open_model("codex", config))),
+        ("Ollama", lambda: check_ollama(common.open_model("ollama", config))),
     ]
 
 

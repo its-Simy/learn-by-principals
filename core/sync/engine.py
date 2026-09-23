@@ -19,7 +19,7 @@ from core.config import Config
 from core.memory.db import Manifest, ResourceRow
 from core.providers.lms.base import Course, LMSProvider, Resource, SessionExpired
 from core.providers.storage.base import StorageBackend
-from core.sync.classify import classify
+from core.sync.classify import Fallback, classify
 
 log = logging.getLogger(__name__)
 
@@ -52,12 +52,14 @@ class SyncEngine:
         db: Manifest,
         config: Config,
         now: Callable[[], str] = _utcnow,
+        classify_fallback: Fallback | None = None,
     ) -> None:
         self._lms = lms
         self._storage = storage
         self._db = db
         self._config = config
         self._now = now
+        self._classify_fallback = classify_fallback
 
     def sync_course(
         self, course: Course, term: str, dry_run: bool = False, force: bool = False
@@ -144,7 +146,7 @@ class SyncEngine:
         tmp = self._config.tmp_dir / uuid.uuid4().hex
         try:
             download = self._with_session(lambda: self._lms.download(resource, tmp))
-            bucket = classify(resource, download.filename)
+            bucket = classify(resource, download.filename, self._classify_fallback)
             name = self._local_name(course.code, bucket, download.filename, resource.topic_id)
             stored = self._storage.store(tmp, f"{term}/{course.code}/{bucket}", name)
             old_hash = existing.hash if existing else None
