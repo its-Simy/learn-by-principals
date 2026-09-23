@@ -214,3 +214,17 @@ def test_routing_order_comes_from_config_toml(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "Codex teaches." in result.output
     assert "Analyzer (claude)" in result.output
+
+
+def test_the_excerpt_check_is_recorded_as_groundedness(learner, tmp_path):
+    from core.router.benchmarks import Benchmarks
+
+    items = [
+        {**OUTPUT[0], "excerpt": "It follows the pointer."},  # the tutor's words
+        {**OUTPUT[0], "excerpt": "so *p reads the int that p points to"},
+    ]
+    models = {"claude": FakeModel("claude"), "codex": FakeModel("codex", json.dumps(items))}
+    analyzer(learner, models, tmp_path).analyze(session(learner), TRANSCRIPT)
+    mark = Benchmarks(learner.conn).for_task("analyze_transcript")["codex"]
+    assert mark.groundedness == 0.5
+    assert mark.format_compliance == 1.0

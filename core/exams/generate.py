@@ -40,10 +40,12 @@ SCHEMA_TEXT = """A JSON array only, one object per question, with exactly these 
   "format": "multiple_choice" | "short_answer" | "coding"}}
 No other keys, no prose outside the array."""
 
-CRITIC_SCHEMA = """Reply with a JSON array only: [{"index": <question index>, "issue": "<what is
-wrong>", "fix": "<the concrete change>"}]. Flag only real problems: not grounded in the sources,
-ambiguous (more than one defensible answer), wrong answer key, difficulty tag that doesn't fit,
-or a question that doesn't test its concept. Output [] if every question is sound."""
+CRITIC_SCHEMA = """Reply with a JSON array only: [{"index": <question index>, "kind": "grounding" |
+"ambiguity" | "answer_key" | "difficulty" | "concept", "issue": "<what is wrong>", "fix": "<the
+concrete change>"}]. Flag only real problems: not grounded in the sources (grounding), more than
+one defensible answer (ambiguity), a wrong answer key (answer_key), a difficulty tag that doesn't
+fit (difficulty), or a question that doesn't test its concept (concept). Output [] if every
+question is sound."""
 
 
 class GenerationError(Exception):
@@ -287,6 +289,7 @@ class QuestionGenerator:
             user,
             400 * len(wanted),
             {"course": spec.course, "concepts": [concept.concept_id]},
+            output_format="json",
         )
 
     # -- critique ---------------------------------------------------------------------------
@@ -304,7 +307,15 @@ class QuestionGenerator:
             f"{json.dumps(draft, indent=1)}\n\n## Output\n{CRITIC_SCHEMA}"
         )
         system = render(load("critic"), {"course": plan.spec.course})
-        task = TaskPackage("critique", "critic", system, user, 1500, {"course": plan.spec.course})
+        task = TaskPackage(
+            "critique",
+            "critic",
+            system,
+            user,
+            1500,
+            {"course": plan.spec.course},
+            output_format="json",
+        )
         try:
             result = self._critic.run(task, exclude=authors)
         except ModelError as exc:
@@ -325,6 +336,7 @@ class QuestionGenerator:
             else:
                 log.warning("Ignored critic item: %s", str(item)[:120])
         report.critique = list(flagged.values())
+        self._score_draft(report, flagged)
         rows = {r.concept.concept_id: r for r in plan.rows}
         for index, item in sorted(flagged.items()):
             old = report.questions[index]
@@ -341,6 +353,18 @@ class QuestionGenerator:
                 continue
             report.questions[index] = new
             report.regenerated.append(index)
+
+    def _score_draft(self, report: GenerationReport, flagged: dict[int, dict[str, Any]]) -> None:
+        """The Critic's verdicts as benchmark samples for whoever wrote each question: a
+        grounding flag costs groundedness, any other flag costs accuracy."""
+        for index, question in enumerate(report.questions):
+            kind = flagged[index].get("kind") if index in flagged else None
+            self._generator.benchmarks.record(
+                question.provider or "unknown",
+                "question_gen",
+                groundedness=0.0 if kind == "grounding" else 1.0,
+                accuracy=0.0 if index in flagged and kind != "grounding" else 1.0,
+            )
 
     def _rewrite(
         self,

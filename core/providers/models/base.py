@@ -39,6 +39,8 @@ class TaskPackage:
     user: str
     max_output_tokens: int = 1024
     metadata: dict[str, Any] = field(default_factory=dict)
+    # "json" when the answer must contain a JSON array; the router scores format compliance by it.
+    output_format: str = "text"
 
 
 @dataclass(frozen=True)

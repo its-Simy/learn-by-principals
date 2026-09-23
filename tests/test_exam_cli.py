@@ -228,8 +228,12 @@ def test_failed_open_grading_is_retried_without_regrading_the_rest(env):
     assert "3 answer(s) not graded yet" in partial.output
     assert len(evidence_rows()) == 3  # the multiple-choice answers
 
+    # the rate limit's cooldown has passed and codex is healthy again
     models["codex"].limited = False
     models["codex"].state = models["codex"].state.AVAILABLE
+    conn = connect(load_config().db_path)
+    with conn:
+        conn.execute("UPDATE provider_health SET cooldown_until = '2000-01-01T00:00:00+00:00'")
     retried = runner.invoke(app, ["exam", "grade", str(path)])
     assert retried.exit_code == 0, retried.output
     assert len(evidence_rows()) == 6

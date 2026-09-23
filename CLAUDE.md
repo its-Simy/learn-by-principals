@@ -35,7 +35,7 @@ brightlearn/
 │   ├── exams/            # spec, coverage, generate, paper, take, grade (BL-031–033)
 │   ├── podcast/          # compiler.py (learner state -> Audio Overview brief), episodes.py
 │   ├── personas.py       # load / list / render persona files
-│   ├── router/           # v0 fixed order (BL-026); benchmarks-driven in Phase 10
+│   ├── router/           # router.py (v1: config order, health, benchmarks), benchmarks.py, health.py
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
 ├── cli/                  # app.py (typer root), sync.py, exam.py, tutor.py, sessions.py, dev.py
@@ -52,6 +52,7 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 
 | Key | Default | Notes |
 | --- | --- | --- |
+| Sept 23, 2026 | Router v1 replaces v0: the `[routing]` order per task type, minus unusable providers, re-ordered by the `benchmarks` composite once every candidate has 10+ measured runs. It falls back on any model error, not only rate limits. Principle 8's exception now covers only the config order used before there's data. | BL-035. The benchmarks are measured, not decreed, and the config order is only the cold start. |
 | `home` | `~/.brightlearn` | Secrets directory, mode 700 |
 | `brightspace_base_url` | `https://mycourses.stonybrook.edu` | |
 | `term` | from the date | Overridable per run |
@@ -59,7 +60,7 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 | `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
 | `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
-| `routing` | teaching `claude, codex`; analysis `codex, claude` | `[routing]` in `~/.brightlearn/config.toml` |
+| `routing` | teaching `claude, codex`; analysis `codex, claude` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins) |
 
 Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far.
 
@@ -141,7 +142,10 @@ challenges:  id, concept_id, session_id, reason, question,
 podcasts:    id, course, concepts (JSON concept ids), instruction_path, audio_path,
              created_at                                                                  (BL-034)
 benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
-             latency_ms, learner_rating, sample_count                                    (Phase 10)
+             latency_ms, learner_rating, sample_count                                    (BL-035)
+             -- a VIEW averaging benchmark_samples (provider, task_type, metric, value,
+             -- recorded_at; append-only); sample_count = runs measured
+provider_health: provider (PK), state, checked_at, cooldown_until, detail               (BL-035)
 ```
 
 Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.

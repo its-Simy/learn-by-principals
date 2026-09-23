@@ -31,7 +31,8 @@ log = logging.getLogger(__name__)
 
 HELP = (
     "Commands: /ask <question> asks the course sources directly, /persona <name> switches"
-    " persona, /skip defers open challenges, /end closes the session, /help shows this."
+    " persona, /rate 1-5 rates the last answer, /skip defers open challenges, /end closes the"
+    " session, /help shows this."
 )
 
 
@@ -57,6 +58,7 @@ class Tutor:
         self.row: SessionRow | None = None
         self.session: TutorSession | None = None
         self.providers_used: list[str] = []
+        self.last_answer: tuple[str, str] | None = None  # (provider, task type), for /rate
         self.ended = False
         self._challenges = challenges
         self._queue: list[Challenge] = []
@@ -96,6 +98,8 @@ class Tutor:
             return self.end()
         if line == "/skip":
             return self.skip()
+        if line.startswith("/rate"):
+            return self.rate(line.removeprefix("/rate").strip())
         if line.startswith("/persona"):
             return self.switch(line.removeprefix("/persona").strip())
         if line == "/ask" or line.startswith("/ask "):
@@ -141,6 +145,7 @@ class Tutor:
             log.warning("Tutor turn failed: %s", exc)
             return f"(no answer: {exc})"
         self.session.turns += [Turn("learner", question), Turn("tutor", result.text)]
+        self.last_answer = (result.provider, task.task_type)
         if result.provider not in self.providers_used:
             self.providers_used.append(result.provider)
         self._append(
@@ -148,6 +153,17 @@ class Tutor:
             f"**Tutor ({self.persona} · {result.provider}):** {result.text}\n"
         )
         return result.text
+
+    def rate(self, value: str) -> str:
+        """``/rate 1-5``: the learner's rating of the last answer, a benchmark sample (BL-035)."""
+        if self.last_answer is None:
+            return "Nothing to rate yet."
+        if value not in {"1", "2", "3", "4", "5"}:
+            return "Usage: /rate 1-5"
+        provider, task_type = self.last_answer
+        self._router.rate(provider, task_type, int(value))
+        self._append(f"\n_Rated {value}/5 ({provider})._\n")
+        return f"Rated the last answer {value}/5."
 
     # -- challenges --------------------------------------------------------------------------
 

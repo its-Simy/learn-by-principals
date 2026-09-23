@@ -236,3 +236,17 @@ def test_validate_checks_the_slot_and_options_on_open_formats():
         )
     with pytest.raises(ValueError, match="have no options"):
         validate({**question("cse220/pointers", "coding", "easy"), "options": ["a", "b", "c"]})
+
+
+def test_the_critics_verdicts_become_accuracy_and_groundedness(env):
+    from core.router.benchmarks import Benchmarks
+
+    flags = [
+        {"index": 0, "kind": "grounding", "issue": "not in the sources", "fix": "cite lecture 3"},
+        {"index": 2, "kind": "answer_key", "issue": "wrong key", "fix": "B is right"},
+    ]
+    gen, _ = generator(env, Questioner("claude"), json.dumps(flags))
+    gen.generate(plan(spec(), CONCEPTS, {}))
+    mark = Benchmarks(env[0]).for_task("question_gen")["claude"]
+    assert mark.groundedness == pytest.approx(5 / 6)
+    assert mark.accuracy == pytest.approx(5 / 6)

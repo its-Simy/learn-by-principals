@@ -66,6 +66,8 @@ class AnalysisReport:
     skipped: list[str] = field(default_factory=list)
     # The Analyzer's finding: the last valid proposed level per concept it wrote evidence for.
     proposals: dict[str, int] = field(default_factory=dict)
+    excerpts_checked: int = 0
+    excerpts_verified: int = 0
 
     def summary(self) -> str:
         return (
@@ -173,6 +175,13 @@ class Analyzer:
             self._apply_item(
                 item, row, result.provider, by_name, start_levels, support, report, spoken
             )
+        if report.excerpts_checked:
+            # Groundedness: the share of excerpts that really are the learner's words (P64).
+            self._router.benchmarks.record(
+                result.provider,
+                task.task_type,
+                groundedness=report.excerpts_verified / report.excerpts_checked,
+            )
         return report
 
     def _task(self, row, transcript, concepts, start_levels) -> TaskPackage:
@@ -188,7 +197,9 @@ class Analyzer:
             f"## Transcript of session {row.session_id}\n{text}"
         )
         system = render(load("analyzer"), {"course": row.course})
-        return TaskPackage("analyze_transcript", "analyzer", system, user, 1500, {})
+        return TaskPackage(
+            "analyze_transcript", "analyzer", system, user, 1500, {}, output_format="json"
+        )
 
     def _apply_item(
         self, item, row, provider, by_name, start_levels, support, report, spoken
@@ -205,9 +216,11 @@ class Analyzer:
             report.skipped.append(f"{concept.name}: bad type/strength {kind!r}/{strength!r}")
             return
         # Evidence is append-only, so an unverifiable excerpt is never written (P64).
+        report.excerpts_checked += 1
         if not excerpt_is_learners(str(item.get("excerpt") or ""), spoken):
             report.skipped.append(f"{concept.name}: excerpt is not in the learner's own turns")
             return
+        report.excerpts_verified += 1
         try:
             evidence_id = self._learner.add_evidence(
                 concept.concept_id,

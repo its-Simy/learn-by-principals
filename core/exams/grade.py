@@ -208,7 +208,9 @@ class ExamGrader:
             + f"\n\n## Output\n{GRADER_SCHEMA}"
         )
         system = render(load_persona("critic"), {"course": exam["course"]})
-        task = TaskPackage("grade", "critic", system, user, 200 * len(questions) + 200, {})
+        task = TaskPackage(
+            "grade", "critic", system, user, 200 * len(questions) + 200, {}, output_format="json"
+        )
         try:
             result = self._router.run(task)
         except ModelError as exc:

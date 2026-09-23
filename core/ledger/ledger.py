@@ -99,6 +99,10 @@ class Ledger:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
 
+    @property
+    def conn(self) -> sqlite3.Connection:
+        return self._conn
+
     def record(self, run: ModelRun) -> None:
         row = asdict(run)
         row["success"] = int(run.success)

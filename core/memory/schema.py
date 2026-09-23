@@ -1,8 +1,8 @@
 """SQLite DDL, applied as numbered migrations tracked in ``PRAGMA user_version``.
 
 v1: the sync manifest, ledger and notebook cache. v2: learner memory. v3: the mastery audit
-trail. v4: Challenger probes. v5: concept weeks. v6: podcast episodes. Later tables land with
-their ticket as new migrations.
+trail. v4: Challenger probes. v5: concept weeks. v6: podcast episodes. v7: benchmarks and
+provider health (router v1). Later tables land with their ticket as new migrations.
 """
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
@@ -173,6 +173,59 @@ CREATE TABLE podcasts (
 )
 """
 
+BENCHMARK_METRICS = (
+    "accuracy",
+    "groundedness",
+    "format_compliance",
+    "latency_ms",
+    "learner_rating",
+)
+
+# Raw, append-only measurements; the `benchmarks` view aggregates them per provider and task type
+# (principle 8: routing reads measured strengths). sample_count is the number of runs measured.
+BENCHMARK_SAMPLES = f"""
+CREATE TABLE benchmark_samples (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider    TEXT NOT NULL,
+    task_type   TEXT NOT NULL,
+    metric      TEXT NOT NULL CHECK (metric IN ({_in(BENCHMARK_METRICS)})),
+    value       REAL NOT NULL,
+    recorded_at TEXT NOT NULL
+)
+"""
+
+BENCHMARKS_VIEW = """
+CREATE VIEW benchmarks AS
+SELECT provider,
+       task_type,
+       avg(CASE WHEN metric = 'accuracy' THEN value END)          AS accuracy,
+       avg(CASE WHEN metric = 'groundedness' THEN value END)      AS groundedness,
+       avg(CASE WHEN metric = 'format_compliance' THEN value END) AS format_compliance,
+       avg(CASE WHEN metric = 'latency_ms' THEN value END)        AS latency_ms,
+       avg(CASE WHEN metric = 'learner_rating' THEN value END)    AS learner_rating,
+       sum(CASE WHEN metric = 'format_compliance' THEN 1 ELSE 0 END) AS sample_count
+FROM benchmark_samples
+GROUP BY provider, task_type
+"""
+
+BENCHMARK_SAMPLES_APPEND_ONLY = (
+    "CREATE TRIGGER benchmark_samples_no_update BEFORE UPDATE ON benchmark_samples"
+    " BEGIN SELECT RAISE(ABORT, 'benchmark_samples is append-only'); END",
+    "CREATE TRIGGER benchmark_samples_no_delete BEFORE DELETE ON benchmark_samples"
+    " BEGIN SELECT RAISE(ABORT, 'benchmark_samples is append-only'); END",
+)
+
+# The router's last word on each provider: rate-limit cooldowns survive between commands.
+PROVIDER_HEALTH = """
+CREATE TABLE provider_health (
+    provider       TEXT PRIMARY KEY,
+    state          TEXT NOT NULL,
+    checked_at     TEXT NOT NULL,
+    cooldown_until TEXT,
+    detail         TEXT
+)
+"""
+
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         RESOURCES,
@@ -203,6 +256,13 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # The ExamSpec selects concepts by week (BL-031); `concepts apply` fills it from the draft.
     5: ("ALTER TABLE concepts ADD COLUMN week INTEGER",),
     6: (PODCASTS,),
+    7: (
+        BENCHMARK_SAMPLES,
+        "CREATE INDEX benchmark_samples_task ON benchmark_samples (task_type, provider)",
+        *BENCHMARK_SAMPLES_APPEND_ONLY,
+        BENCHMARKS_VIEW,
+        PROVIDER_HEALTH,
+    ),
 }
 
 SCHEMA_VERSION = max(MIGRATIONS)

@@ -61,16 +61,21 @@ def model_providers(config: Config, purposes: tuple[str, ...]) -> dict[str, Mode
     return {name: open_model(name, config) for name in names}
 
 
+def router(config: Config, conn: sqlite3.Connection, providers: dict[str, ModelProvider]) -> Router:
+    """Router v1: the ``[routing]`` order per task type, health and benchmarks (BL-035)."""
+    return Router(providers, Ledger(conn), config.routing)
+
+
 def session_end_hook(config: Config, conn: sqlite3.Connection, providers: dict[str, ModelProvider]):
     """On /end: the tutor's own estimate, then the Analyzer on a provider other than the tutor's
     (BL-027, ``[routing] analysis`` order), then a challenge for every disagreement (BL-030)."""
-    router = Router(providers, Ledger(conn), list(config.routing["analysis"]))
+    analysis = router(config, conn, providers)
 
     def hook(tutor: Tutor) -> str | None:
         if tutor.row is None or not tutor.session or not tutor.session.turns:
             return None
         estimate = tutor.self_estimate()
-        analyzer = Analyzer(router, LearnerMemory(conn), Vault(config.vault_root))
+        analyzer = Analyzer(analysis, LearnerMemory(conn), Vault(config.vault_root))
         try:
             report = analyzer.analyze(
                 tutor.row, tutor.transcript_path.read_text(), estimate[1] if estimate else None
@@ -90,14 +95,10 @@ def challenge_runner(
     providers: dict[str, ModelProvider],
     compiler: ContextCompiler,
 ) -> ChallengeRunner:
-    """The Challenger asks on the ``teaching`` order; the Analyzer grades on ``analysis``."""
-    ledger = Ledger(conn)
+    """The Challenger (``question_gen``) asks on the ``teaching`` order; the Analyzer grades on
+    ``analysis``, off the provider that asked."""
     learner = LearnerMemory(conn)
-    grader = Analyzer(Router(providers, ledger, list(config.routing["analysis"])), learner)
+    shared = router(config, conn, providers)
     return ChallengeRunner(
-        ChallengeStore(conn),
-        learner,
-        Router(providers, ledger, list(config.routing["teaching"])),
-        grader,
-        compiler,
+        ChallengeStore(conn), learner, shared, Analyzer(shared, learner), compiler
     )

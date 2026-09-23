@@ -21,10 +21,8 @@ from core.exams.grade import ExamGrader, GradeError
 from core.exams.paper import LETTERS, ExamFileError, new_exam, new_paths, save, to_markdown
 from core.exams.spec import SpecError, load_spec
 from core.exams.take import ExamTaker
-from core.ledger.ledger import Ledger
 from core.memory.db import Manifest, connect
 from core.memory.learner import LearnerMemory
-from core.router.router import Router
 
 app = typer.Typer(no_args_is_help=True, help="Practice exams.")
 console = Console()
@@ -61,14 +59,11 @@ def create(
             raise typer.Exit(1) from exc
         _print_plan_notes(coverage)
         providers = common.model_providers(config, ("teaching", "analysis"))
-        ledger = Ledger(conn)
+        router = common.router(config, conn, providers)
         manifest = Manifest(conn)
         with common.open_knowledge(config, conn) as knowledge:
             generator = QuestionGenerator(
-                Router(providers, ledger, list(config.routing["teaching"])),
-                Router(providers, ledger, list(config.routing["analysis"])),
-                ContextCompiler(knowledge, learner, manifest),
-                manifest,
+                router, router, ContextCompiler(knowledge, learner, manifest), manifest
             )
             try:
                 report = generator.generate(coverage)
@@ -174,8 +169,9 @@ def grade(
     conn = connect(config.db_path)
     try:
         providers = common.model_providers(config, ("analysis",))
-        router = Router(providers, Ledger(conn), list(config.routing["analysis"]))
-        grader = ExamGrader(LearnerMemory(conn), router, ChallengeStore(conn))
+        grader = ExamGrader(
+            LearnerMemory(conn), common.router(config, conn, providers), ChallengeStore(conn)
+        )
         try:
             report = grader.grade(file)
         except (GradeError, ExamFileError) as exc:

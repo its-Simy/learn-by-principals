@@ -321,7 +321,7 @@ Principle 8 says model strengths are never hardcoded and routing reads `benchmar
 - **What I did:** built the ticket's v0 order, `["claude", "codex"]`, in `cli/tutor.py`, with a comment saying it's v0.
 
 ### P59. The router only falls back on rate limits
-Following the ticket, a Claude that is missing from PATH, logged out or crashing fails the turn rather than falling back to Codex.
+**Superseded by BL-035:** router v1 falls back on any model error. Following the ticket, a Claude that is missing from PATH, logged out or crashing fails the turn rather than falling back to Codex.
 - Once Claude is rate limited, it's skipped for the rest of the process; nothing checks when the limit resets.
 - Until P49 and P52 are fixed, neither CLI is installed, so every tutor turn prints "(no answer: `claude` is not on PATH)".
 
@@ -459,3 +459,26 @@ The Questioner's output shape listed `concept, level, question, answer, source`,
 - `--format` defaults to `deep-dive`. `--length` defaults to NotebookLM's own default.
 - The audio keeps the extension the provider downloads (`.m4a` from NotebookLM, P36). The `podcasts.concepts` column holds the focus concept ids.
 - It doesn't check for an open tutor session, because generating audio doesn't touch NotebookLM chat.
+
+## BL-035
+
+### P84. `benchmarks` is a view over raw samples
+The benchmarks row has one `sample_count`, but accuracy, groundedness and ratings arrive at different rates from format compliance. A single running mean would be wrong for them.
+- **What I did:** migration v7 adds an append-only `benchmark_samples` table (one row per metric per measurement). `benchmarks` is a **view** with exactly `CLAUDE.md`'s columns, averaging each metric over its own samples. `sample_count` is the number of runs measured (format-compliance samples). Nothing is ever deleted (principle 3).
+- **Who writes what:**
+  - The router records `format_compliance` and `latency_ms` on every successful run. Tasks declare `output_format="json"` when their answer must be a JSON array.
+  - The Analyzer's excerpt check records `groundedness` for `analyze_transcript`.
+  - The exam Critic records per-question `groundedness` (a `grounding` flag) and `accuracy` (any other flag) for whoever wrote each question. Its schema gained an optional `kind` field for this.
+  - `/rate 1-5` in the tutor records `learner_rating` for the last answer's provider and task type.
+  - No other grader writes accuracy yet.
+- **Composite score:** accuracy 0.4, groundedness 0.3, format compliance 0.3, over the metrics present, re-weighted to sum to 1. `learner_rating` and latency are stored but not scored. The ticket doesn't say how to use them.
+- **"≥ 10 samples":** benchmark order applies only when **every** usable candidate has 10+ runs of that task. Otherwise it's config order, because a provider with 50 runs can't be compared fairly with one that has 3. Ties keep config order.
+
+### P85. Health: when the router calls `health()`
+`health()` on the CLI providers is a real one-token model call (P51), so the router doesn't call it on every route. It reads each provider's `state` attribute, which every run keeps up to date. It calls `health()` only when a provider has no `state`, or when a rate-limit cooldown has passed ("AVAILABLE on next successful health check").
+- **Cooldowns** come from the hint's `resets_at` when it's readable (ISO, epoch seconds, or "in N minutes/hours"), else 60 minutes. They're stored in `provider_health` (migration v7), so a rate limit hit in one command still holds in the next. Claude's "resets 3pm" wording isn't parsed, so it gets the 60-minute default.
+- **Other failures** (auth, crash, missing binary) drop the provider for the rest of that command only, and it is tried again in the next command. The state is still written to `provider_health` for the dashboard.
+- **Fallback on any error:** v0 fell back only on rate limits (P59). v1 falls back on any `ModelError`, as the ticket's state rules imply. The ledger's `fallback_from` names the preferred provider when it failed or was skipped as unusable. `test_other_model_errors_do_not_fall_back` was replaced to match.
+
+### P86. Routing by task type
+`[routing]` keys may now be task types as well as purposes. A task type's own key wins, then its purpose (`TASK_PURPOSE`: teaching, analysis, housekeeping), then every configured provider. Each CLI command builds one router from `config.routing`; the separate teaching/analysis routers are gone. `question_gen` (Questioner and Challenger) and `tutor_estimate` count as teaching; `critique`, `grade` and `analyze_transcript` count as analysis. Unknown task types fall back to teaching. Providers can declare `task_types` to refuse others (BL-036 Ollama).

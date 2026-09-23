@@ -73,13 +73,26 @@ def test_rate_limited_claude_falls_back_to_codex(tutor, models, conn):
     assert models["claude"].state is ProviderState.RATE_LIMITED
 
 
-def test_other_model_errors_do_not_fall_back(tutor, models, monkeypatch):
+def test_other_model_errors_fall_back_and_mark_the_provider_broken(tutor, models, monkeypatch):
+    """Router v1 (BL-035): any model error falls back; v0 only fell back on rate limits."""
+
     def boom(task):
         raise ModelError("claude crashed")
 
     monkeypatch.setattr(models["claude"], "run", boom)
-    assert tutor.handle("What is a pointer?") == "(no answer: claude crashed)"
-    assert models["codex"].tasks == []
+    assert tutor.handle("What is a pointer?") == "Codex!"
+    assert tutor.handle("And again?") == "Codex!"  # claude is skipped for the rest of the process
+    assert len(models["codex"].tasks) == 2
+
+
+def test_every_provider_failing_is_reported(tutor, models, monkeypatch):
+    def boom(task):
+        raise ModelError("crashed")
+
+    monkeypatch.setattr(models["claude"], "run", boom)
+    monkeypatch.setattr(models["codex"], "run", boom)
+    assert tutor.handle("What is a pointer?") == "(no answer: crashed)"
+    assert tutor.handle("Again?").startswith("(no answer: No model provider left for explain")
 
 
 def test_persona_switch_mid_session(tutor, models):
@@ -161,3 +174,14 @@ def test_cli_rejects_unknown_persona(tmp_path, monkeypatch, models):
     monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
     result = runner.invoke(app, ["tutor", "--course", "CSE220", "--persona", "comedian"])
     assert result.exit_code == 2
+
+
+def test_rate_records_the_learners_rating_for_the_last_answer(tutor, conn):
+    from core.router.benchmarks import Benchmarks
+
+    assert tutor.handle("/rate 5") == "Nothing to rate yet."
+    tutor.handle("What is a pointer?")
+    assert tutor.handle("/rate 9") == "Usage: /rate 1-5"
+    assert tutor.handle("/rate 4") == "Rated the last answer 4/5."
+    assert Benchmarks(conn).for_task("explain")["claude"].learner_rating == 4
+    assert "_Rated 4/5 (claude)._" in tutor.transcript_path.read_text()
