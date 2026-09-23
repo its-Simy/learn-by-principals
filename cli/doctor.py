@@ -12,6 +12,7 @@ from enum import StrEnum
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from cli import common
@@ -164,7 +165,7 @@ def doctor() -> None:
     for c in results:
         colour = COLOURS[c.status]
         table.add_row(
-            f"[{colour}]{c.name}[/]", f"[{colour}]{c.status}[/]", f"[{colour}]{c.detail}[/]"
+            f"[{colour}]{c.name}[/]", f"[{colour}]{c.status}[/]", f"[{colour}]{escape(c.detail)}[/]"
         )
     console.print(table)
     if any(c.status is Status.FAIL for c in results):
