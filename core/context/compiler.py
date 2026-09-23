@@ -133,12 +133,25 @@ class ContextCompiler:
         """A grounded answer with citations, asked in the session's own conversation (``/ask``)."""
         return self._source_context(question, course, session.conversation)
 
+    def sources(self, question: str, course: str, source_ids: list[str] | None = None) -> str:
+        """A grounded answer with citations in a fresh conversation, optionally limited to
+        ``source_ids`` (exam generation). Never call it while the course has a tutor session."""
+        return self._source_context(question, course, None, source_ids)
+
     # -- sections ----------------------------------------------------------------------------
 
-    def _source_context(self, question: str, course: str, conversation: Conversation | None) -> str:
+    def _source_context(
+        self,
+        question: str,
+        course: str,
+        conversation: Conversation | None,
+        source_ids: list[str] | None = None,
+    ) -> str:
         try:
             notebook_id = self._knowledge.ensure_notebook(course)
-            answer = self._knowledge.query(notebook_id, question, conversation=conversation)
+            answer = self._knowledge.query(
+                notebook_id, question, source_ids, conversation=conversation
+            )
         except KnowledgeError as exc:
             log.warning("No source context for %s: %s", course, exc)
             return f"(course sources unavailable: {exc})"

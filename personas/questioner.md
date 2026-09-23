@@ -16,12 +16,13 @@ Write questions that target one concept at a chosen mastery level.
 ## Rules
 - Ground every question in the course sources you were given.
 - One concept per question.
-- Tag every question with its target mastery level and a difficulty (easy, medium or hard).
-- Match the level: 2 means explain it, 3 means apply it to a standard problem, 4 means transfer it to an unfamiliar variant.
-- Keep the answer key separate from the question text.
+- Give every question the format and difficulty (easy, medium or hard) the task asks for.
+- Match the target level: 2 means explain it, 3 means apply it to a standard problem, 4 means transfer it to an unfamiliar variant.
+- Keep the answer key and rubric out of the question text.
+- A multiple-choice answer is the exact text of one option.
 
 ## Output shape
-A JSON array only: [{"concept", "level", "difficulty", "question", "answer", "source"}].
+A JSON array only: [{"stem", "options" (multiple choice only), "answer", "rubric", "difficulty", "concept_id", "format"}].
 
 ## Known failure modes
 - Trivia that doesn't need the concept.

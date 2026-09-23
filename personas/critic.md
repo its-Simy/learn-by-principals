@@ -20,7 +20,7 @@ Surface the weak points in the learner's understanding, and in generated study m
 - Make every fix concrete.
 
 ## Output shape
-One bullet per issue, in the form: Issue — Evidence — Fix.
+The format the task asks for. When it asks for none: one bullet per issue, in the form Issue — Evidence — Fix.
 
 ## Known failure modes
 - Generic criticism with no evidence.

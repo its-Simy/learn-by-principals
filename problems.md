@@ -413,3 +413,18 @@ The planner selects concepts by the spec's `weeks`, but concepts had no week (P4
 - **diagnostic:** 1 − confidence, floored at 0.1. No mastery row counts as confidence 0.
 - **challenge:** level 3+ only, weighted evenly. Rows are tagged `transfer` (target level 4). With nothing at level 3+, it's an error.
 - **Rounding:** questions go to concepts by largest remainder, heaviest first. With more concepts than questions, the lightest get none and are left out. Each concept's questions are then split across formats and difficulties so every row and column sums exactly. Each row doesn't get the spec's exact mix: the heaviest concept gets its share of each column first, and later rows take what's left.
+
+## BL-032
+
+### P77. One Questioner call per plan row, not per question
+Each plan row (one concept) is one `question_gen` call that asks for exactly that row's questions, each with its format and difficulty. That keeps quota use to one call per concept. Returned questions are matched to the requested slots. A question that is invalid, missing, or has the wrong format or difficulty is retried alone. A second failure drops it, logs a warning, and records it in `GenerationReport.dropped`. So a spec for 18 questions can produce fewer; BL-033's `exam create` says so when it happens.
+- **Model errors** (no provider, auth) aren't validation failures. They stop generation with `GenerationError`, and nothing is written.
+
+### P78. The persona files changed to match the ticket's schema
+The Questioner's output shape listed `concept, level, question, answer, source`, which conflicts with the ticket's `{stem, options?, answer, rubric, difficulty, concept_id, format}`. `personas/questioner.md` now uses the ticket's schema, and a multiple-choice `answer` must be the exact text of an option. `personas/critic.md` now follows whatever format the task asks for (JSON `{index, issue, fix}` here), and falls back to its bullets otherwise.
+- **"Strict"** means no extra keys, every required string non-empty, 3–6 distinct options for multiple choice (none for the other formats), and an answer key that is one of the options.
+
+### P79. Grounding and critique details
+- **Grounding:** one fresh NotebookLM query per concept, reused for that concept's retries and rewrites. It's limited to the spec's `sources` buckets (`study-guides` → `exams`); if none of those are linked, every source is used and a warning is logged. Because the query is fresh, `exam create` must refuse while a tutor session is open on the course (P66); BL-033 does this.
+- **Critique:** one Critic call over the whole draft, kept off every provider that wrote a question. If no other provider is left (both tutored, or only one installed), critique is skipped and recorded in `critique_skipped`.
+- **Rewrites:** each flagged question is rewritten once, off the Critic's provider. An invalid rewrite keeps the original, valid question, with a warning. Nothing is critiqued a second time (principle 7).
