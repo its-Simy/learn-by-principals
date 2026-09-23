@@ -1,11 +1,11 @@
 # BrightLearn — CLAUDE.md
 
-Personal learning platform: Brightspace course files → Google Drive → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. V1 is a one-student prototype with zero metered LLM API spend. Current work: Phase 0–1 (sync). See `TICKETS.md`.
+Personal learning platform: Brightspace course files → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. V1 is a one-student prototype with zero metered LLM API spend. Tickets: `TICKETS-2.md`.
 
 ## Principles (every change must respect these)
 
-1. **No dependency that charges per request.** Free official APIs (Drive) and session-cookie endpoints (Brightspace) are fine. Claude, Codex, NotebookLM run on subscription quota.
-2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `playwright`, `googleapiclient`, `google_auth_oauthlib`, or `notebooklm`.
+1. **No dependency that charges per request.** Free official APIs and session-cookie endpoints (Brightspace) are fine. Claude, Codex, NotebookLM run on subscription quota.
+2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `playwright` or `notebooklm`, or makes subprocess calls to `claude` or `codex`.
 3. **Don't delete anything; retrieve selectively.** Archive everything; send models a compiled package of a few thousand tokens.
 4. **Mastery needs evidence.** No score without the `evidence` rows that justify it.
 5. **Infer learning from normal interaction.** No forced quizzes.
@@ -24,7 +24,7 @@ brightlearn/
 │   ├── config.py
 │   ├── providers/
 │   │   ├── lms/          # base.py, session.py, brightspace.py
-│   │   ├── storage/      # base.py, gdrive.py
+│   │   ├── storage/      # base.py, local.py
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
 │   │   └── models/       # base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
 │   ├── memory/           # schema.py, db.py, vault.py
@@ -40,7 +40,18 @@ brightlearn/
 └── memory/               # the vault
 ```
 
-Secrets live under `~/.brightlearn/` only: browser profile, Drive OAuth token + client secret, `storage_state.json`, `master_token.json`. All gitignored. Never write them into the repo, tests, or logs.
+Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`, `master_token.json`. All gitignored. Never write them into the repo, tests, or logs.
+
+## Config
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `home` | `~/.brightlearn` | Secrets directory, mode 700 |
+| `brightspace_base_url` | `https://mycourses.stonybrook.edu` | |
+| `term` | from the date | Overridable per run |
+| `storage_root` | `~/.brightlearn/courses` | Canonical course files |
+| `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
+| `db_path` | `~/.brightlearn/brightlearn.db` | |
 
 ## Provider interfaces
 
@@ -52,14 +63,16 @@ class LMSProvider(ABC):
     def download(self, resource: Resource, dest: Path) -> DownloadResult   # filename from Content-Disposition
 
 class StorageBackend(ABC):
-    def ensure_folder(self, path: str) -> str
-    def upload(self, local: Path, folder_id: str, name: str) -> UploadResult
-    def verify(self, file_id: str, expected_md5: str) -> bool
-    def list(self, folder_id: str) -> list[FileMeta]
+    def ensure_folder(self, path: str) -> Path                            # absolute path of storage_root/path
+    def store(self, src: Path, rel_dir: str, name: str) -> StoreResult    # StoreResult(path, sha256, size); hash computed on write
+    def exists(self, rel_path: str) -> bool
+    def list(self, rel_dir: str) -> list[Path]
 
 class KnowledgeProvider(ABC):
     def ensure_notebook(self, course: str) -> str
-    def add_drive_source(self, notebook_id: str, drive_file_id: str) -> str   # NO local-path variant
+    def add_file(self, notebook_id: str, path: Path) -> str                # file upload; returns source_id
+    def remove_source(self, source_id: str) -> None
+    def list_sources(self, notebook_id: str) -> list[SourceMeta]
     def refresh_source(self, source_id: str) -> None
     def query(self, notebook_id: str, question: str, source_ids=None) -> GroundedAnswer
     def source_fulltext(self, source_id: str) -> str
@@ -76,7 +89,7 @@ class ModelProvider(ABC):
 
 Provider states: `AVAILABLE → LIMITED → RATE_LIMITED → AUTH_EXPIRED → BROKEN → DISABLED`.
 
-Implementations (V1): `BrightspaceSessionProvider` (Playwright session + `/d2l/api` calls; DOM scraping only as fallback) · `GoogleDriveBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`, `OllamaProvider` (housekeeping tasks only).
+Implementations (V1): `BrightspaceSessionProvider` (Playwright session + `/d2l/api` calls; DOM scraping only as fallback) · `LocalStorageBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`, `OllamaProvider` (housekeeping tasks only).
 
 ## Brightspace facts (verified Sept 23, 2026 on mycourses.stonybrook.edu)
 
@@ -93,8 +106,10 @@ Implementations (V1): `BrightspaceSessionProvider` (Playwright session + `/d2l/a
 
 ```
 resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identifier,
-             filename, size, last_modified, hash, drive_file_id, drive_bucket,
-             notebook_id, notebook_source_id, sync_state (pending|synced|stale|failed|link), last_seen
+             filename, size, last_modified, hash, local_path, bucket,
+             notebook_id, notebook_source_id, source_hash,
+             sync_state (pending|synced|stale|failed|link), last_seen
+             -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
 model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
              input_tokens_est, output_tokens_est, fallback_from, error
 concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags            (Phase 4)
@@ -106,7 +121,7 @@ benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              latency_ms, learner_rating, sample_count                                    (Phase 10)
 ```
 
-Drive tree: `BrightLearn/{term}/{course_code}/{bucket}/` with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`.
+Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.
 
 ## Conventions
 
@@ -115,3 +130,7 @@ Drive tree: `BrightLearn/{term}/{course_code}/{bucket}/` with buckets `syllabus 
 - Temp downloads go to `config.tmp_dir/{uuid}` and are always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.
 - Commit message format: `BL-0XX: <ticket title>`.
+
+## Not in V1
+
+- Drive automation (can return via StorageBackend)
