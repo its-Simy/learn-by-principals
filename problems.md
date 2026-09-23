@@ -154,3 +154,14 @@ If NotebookLM returns a rate limit, that course's link step stops, and the remai
 
 ### P34. Manual acceptance pending (you)
 After P18 and a linked sync, run `brightlearn ask --course CSE220 "How are pointers introduced in lecture 3?"`. Citations show `filename (bucket)` from the manifest. A citation to a source the manifest doesn't know, such as one added by hand, shows its raw id instead.
+
+## BL-017
+
+### P35. "Quiz/flashcards also saved as JSON" is ambiguous
+- **What I did:** quiz and flashcards are saved **only** as JSON. The library can also export Markdown or HTML, but nothing saves those.
+- `--format` and `--length` apply only to audio. `--format` also sets the report type.
+- Quiz and flashcard difficulty and quantity have no flags.
+
+### P36. The audio artifact will be `.m4a`, not MP3
+The acceptance asks for "one short MP3", but NotebookLM returns AAC/MP4 (P21). The file keeps the extension the provider downloads.
+- **(you)** Manual acceptance is pending: `brightlearn generate quiz --course CSE220` and `brightlearn generate audio --course CSE220 --format brief --length short`.
