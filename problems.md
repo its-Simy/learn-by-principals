@@ -214,3 +214,10 @@ A concept's id is `{course}/{slug(name)}`, for example `cse220/pointer-arithmeti
 
 ### P47. Seeding relies on NotebookLM answering in raw JSON
 The prompt asks for a JSON array only, and the parser tolerates code fences, prose and `[n]` citation markers. A prose-only answer fails with an error, and nothing is written. Seeding also inherits P25: the query continues the notebook's last conversation.
+
+## BL-021
+
+### P48. Who writes model calls to the ledger
+The spec says the Model Router is the only thing that talks to models and that it logs each call. So Claude and Codex runs are recorded by the router (BL-026) with `ModelRun.from_result` / `ModelRun.from_error`. NotebookLM calls are still recorded inside that provider (BL-014), so there are two recording paths.
+- `UsageHint` isn't defined anywhere. I gave it: tokens, `limit_message`, `resets_at`, `raw`.
+- `today_summary()` uses the UTC date, so evening runs in New York count toward tomorrow.
