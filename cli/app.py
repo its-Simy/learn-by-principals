@@ -7,12 +7,14 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from cli import dev
+from cli.ask import ask
 from cli.doctor import doctor
 from cli.sync import sync
 
 app = typer.Typer(no_args_is_help=True, help="BrightLearn personal learning platform.")
 app.command()(sync)
 app.command()(doctor)
+app.command()(ask)
 app.add_typer(dev.app, name="dev")
 
 

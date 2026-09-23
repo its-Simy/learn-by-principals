@@ -149,3 +149,8 @@ NotebookLM accepts `.pdf .docx .pptx .txt .md .csv .epub` (P21). A `.zip`, `.xls
 
 ### P33. A rate limit stops the link step
 If NotebookLM returns a rate limit, that course's link step stops, and the remaining rows are retried on the next sync. Other failures are recorded and the step carries on. The ticket doesn't cover this.
+
+## BL-016
+
+### P34. Manual acceptance pending (you)
+After P18 and a linked sync, run `brightlearn ask --course CSE220 "How are pointers introduced in lecture 3?"`. Citations show `filename (bucket)` from the manifest. A citation to a source the manifest doesn't know, such as one added by hand, shows its raw id instead.
