@@ -104,8 +104,10 @@ Implementations (V1): `BrightspaceSessionProvider` (Playwright session + `/d2l/a
 
 ## Data model (SQLite)
 
+Versioned migrations in `core/memory/schema.py`, tracked in `PRAGMA user_version`.
+
 ```
-resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identifier,
+resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identifier, url,
              filename, size, last_modified, hash, local_path, bucket,
              notebook_id, notebook_source_id, source_hash,
              sync_state (pending|synced|stale|failed|link), last_seen

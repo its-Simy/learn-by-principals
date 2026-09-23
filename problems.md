@@ -32,3 +32,28 @@ Changing the `StorageBackend` interface broke the old Drive-based engine. It is 
 
 ### P7. Leftover Google OAuth setup
 `gdrive.py`, its tests and the Google libraries in `pyproject.toml` are removed. `~/.brightlearn/client_secret.json` is no longer used. The OAuth client in the Google Cloud console can be deleted if Drive isn't coming back. The Google packages are still installed in `.venv` until the next `uv sync`.
+
+## BL-009R
+
+### P8. The `resources` table had no `url` column
+BL-009R says to store a Link topic's `url`, but BL-000's table has no column for it.
+- **What I did:** added `url` to the table and to `CLAUDE.md`.
+
+### P9. "Stale" can be lost, and stale rows would re-download every run
+Taken literally, only `synced` rows are skipped. A `stale` row, one whose NotebookLM copy is out of date, is then downloaded again on every run. If those bytes match the last download, the row goes back to `synced` and the NotebookLM source is never replaced.
+- **What I did:** rows that are `synced` or `stale` with the same `last_modified` are skipped. A `stale` row stays `stale` until BL-015 relinks it.
+
+### P10. The Brightspace provider never raises `SessionExpired`
+The engine now catches `SessionExpired`, calls `ensure_session()` and retries once, as the ticket says. But `BrightspaceSessionProvider` still handles expiry itself: it re-logs in inside `_get`, and if that fails it raises `LMSError`. So in real runs the engine's retry path never fires. Only the fakes use it.
+- **What I did:** added `SessionExpired` to `core/providers/lms/base.py` and left the provider alone.
+
+### P11. Schema versioning and your existing database
+Nothing tracked schema versions, but BL-011R checks one and BL-018 asks for "migration v2". Your `~/.brightlearn/brightlearn.db` has the old Drive-era `resources` table, with no rows.
+- **What I did:** added numbered migrations tracked in `PRAGMA user_version`; v1 is the new `resources` table plus `model_runs`. On an unversioned database, an **empty** Drive-era table is dropped and recreated. A **non-empty** one is refused with an error, because there's no migration for Drive rows.
+
+### P12. Deleting a local file doesn't trigger a re-download
+The skip check reads only the manifest. If a file is deleted from `storage_root` by hand, its row still says `synced`, so it's skipped. `--force` gets it back.
+
+### P13. `--force` isn't defined
+The ticket lists `--force` without saying what it does.
+- **What I did:** it re-downloads every file, even ones the manifest says are current. `sync_course` takes `force=`.

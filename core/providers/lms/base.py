@@ -36,6 +36,10 @@ class LMSError(Exception):
     pass
 
 
+class SessionExpired(LMSError):
+    """The session died mid-run; ``ensure_session()`` then retrying once should recover."""
+
+
 class LMSProvider(ABC):
     @abstractmethod
     def ensure_session(self) -> None:

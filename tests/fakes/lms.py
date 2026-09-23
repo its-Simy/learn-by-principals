@@ -4,7 +4,7 @@ import hashlib
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from core.providers.lms.base import Course, DownloadResult, LMSProvider, Resource
+from core.providers.lms.base import Course, DownloadResult, LMSProvider, Resource, SessionExpired
 
 
 @dataclass
@@ -22,6 +22,8 @@ class FakeLMS(LMSProvider):
         self.fail_courses: set[int] = set()
         self.downloads: list[int] = []
         self.sessions_ensured = 0
+        self.session_expired = False  # calls raise SessionExpired until ensure_session()
+        self.relogin_works = True
 
     def add(self, resource: Resource, filename: str | None = None, content: bytes = b"") -> None:
         self.resources[resource.org_unit_id].append(resource)
@@ -39,16 +41,20 @@ class FakeLMS(LMSProvider):
 
     def ensure_session(self) -> None:
         self.sessions_ensured += 1
+        if self.relogin_works:
+            self.session_expired = False
 
     def list_courses(self) -> list[Course]:
         return list(self.courses)
 
     def list_resources(self, org_unit_id: int) -> list[Resource]:
+        self._check_session()
         if org_unit_id in self.fail_courses:
             raise RuntimeError("HTTP 403")
         return list(self.resources[org_unit_id])
 
     def download(self, resource: Resource, dest: Path) -> DownloadResult:
+        self._check_session()
         self.downloads.append(resource.topic_id)
         f = self.files[resource.topic_id]
         dest.write_bytes(f.content)  # written before failing, so cleanup is exercised
@@ -61,3 +67,7 @@ class FakeLMS(LMSProvider):
             md5=hashlib.md5(f.content).hexdigest(),
             content_type=None,
         )
+
+    def _check_session(self) -> None:
+        if self.session_expired:
+            raise SessionExpired("redirected to login")

@@ -1,23 +1,28 @@
-"""SQLite DDL. Later tables (concepts, mastery, evidence, benchmarks) land with their phase."""
+"""SQLite DDL, applied as numbered migrations tracked in ``PRAGMA user_version``.
+
+Later tables (concepts, mastery, evidence, benchmarks) land with their phase as new migrations.
+"""
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link")
 
 RESOURCES = f"""
-CREATE TABLE IF NOT EXISTS resources (
+CREATE TABLE resources (
     course             TEXT NOT NULL,
     org_unit_id        INTEGER NOT NULL,
     topic_id           INTEGER PRIMARY KEY,
     module_path        TEXT NOT NULL,
     title              TEXT NOT NULL,
     type_identifier    TEXT NOT NULL,
+    url                TEXT,
     filename           TEXT,
     size               INTEGER,
     last_modified      TEXT,
     hash               TEXT,
-    drive_file_id      TEXT,
-    drive_bucket       TEXT,
+    local_path         TEXT,
+    bucket             TEXT,
     notebook_id        TEXT,
     notebook_source_id TEXT,
+    source_hash        TEXT,
     sync_state         TEXT NOT NULL DEFAULT 'pending'
                        CHECK (sync_state IN ({", ".join(f"'{s}'" for s in SYNC_STATES)})),
     last_seen          TEXT NOT NULL
@@ -41,8 +46,12 @@ CREATE TABLE IF NOT EXISTS model_runs (
 )
 """
 
-STATEMENTS = (
-    RESOURCES,
-    "CREATE INDEX IF NOT EXISTS resources_course ON resources (course, drive_bucket)",
-    MODEL_RUNS,
-)
+MIGRATIONS: dict[int, tuple[str, ...]] = {
+    1: (
+        RESOURCES,
+        "CREATE INDEX resources_course ON resources (course, bucket)",
+        MODEL_RUNS,
+    ),
+}
+
+SCHEMA_VERSION = max(MIGRATIONS)
