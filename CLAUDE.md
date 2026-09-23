@@ -39,9 +39,10 @@ brightlearn/
 ├── cli/                  # app.py (typer root), sync.py, exam.py, tutor.py, dev.py
 ├── dashboard/
 ├── scripts/              # throwaway spikes
-├── tests/                # fixtures/, fakes/
-└── memory/               # the vault
+└── tests/                # fixtures/, fakes/
 ```
+
+Nothing personal lives in the repo. The vault (transcripts, concept notes, drafts) is at `~/.brightlearn/vault/`; `personas/` stays in the repo because it is code.
 
 Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json` (Brightspace), and notebooklm-py's `master_token.json` + `storage_state.json` under `~/.brightlearn/notebooklm/` (set `NOTEBOOKLM_HOME` there when running `notebooklm login`). All gitignored. Never write them into the repo, tests, or logs.
 
@@ -55,7 +56,10 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 | `storage_root` | `~/.brightlearn/courses` | Canonical course files |
 | `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
-| `vault_dir` | `<repo>/memory` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
+| `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
+| `routing` | teaching `claude, codex`; analysis `codex, claude` | `[routing]` in `~/.brightlearn/config.toml` |
+
+Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far.
 
 ## Provider interfaces
 
@@ -68,7 +72,8 @@ class LMSProvider(ABC):
 
 class StorageBackend(ABC):
     def ensure_folder(self, path: str) -> Path                            # absolute path of storage_root/path
-    def store(self, src: Path, rel_dir: str, name: str) -> StoreResult    # StoreResult(path, sha256, size); hash computed on write
+    def store(self, src: Path, rel_dir: str, name: str) -> StoreResult    # StoreResult(path, sha256, size); hash computed on write;
+                                                                          # a replaced file is kept as rel_dir/_versions/{name}.{old_hash[:8]}
     def exists(self, rel_path: str) -> bool
     def list(self, rel_dir: str) -> list[Path]
 
@@ -78,7 +83,8 @@ class KnowledgeProvider(ABC):
     def remove_source(self, source_id: str) -> None
     def list_sources(self, notebook_id: str) -> list[SourceMeta]
     def refresh_source(self, source_id: str) -> None
-    def query(self, notebook_id: str, question: str, source_ids=None) -> GroundedAnswer
+    def query(self, notebook_id: str, question: str, source_ids=None, conversation=None) -> GroundedAnswer
+                                                  # conversation=None: fresh NotebookLM conversation; a Conversation handle: one per tutor session
     def source_fulltext(self, source_id: str) -> str
     def generate_quiz(self, notebook_id: str, spec) -> dict
     def generate_audio(self, notebook_id: str, instructions_md: str, format: str, length: str) -> Path
@@ -125,6 +131,8 @@ evidence:    evidence_id, concept_id, session_id, type, strength, source_provide
              excerpt_ref, recorded_at   (append-only)                                    (Phase 4)
 sessions:    session_id, course, started_at, ended_at, tutor_provider, analyzer_provider,
              summary_path                                                                (Phase 4)
+mastery_history: id, concept_id, old_level, new_level, confidence, evidence_ids (JSON),
+             changed_at, changed_by (analyzer|manual)   (append-only; one row per set_mastery)
 benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              latency_ms, learner_rating, sample_count                                    (Phase 10)
 ```
@@ -142,3 +150,14 @@ Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with bucke
 ## Not in V1
 
 - Drive automation (can return via StorageBackend)
+
+## Decision log
+
+Newest first. Add a row whenever a principle is bent or a provider choice changes.
+
+| Date | Decision | Why |
+| --- | --- | --- |
+| Sept 23, 2026 | Model routing v0 is a fixed order per purpose, read from `[routing]` in `~/.brightlearn/config.toml` (teaching `claude, codex`; analysis `codex, claude`). A temporary exception to principle 8 until the benchmarks table exists (Phase 10). | The ticket asked for v0; keeping the order in config makes it data, not code. |
+| Sept 23, 2026 | The vault moves out of the repo to `~/.brightlearn/vault/`; it is no longer git-versioned. | Transcripts and mastery are personal; nothing personal should be committable. |
+| Sept 23, 2026 | Every NotebookLM query starts a fresh conversation (the provider deletes the notebook's latest one first); a tutor session keeps one conversation of its own. NotebookLM's chat history for BrightLearn notebooks is not kept; the ledger and transcripts are the record. | Otherwise NotebookLM carries hidden history into the Context Compiler's minimal package. |
+| Sept 23, 2026 | A changed course file is kept in `_versions/` before it is replaced. | Principle 3: a corrected lecture's old version is exactly what you'd want back. |

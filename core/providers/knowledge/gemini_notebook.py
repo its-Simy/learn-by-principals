@@ -19,6 +19,7 @@ import importlib
 import importlib.util
 import json
 import logging
+import os
 import sqlite3
 import subprocess
 import sys
@@ -32,6 +33,7 @@ from core.config import Config
 from core.ledger.ledger import Ledger, ModelRun, estimate_tokens, utcnow
 from core.providers.knowledge.base import (
     Citation,
+    Conversation,
     GroundedAnswer,
     KnowledgeError,
     KnowledgeProvider,
@@ -103,8 +105,14 @@ class Transport(Protocol):
     async def list_sources(self, notebook_id: str) -> list[SourceMeta]: ...
     async def refresh_source(self, notebook_id: str, source_id: str) -> None: ...
     async def ask(
-        self, notebook_id: str, question: str, source_ids: list[str] | None
-    ) -> GroundedAnswer: ...
+        self,
+        notebook_id: str,
+        question: str,
+        source_ids: list[str] | None,
+        conversation_id: str | None,
+    ) -> GroundedAnswer:
+        """``conversation_id=None`` starts a fresh conversation."""
+
     async def fulltext(self, notebook_id: str, source_id: str) -> str: ...
     async def generate(
         self, notebook_id: str, kind: str, options: dict[str, Any], dest: Path, timeout_s: float
@@ -175,11 +183,24 @@ class LibraryTransport:
         await (await self._c()).sources.refresh(notebook_id, source_id)
 
     async def ask(
-        self, notebook_id: str, question: str, source_ids: list[str] | None
+        self,
+        notebook_id: str,
+        question: str,
+        source_ids: list[str] | None,
+        conversation_id: str | None,
     ) -> GroundedAnswer:
-        result = await (await self._c()).chat.ask(notebook_id, question, source_ids=source_ids)
+        chat = (await self._c()).chat
+        if conversation_id is None:
+            # chat.ask without a conversation id extends the notebook's latest conversation; the
+            # library's documented way to force a new one is to delete that conversation first.
+            latest = await chat.get_conversation_id(notebook_id)
+            if latest:
+                await chat.delete_conversation(notebook_id, latest)
+        result = await chat.ask(
+            notebook_id, question, source_ids=source_ids, conversation_id=conversation_id
+        )
         citations = [Citation(r.source_id, r.cited_text or "") for r in result.references]
-        return GroundedAnswer(result.answer, citations)
+        return GroundedAnswer(result.answer, citations, result.conversation_id)
 
     async def fulltext(self, notebook_id: str, source_id: str) -> str:
         return (await (await self._c()).sources.get_fulltext(notebook_id, source_id)).content
@@ -298,6 +319,7 @@ class GeminiNotebookProvider(KnowledgeProvider):
 
     @classmethod
     def from_config(cls, config: Config, conn: sqlite3.Connection) -> GeminiNotebookProvider:
+        use_brightlearn_home(config)
         storage = config.notebooklm_storage_path
         return cls(
             conn,
@@ -355,14 +377,22 @@ class GeminiNotebookProvider(KnowledgeProvider):
         self._call("refresh_source", lambda t: t.refresh_source(notebook_id, source_id))
 
     def query(
-        self, notebook_id: str, question: str, source_ids: list[str] | None = None
+        self,
+        notebook_id: str,
+        question: str,
+        source_ids: list[str] | None = None,
+        conversation: Conversation | None = None,
     ) -> GroundedAnswer:
-        return self._call(
+        conversation_id = conversation.conversation_id if conversation else None
+        answer = self._call(
             "query",
-            lambda t: t.ask(notebook_id, question, source_ids),
+            lambda t: t.ask(notebook_id, question, source_ids, conversation_id),
             input_text=question,
             output_text=lambda answer: answer.text,
         )
+        if conversation is not None and conversation.conversation_id is None:
+            conversation.conversation_id = answer.conversation_id
+        return answer
 
     def source_fulltext(self, source_id: str) -> str:
         notebook_id = self._notebook_of(source_id)
@@ -506,12 +536,43 @@ class GeminiNotebookProvider(KnowledgeProvider):
         )
 
 
+def use_brightlearn_home(config: Config) -> None:
+    """Point notebooklm-py at ``~/.brightlearn/notebooklm`` for this process (P20), so its
+    master token and cookies live with BrightLearn's other secrets."""
+    os.environ["NOTEBOOKLM_HOME"] = str(config.notebooklm_home)
+
+
+def notebooklm_env(config: Config) -> dict[str, str]:
+    return {**os.environ, "NOTEBOOKLM_HOME": str(config.notebooklm_home)}
+
+
+def default_library_storage() -> Path:
+    """Where ``notebooklm login`` writes when NOTEBOOKLM_HOME is unset."""
+    return Path.home() / ".notebooklm" / "profiles" / "default" / "storage_state.json"
+
+
 def library_installed() -> bool:
     return importlib.util.find_spec("notebooklm") is not None
 
 
+def login(config: Config, account: str) -> int:
+    """``notebooklm login --master-token --account <account>`` into BrightLearn's profile.
+    Interactive: the library opens a browser. Returns the exit code."""
+    config.notebooklm_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    cmd = [sys.executable, "-m", "notebooklm", "login", "--master-token", "--account", account]
+    return subprocess.run(cmd, env=notebooklm_env(config)).returncode
+
+
 def auth_check(config: Config, timeout_s: float = 60.0) -> tuple[bool, str]:
     """``notebooklm auth check --json`` against BrightLearn's NotebookLM profile."""
+    if not config.notebooklm_storage_path.exists():
+        where = config.notebooklm_home
+        if default_library_storage().exists():
+            return False, (
+                f"no login in {where}, but one exists in ~/.notebooklm (made without "
+                "NOTEBOOKLM_HOME); run `brightlearn dev nlm-login --account <gmail>`"
+            )
+        return False, f"no login in {where}; run `brightlearn dev nlm-login --account <gmail>`"
     cmd = [
         sys.executable,
         "-m",
@@ -523,7 +584,9 @@ def auth_check(config: Config, timeout_s: float = 60.0) -> tuple[bool, str]:
         "--json",
     ]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout_s, env=notebooklm_env(config)
+        )
     except subprocess.TimeoutExpired:
         return False, f"`notebooklm auth check` timed out after {timeout_s:.0f}s"
     try:

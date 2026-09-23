@@ -1,7 +1,7 @@
 """SQLite DDL, applied as numbered migrations tracked in ``PRAGMA user_version``.
 
-v1: the sync manifest, ledger and notebook cache. v2: learner memory. Later tables (benchmarks)
-land with their phase as new migrations.
+v1: the sync manifest, ledger and notebook cache. v2: learner memory. v3: the mastery audit
+trail. Later tables (benchmarks) land with their phase as new migrations.
 """
 
 SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
@@ -120,6 +120,29 @@ EVIDENCE_APPEND_ONLY = (
     " BEGIN SELECT RAISE(ABORT, 'evidence is append-only'); END",
 )
 
+MASTERY_CHANGERS = ("analyzer", "manual")
+
+# Principle 4 audit trail: one row per set_mastery call, naming the evidence that justified it.
+MASTERY_HISTORY = f"""
+CREATE TABLE mastery_history (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    concept_id   TEXT NOT NULL REFERENCES concepts (concept_id),
+    old_level    INTEGER CHECK (old_level BETWEEN 0 AND 5),
+    new_level    INTEGER NOT NULL CHECK (new_level BETWEEN 0 AND 5),
+    confidence   REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    evidence_ids TEXT NOT NULL,
+    changed_at   TEXT NOT NULL,
+    changed_by   TEXT NOT NULL CHECK (changed_by IN ({_in(MASTERY_CHANGERS)}))
+)
+"""
+
+MASTERY_HISTORY_APPEND_ONLY = (
+    "CREATE TRIGGER mastery_history_no_update BEFORE UPDATE ON mastery_history"
+    " BEGIN SELECT RAISE(ABORT, 'mastery_history is append-only'); END",
+    "CREATE TRIGGER mastery_history_no_delete BEFORE DELETE ON mastery_history"
+    " BEGIN SELECT RAISE(ABORT, 'mastery_history is append-only'); END",
+)
+
 MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
         RESOURCES,
@@ -135,6 +158,11 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX evidence_concept ON evidence (concept_id, recorded_at)",
         *EVIDENCE_APPEND_ONLY,
         SESSIONS,
+    ),
+    3: (
+        MASTERY_HISTORY,
+        "CREATE INDEX mastery_history_concept ON mastery_history (concept_id, changed_at)",
+        *MASTERY_HISTORY_APPEND_ONLY,
     ),
 }
 

@@ -17,9 +17,6 @@ from core.tutor import HELP, Tutor
 
 console = Console()
 
-# v0 routing (TICKETS-2 BL-026): Claude teaches; Codex takes over when Claude is rate limited.
-TEACHING_ORDER = ["claude", "codex"]
-
 
 def tutor(
     course: str = typer.Option(..., help="Course code, e.g. CSE220."),
@@ -30,11 +27,12 @@ def tutor(
     config = load_config()
     conn = connect(config.db_path)
     learner = LearnerMemory(conn)
-    router = Router(
-        {name: common.open_model(name, config) for name in TEACHING_ORDER},
-        Ledger(conn),
-        TEACHING_ORDER,
-    )
+    try:
+        providers = common.model_providers(config, ("teaching", "analysis"))
+    except (KeyError, ValueError) as exc:
+        raise typer.BadParameter(f"[routing] in {config.config_path}: {exc}") from exc
+    # v0: the order comes from config.toml [routing] teaching (default claude, then codex).
+    router = Router(providers, Ledger(conn), list(config.routing["teaching"]))
     try:
         with common.open_knowledge(config, conn) as knowledge:
             compiler = ContextCompiler(knowledge, learner, Manifest(conn))
@@ -45,8 +43,8 @@ def tutor(
                     compiler,
                     router,
                     learner,
-                    Vault(config.vault_dir),
-                    on_end=common.session_end_hook(config, conn, router),
+                    Vault(config.vault_root),
+                    on_end=common.session_end_hook(config, conn, providers),
                 )
             except PersonaError as exc:
                 raise typer.BadParameter(str(exc)) from exc

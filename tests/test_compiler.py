@@ -123,3 +123,15 @@ def test_match_concepts_plural_and_all_words():
         "a",
         "b",
     ]
+
+
+def test_session_keeps_one_notebooklm_conversation(knowledge, learner):
+    compiler = ContextCompiler(knowledge, learner)
+    session = TutorSession("s1", "CSE220")
+    compiler.compile("What is a pointer?", "CSE220", "simplifier", session)
+    compiler.compile("Why?", "CSE220", "simplifier", session)
+    compiler.compile("Explain pointers", "CSE220", "simplifier")  # no session: fresh
+
+    first, second, third = knowledge.conversations
+    assert first == second == session.conversation.conversation_id
+    assert third != first

@@ -57,6 +57,20 @@ def models():
     return {"claude": FakeModel("claude", reply), "codex": FakeModel("codex", reply)}
 
 
+TRANSCRIPT = """# Tutor session s · CSE220
+
+**Learner:** What does *p do?
+
+**Tutor (simplifier · claude):** It follows the pointer. What does it give you here?
+
+**Learner:** so *p reads the int that p points to
+
+**Tutor (simplifier · claude):** Right. And p + 1?
+
+**Learner:** p + 1 moves by sizeof(int), not one byte
+"""
+
+
 def session(learner, tutor_provider="claude"):
     row = learner.start_session("CSE220", tutor_provider=tutor_provider)
     row.tutor_provider = tutor_provider
@@ -71,7 +85,7 @@ def analyzer(learner, models, tmp_path):
 def test_evidence_written_plus_one_applied_plus_three_logged(learner, models, tmp_path):
     row = session(learner)
 
-    report = analyzer(learner, models, tmp_path).analyze(row, "Learner: … transcript …")
+    report = analyzer(learner, models, tmp_path).analyze(row, TRANSCRIPT)
 
     assert report.provider == "codex"  # never the tutor
     assert models["claude"].tasks == []
@@ -97,7 +111,7 @@ def test_evidence_written_plus_one_applied_plus_three_logged(learner, models, tm
 
 def test_session_row_and_summary_record_the_analysis(learner, models, tmp_path):
     row = session(learner)
-    analyzer(learner, models, tmp_path).analyze(row, "transcript")
+    analyzer(learner, models, tmp_path).analyze(row, TRANSCRIPT)
 
     saved = learner.get_session(row.session_id)
     assert saved.analyzer_provider == "codex"
@@ -108,7 +122,7 @@ def test_session_row_and_summary_record_the_analysis(learner, models, tmp_path):
 
 
 def test_codex_tutored_session_is_analyzed_by_claude(learner, models, tmp_path):
-    report = analyzer(learner, models, tmp_path).analyze(session(learner, "codex"), "t")
+    report = analyzer(learner, models, tmp_path).analyze(session(learner, "codex"), TRANSCRIPT)
     assert report.provider == "claude"
     assert models["codex"].tasks == []
 
@@ -136,7 +150,7 @@ def test_tutor_end_runs_the_analyzer(tmp_path, monkeypatch):
     conn = connect(load_config().db_path)
     LearnerMemory(conn).upsert_concept(Concept("cse220/pointers", "CSE220", "Pointers"))
     conn.close()
-    reply = json.dumps([{**OUTPUT[0], "proposed_level": 1}])
+    reply = json.dumps([{**OUTPUT[0], "excerpt": "What is a pointer?", "proposed_level": 1}])
     models = {"claude": FakeModel("claude", "Tutor reply."), "codex": FakeModel("codex", reply)}
 
     @contextmanager
@@ -156,3 +170,47 @@ def test_tutor_end_runs_the_analyzer(tmp_path, monkeypatch):
     assert LearnerMemory(conn).get_mastery("cse220/pointers").level == 1
     assert models["codex"].tasks[0].task_type == "analyze_transcript"
     assert "What is a pointer?" in models["codex"].tasks[0].user
+
+
+def test_excerpts_the_learner_never_said_are_not_written(learner, tmp_path):
+    items = [
+        {**OUTPUT[0], "excerpt": "It follows the pointer."},  # the tutor's words
+        {**OUTPUT[0], "excerpt": "pointers are just integers"},  # invented
+        {**OUTPUT[0], "excerpt": ""},
+        {**OUTPUT[0], "excerpt": '"So *p reads the int…"', "proposed_level": 3},
+    ]
+    models = {"claude": FakeModel("claude"), "codex": FakeModel("codex", json.dumps(items))}
+    before = len(learner.evidence("cse220/pointers"))
+
+    report = analyzer(learner, models, tmp_path).analyze(session(learner), TRANSCRIPT)
+
+    assert len(report.evidence_ids) == 1  # only the quoted learner line
+    assert len(learner.evidence("cse220/pointers")) == before + 1
+    assert report.skipped.count("Pointers: excerpt is not in the learner's own turns") == 3
+    (change,) = learner.mastery_history("cse220/pointers")[-1:]
+    assert change.changed_by == "analyzer"
+    assert change.evidence_ids == report.evidence_ids
+
+
+def test_routing_order_comes_from_config_toml(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.toml").write_text(
+        '[routing]\nteaching = ["codex", "claude"]\nanalysis = ["claude", "codex"]\n'
+    )
+    monkeypatch.setenv("BRIGHTLEARN_HOME", str(home))
+    monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "memory"))
+    models = {"claude": FakeModel("claude", "[]"), "codex": FakeModel("codex", "Codex teaches.")}
+
+    @contextmanager
+    def fake_open_knowledge(config, conn):
+        yield FakeKnowledge()
+
+    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+
+    result = CliRunner().invoke(app, ["tutor", "--course", "CSE220"], input="Hi?\n/end\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Codex teaches." in result.output
+    assert "Analyzer (claude)" in result.output

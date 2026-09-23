@@ -15,5 +15,5 @@ def config(tmp_path: Path) -> Config:
         storage_root=home / "courses",
         tmp_dir=tmp_path / "tmp",
         db_path=home / "brightlearn.db",
-        vault_dir=tmp_path / "memory",
+        vault_root=tmp_path / "memory",
     )

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from core.ledger.ledger import utcnow
-from core.memory.schema import EVIDENCE_STRENGTHS, EVIDENCE_TYPES
+from core.memory.schema import EVIDENCE_STRENGTHS, EVIDENCE_TYPES, MASTERY_CHANGERS
 
 # Retention decay: untouched for GRACE_DAYS, then halves every HALF_LIFE_DAYS.
 GRACE_DAYS = 2.0
@@ -60,6 +60,18 @@ class Evidence:
     source_provider: str | None
     excerpt_ref: str | None
     recorded_at: str
+
+
+@dataclass(frozen=True)
+class MasteryChange:
+    id: int
+    concept_id: str
+    old_level: int | None
+    new_level: int
+    confidence: float
+    evidence_ids: list[str]
+    changed_at: str
+    changed_by: str
 
 
 @dataclass
@@ -182,12 +194,22 @@ class LearnerMemory:
         return [Evidence(**dict(r)) for r in rows]
 
     def set_mastery(
-        self, concept_id: str, level: int, confidence: float, evidence_ids: Iterable[str]
+        self,
+        concept_id: str,
+        level: int,
+        confidence: float,
+        evidence_ids: Iterable[str],
+        changed_by: str = "manual",
     ) -> Mastery:
-        """Set a concept's mastery, justified by ``evidence_ids`` (which must be this concept's)."""
+        """Set a concept's mastery, justified by ``evidence_ids`` (which must be this concept's).
+
+        Every call also appends a ``mastery_history`` row naming those evidence ids.
+        """
         evidence_ids = list(evidence_ids)
         if not evidence_ids:
             raise MasteryWithoutEvidence(f"set_mastery({concept_id!r}) needs evidence ids")
+        if changed_by not in MASTERY_CHANGERS:
+            raise LearnerError(f"changed_by {changed_by!r} is not one of {MASTERY_CHANGERS}")
         if not 0 <= level <= 5:
             raise LearnerError(f"Mastery level {level} is outside 0-5")
         if not 0.0 <= confidence <= 1.0:
@@ -207,6 +229,7 @@ class LearnerMemory:
         count, last = self.conn.execute(
             "SELECT count(*), max(recorded_at) FROM evidence WHERE concept_id = ?", (concept_id,)
         ).fetchone()
+        previous = self.get_mastery(concept_id)
         mastery = Mastery(
             concept_id=concept_id,
             level=level,
@@ -231,7 +254,29 @@ class LearnerMemory:
                     mastery.last_reviewed,
                 ),
             )
+            self.conn.execute(
+                "INSERT INTO mastery_history (concept_id, old_level, new_level, confidence,"
+                " evidence_ids, changed_at, changed_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    concept_id,
+                    previous.level if previous else None,
+                    level,
+                    confidence,
+                    json.dumps(evidence_ids),
+                    mastery.last_reviewed,
+                    changed_by,
+                ),
+            )
         return mastery
+
+    def mastery_history(self, concept_id: str) -> list[MasteryChange]:
+        rows = self.conn.execute(
+            "SELECT * FROM mastery_history WHERE concept_id = ? ORDER BY id", (concept_id,)
+        )
+        return [
+            MasteryChange(**{**dict(r), "evidence_ids": json.loads(r["evidence_ids"])})
+            for r in rows
+        ]
 
     def weakest(
         self, course: str, n: int, exam_tag: str | None = None

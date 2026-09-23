@@ -8,6 +8,7 @@ from typing import Any
 
 from core.providers.knowledge.base import (
     Citation,
+    Conversation,
     GroundedAnswer,
     KnowledgeError,
     KnowledgeProvider,
@@ -36,6 +37,7 @@ class FakeKnowledge(KnowledgeProvider):
         self.sources: dict[str, FakeSource] = {}
         self.calls: list[tuple[str, Any]] = []
         self.queries: list[tuple[str, str, list[str] | None]] = []
+        self.conversations: list[str] = []  # conversation id used by each query
         self.state = ProviderState.AVAILABLE
         self._ids = itertools.count(1)
 
@@ -68,16 +70,27 @@ class FakeKnowledge(KnowledgeProvider):
         self.calls.append(("refresh_source", source_id))
 
     def query(
-        self, notebook_id: str, question: str, source_ids: list[str] | None = None
+        self,
+        notebook_id: str,
+        question: str,
+        source_ids: list[str] | None = None,
+        conversation: Conversation | None = None,
     ) -> GroundedAnswer:
         self.queries.append((notebook_id, question, source_ids))
+        if conversation is None or conversation.conversation_id is None:
+            conversation_id = f"conv{next(self._ids)}"  # fresh
+            if conversation is not None:
+                conversation.conversation_id = conversation_id
+        else:
+            conversation_id = conversation.conversation_id
+        self.conversations.append(conversation_id)
         pool = [
             s
             for s in self.sources.values()
             if s.notebook_id == notebook_id and (source_ids is None or s.source_id in source_ids)
         ]
         citations = [Citation(s.source_id, s.text[:80]) for s in pool[:1]]
-        return GroundedAnswer(self.answer_text, citations)
+        return GroundedAnswer(self.answer_text, citations, conversation_id)
 
     def source_fulltext(self, source_id: str) -> str:
         return self.sources[source_id].text

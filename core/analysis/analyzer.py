@@ -9,6 +9,7 @@ recorded as ``needs_challenge`` for the Challenger (Phase 6+) and not applied.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from core.jsonutil import extract_json_array
@@ -24,6 +25,24 @@ log = logging.getLogger(__name__)
 
 TRANSCRIPT_CAP = 6000
 STRENGTH_CONFIDENCE = {"weak": 0.4, "moderate": 0.6, "strong": 0.8}
+
+# Learner turns in a core.tutor transcript: "**Learner:** …" up to the next tutor line or note.
+_LEARNER_TURN = re.compile(r"\*\*Learner:\*\*\s*(.*?)(?=\n\*\*Tutor|\n_|\Z)", re.DOTALL)
+
+
+def _normalise(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def learner_words(transcript: str) -> str:
+    return _normalise(" ".join(_LEARNER_TURN.findall(transcript)))
+
+
+def excerpt_is_learners(excerpt: str, learner_text: str) -> bool:
+    """The excerpt, minus a "Learner:" label, quotes and ellipses, occurs in the learner's turns."""
+    text = re.sub(r"^\s*(\*\*)?learner:?(\*\*)?\s*", "", excerpt.strip(), flags=re.IGNORECASE)
+    text = _normalise(text.strip(" \"'“”‘’").strip("…").strip("."))
+    return bool(text) and text in learner_text
 
 
 class AnalysisError(Exception):
@@ -84,8 +103,11 @@ class Analyzer:
 
         report = AnalysisReport(row.session_id, result.provider)
         support: dict[str, list[str]] = {}
+        spoken = learner_words(transcript)
         for item in items:
-            self._apply_item(item, row, result.provider, by_name, start_levels, support, report)
+            self._apply_item(
+                item, row, result.provider, by_name, start_levels, support, report, spoken
+            )
 
         row.analyzer_provider = result.provider
         if self._vault is not None:
@@ -123,7 +145,9 @@ class Analyzer:
         system = render(load("analyzer"), {"course": row.course})
         return TaskPackage("analyze_transcript", "analyzer", system, user, 1500, {})
 
-    def _apply_item(self, item, row, provider, by_name, start_levels, support, report) -> None:
+    def _apply_item(
+        self, item, row, provider, by_name, start_levels, support, report, spoken
+    ) -> None:
         if not isinstance(item, dict):
             report.skipped.append(f"not an object: {item!r}"[:120])
             return
@@ -134,6 +158,10 @@ class Analyzer:
             return
         if kind not in EVIDENCE_TYPES or strength not in EVIDENCE_STRENGTHS:
             report.skipped.append(f"{concept.name}: bad type/strength {kind!r}/{strength!r}")
+            return
+        # Evidence is append-only, so an unverifiable excerpt is never written (P64).
+        if not excerpt_is_learners(str(item.get("excerpt") or ""), spoken):
+            report.skipped.append(f"{concept.name}: excerpt is not in the learner's own turns")
             return
         try:
             evidence_id = self._learner.add_evidence(
@@ -162,6 +190,7 @@ class Analyzer:
                 proposed,
                 STRENGTH_CONFIDENCE[strength],
                 support[concept.concept_id],
+                changed_by="analyzer",
             )
             report.applied = [c for c in report.applied if c.concept_id != concept.concept_id]
             report.applied.append(change)

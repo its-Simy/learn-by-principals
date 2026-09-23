@@ -47,13 +47,37 @@ def test_restore_identical_is_a_no_op(storage, tmp_path):
     assert again.sha256 == first.sha256
 
 
-def test_restore_changed_overwrites(storage, tmp_path):
-    storage.store(src(tmp_path, b"v1"), REL, "lec1.pdf")
+def test_restore_changed_overwrites_and_keeps_the_old_version(storage, tmp_path):
+    first = storage.store(src(tmp_path, b"v1"), REL, "lec1.pdf")
     result = storage.store(src(tmp_path, b"v2"), REL, "lec1.pdf")
 
     assert result.path.read_bytes() == b"v2"
     assert result.sha256 == hashlib.sha256(b"v2").hexdigest()
     assert storage.list(REL) == [result.path]
+    kept = storage.root / REL / "_versions" / f"lec1.pdf.{first.sha256[:8]}"
+    assert kept.read_bytes() == b"v1"
+    assert storage.versions(REL, "lec1.pdf") == [kept]
+
+
+def test_every_replaced_version_is_kept_once(storage, tmp_path):
+    for content in (b"v1", b"v2", b"v1", b"v3"):
+        storage.store(src(tmp_path, content), REL, "lec1.pdf")
+    kept = {p.read_bytes() for p in storage.versions(REL, "lec1.pdf")}
+    assert kept == {b"v1", b"v2"}
+    assert (storage.root / REL / "lec1.pdf").read_bytes() == b"v3"
+
+
+def test_versions_are_copied_where_hard_links_fail(storage, tmp_path, monkeypatch):
+    storage.store(src(tmp_path, b"v1"), REL, "lec1.pdf")
+
+    def no_links(a, b):
+        raise OSError(errno.EPERM, "hard links not supported")
+
+    monkeypatch.setattr(os, "link", no_links)
+    storage.store(src(tmp_path, b"v2"), REL, "lec1.pdf")
+    (kept,) = storage.versions(REL, "lec1.pdf")
+    assert kept.read_bytes() == b"v1"
+    assert not any(p.name.endswith(".part") for p in kept.parent.iterdir())
 
 
 @pytest.mark.parametrize(
@@ -118,7 +142,8 @@ def test_failed_copy_leaves_no_partial_file(storage, tmp_path, monkeypatch):
     with pytest.raises(OSError, match="disk full"):
         storage.store(tmp, REL, "lec1.pdf")
 
-    assert [p.name for p in (storage.root / REL).iterdir()] == ["lec1.pdf"]
+    assert [p.name for p in storage.list(REL)] == ["lec1.pdf"]
+    assert not any(p.name.endswith(".part") for p in (storage.root / REL).rglob("*"))
     assert (storage.root / REL / "lec1.pdf").read_bytes() == b"v1"
     assert tmp.exists()
 

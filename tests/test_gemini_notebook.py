@@ -12,6 +12,7 @@ import pytest
 from core.memory.db import Manifest, ResourceRow, connect
 from core.providers.knowledge import gemini_notebook as gn
 from core.providers.knowledge.base import (
+    Conversation,
     GroundedAnswer,
     KnowledgeError,
     KnowledgeRateLimited,
@@ -76,9 +77,9 @@ class FakeTransport:
     async def refresh_source(self, notebook_id, source_id):
         await self._step("refresh_source")
 
-    async def ask(self, notebook_id, question, source_ids):
+    async def ask(self, notebook_id, question, source_ids, conversation_id):
         await self._step("ask")
-        return GroundedAnswer(f"answer from {self.name}")
+        return GroundedAnswer(f"answer from {self.name}", [], conversation_id or "conv-new")
 
     async def fulltext(self, notebook_id, source_id):
         await self._step("fulltext")
@@ -306,7 +307,7 @@ class Recorder:
         self.calls = []
 
 
-def fake_client(recorder: Recorder, status_kwargs=None):
+def fake_client(recorder: Recorder, status_kwargs=None, latest_conversation="conv-old"):
     status = SimpleNamespace(
         task_id="task-1",
         status="completed",
@@ -353,11 +354,14 @@ def fake_client(recorder: Recorder, status_kwargs=None):
         chat=SimpleNamespace(
             ask=rec(
                 "chat.ask",
-                SimpleNamespace(
+                lambda nb, q, source_ids=None, conversation_id=None: SimpleNamespace(
                     answer="Exams are 60% [1].",
                     references=[SimpleNamespace(source_id="src-1", cited_text="Exams: 60%")],
+                    conversation_id=conversation_id or "conv-9",
                 ),
-            )
+            ),
+            get_conversation_id=rec("chat.get_conversation_id", latest_conversation),
+            delete_conversation=rec("chat.delete_conversation"),
         ),
         artifacts=SimpleNamespace(
             generate_audio=rec("artifacts.generate_audio", status),
@@ -415,7 +419,8 @@ def test_library_transport_maps_sources_answers_and_notebooks(conn, tmp_path, li
     add = next(c for c in recorder.calls if c[0] == "sources.add_file")
     assert add[2] == {"wait": True}
     ask = next(c for c in recorder.calls if c[0] == "chat.ask")
-    assert ask[2] == {"source_ids": ["src-1"]}
+    assert ask[2] == {"source_ids": ["src-1"], "conversation_id": None}
+    assert ("chat.delete_conversation", ("nb-1", "conv-old"), {}) in recorder.calls
     assert ("sources.delete", ("nb-1", "src-1"), {}) in recorder.calls
     assert ctx.entered == 1  # one client for every call
 
@@ -487,3 +492,72 @@ def test_missing_library_is_a_knowledge_error(conn, tmp_path, monkeypatch):
     with pytest.raises(KnowledgeError, match="not installed"):
         provider.list_sources("nb-1")
     assert provider.state is ProviderState.BROKEN
+
+
+def test_query_without_a_handle_starts_a_fresh_conversation_every_time(conn, tmp_path, lib):
+    recorder = Recorder()
+    provider, _ = library_provider(conn, tmp_path, fake_client(recorder))
+
+    provider.query("nb-1", "q1")
+    provider.query("nb-1", "q2")
+
+    names = [c[0] for c in recorder.calls]
+    assert names.count("chat.delete_conversation") == 2
+    asks = [c for c in recorder.calls if c[0] == "chat.ask"]
+    assert all(c[2]["conversation_id"] is None for c in asks)
+
+
+def test_a_conversation_handle_is_fresh_once_then_follows_up(conn, tmp_path, lib):
+    recorder = Recorder()
+    provider, _ = library_provider(conn, tmp_path, fake_client(recorder))
+    session = Conversation()
+
+    first = provider.query("nb-1", "What is a pointer?", conversation=session)
+    provider.query("nb-1", "Why?", conversation=session)
+
+    assert session.conversation_id == "conv-9" == first.conversation_id
+    asks = [c for c in recorder.calls if c[0] == "chat.ask"]
+    assert [c[2]["conversation_id"] for c in asks] == [None, "conv-9"]
+    assert [c[0] for c in recorder.calls].count("chat.delete_conversation") == 1
+
+
+def test_fresh_query_on_a_notebook_without_history_deletes_nothing(conn, tmp_path, lib):
+    recorder = Recorder()
+    provider, _ = library_provider(conn, tmp_path, fake_client(recorder, latest_conversation=None))
+    provider.query("nb-1", "q")
+    assert "chat.delete_conversation" not in [c[0] for c in recorder.calls]
+
+
+def test_from_config_points_notebooklm_home_at_brightlearn(config, monkeypatch):
+    monkeypatch.delenv("NOTEBOOKLM_HOME", raising=False)
+    provider = GeminiNotebookProvider.from_config(config, connect(":memory:"))
+    try:
+        assert gn.os.environ["NOTEBOOKLM_HOME"] == str(config.home / "notebooklm")
+    finally:
+        provider.close()
+        monkeypatch.delenv("NOTEBOOKLM_HOME", raising=False)
+
+
+def test_auth_check_without_a_login_explains_where_to_log_in(config, monkeypatch, tmp_path):
+    monkeypatch.setattr(gn.Path, "home", lambda: tmp_path / "nohome")
+    ok, detail = gn.auth_check(config)
+    assert not ok and "brightlearn dev nlm-login" in detail
+
+    stray = tmp_path / "nohome/.notebooklm/profiles/default/storage_state.json"
+    stray.parent.mkdir(parents=True)
+    stray.write_text("{}")
+    ok, detail = gn.auth_check(config)
+    assert not ok and "~/.notebooklm" in detail
+
+
+def test_login_runs_the_library_cli_with_brightlearn_home(config, monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, env):
+        seen.update(cmd=cmd, home=env["NOTEBOOKLM_HOME"])
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(gn.subprocess, "run", fake_run)
+    assert gn.login(config, "me@example.com") == 0
+    assert seen["cmd"][-4:] == ["login", "--master-token", "--account", "me@example.com"]
+    assert seen["home"] == str(config.home / "notebooklm")

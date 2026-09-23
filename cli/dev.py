@@ -13,6 +13,7 @@ from cli import common
 from core.config import ensure_home, load_config
 from core.ledger.ledger import Ledger, ModelRun, utcnow
 from core.memory.db import Manifest, connect
+from core.providers.knowledge import gemini_notebook
 from core.providers.models.base import ModelError, TaskPackage
 
 SPIKE_NOTEBOOK = "BrightLearn-spike"
@@ -99,3 +100,17 @@ def model_test(
     console.print(
         f"[dim]{result.provider} · {result.model or 'model unknown'} · {result.duration_ms} ms[/]"
     )
+
+
+@app.command("nlm-login")
+def nlm_login(
+    account: str = typer.Option(..., help="The Google account for the notebooks."),
+) -> None:
+    """`notebooklm login --master-token` into ~/.brightlearn/notebooklm (opens a browser)."""
+    config = load_config()
+    if not gemini_notebook.library_installed():
+        raise typer.BadParameter(f"notebooklm-py is not installed: {gemini_notebook.INSTALL_HINT}")
+    code = gemini_notebook.login(config, account)
+    if code:
+        raise typer.Exit(code)
+    console.print(f"Saved under {config.notebooklm_home}. Check with `brightlearn doctor`.")

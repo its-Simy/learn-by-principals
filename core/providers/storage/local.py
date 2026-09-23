@@ -17,6 +17,7 @@ from core.providers.storage.base import StorageBackend, StorageError, StoreResul
 log = logging.getLogger(__name__)
 
 PART_SUFFIX = ".part"
+VERSIONS_DIR = "_versions"
 _CHUNK = 1 << 20
 
 
@@ -59,30 +60,68 @@ class LocalStorageBackend(StorageBackend):
     def store(self, src: Path, rel_dir: str, name: str) -> StoreResult:
         """Move ``src`` into place; ``src`` is consumed either way.
 
-        Same name and same hash: the existing file is left untouched. Different hash: overwritten.
+        Same name and same hash: the existing file is left untouched. Different hash: the old file
+        is kept as ``_versions/{name}.{old_hash[:8]}`` first, then replaced (principle 3).
         """
         dest = self.ensure_folder(rel_dir) / sanitize_filename(name)
         digest, size = sha256_file(src), src.stat().st_size
-        if dest.is_file() and sha256_file(dest) == digest:
-            src.unlink()
-            return StoreResult(dest, digest, size)
+        if dest.is_file():
+            old = sha256_file(dest)
+            if old == digest:
+                src.unlink()
+                return StoreResult(dest, digest, size)
+            self._archive(dest, old)
         self._move(src, dest, digest)
         return StoreResult(dest, digest, size)
+
+    def versions(self, rel_dir: str, name: str) -> list[Path]:
+        """Earlier versions of ``rel_dir/name`` kept by ``store``."""
+        folder = self._resolve(rel_dir) / VERSIONS_DIR
+        prefix = sanitize_filename(name) + "."
+        if not folder.is_dir():
+            return []
+        return sorted(p for p in folder.iterdir() if p.name.startswith(prefix))
 
     def exists(self, rel_path: str) -> bool:
         return self._resolve(rel_path).exists()
 
     def list(self, rel_dir: str) -> list[Path]:
+        """Current files and folders; part files and the ``_versions`` archive are left out."""
         folder = self._resolve(rel_dir)
         if not folder.is_dir():
             return []
-        return sorted(p for p in folder.iterdir() if not p.name.endswith(PART_SUFFIX))
+        return sorted(
+            p
+            for p in folder.iterdir()
+            if not p.name.endswith(PART_SUFFIX) and p.name != VERSIONS_DIR
+        )
 
     def _resolve(self, rel: str) -> Path:
         path = (self.root / rel).resolve()
         if path != self.root and self.root not in path.parents:
             raise StorageError(f"{rel!r} escapes the storage root")
         return path
+
+    def _archive(self, current: Path, digest: str) -> None:
+        """Keep ``current`` under ``_versions/`` before it is replaced. A hard link costs no space
+        and leaves ``current`` in place, so a failed replace still leaves the old file intact."""
+        versions = current.parent / VERSIONS_DIR
+        versions.mkdir(exist_ok=True)
+        target = versions / f"{current.name}.{digest[:8]}"
+        if target.exists():
+            return
+        try:
+            os.link(current, target)
+            return
+        except OSError:
+            pass  # no hard links on this filesystem: copy instead
+        part = versions / f".{target.name}.{uuid.uuid4().hex}{PART_SUFFIX}"
+        try:
+            shutil.copy2(current, part)
+            os.replace(part, target)
+        finally:
+            part.unlink(missing_ok=True)
+        log.info("Kept previous version as %s", target)
 
     def _move(self, src: Path, dest: Path, digest: str) -> None:
         try:

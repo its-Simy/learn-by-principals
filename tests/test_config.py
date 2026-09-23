@@ -29,3 +29,30 @@ def test_secrets_live_under_home(tmp_path):
         config.storage_state_path,
     ):
         assert tmp_path in secret.parents
+
+
+def test_vault_lives_under_home_not_the_repo(tmp_path):
+    config = load_config({"BRIGHTLEARN_HOME": str(tmp_path)})
+    assert config.vault_root == tmp_path / "vault"
+    assert Path(__file__).resolve().parents[1] not in config.vault_root.parents
+
+
+def test_routing_defaults_and_config_toml(tmp_path):
+    assert load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing == {
+        "teaching": ("claude", "codex"),
+        "analysis": ("codex", "claude"),
+    }
+    (tmp_path / "config.toml").write_text('[routing]\nteaching = ["codex", "claude"]\n')
+    routing = load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing
+    assert routing["teaching"] == ("codex", "claude")
+    assert routing["analysis"] == ("codex", "claude")
+
+
+def test_bad_routing_is_refused(tmp_path):
+    import pytest
+
+    from core.config import ConfigError
+
+    (tmp_path / "config.toml").write_text('[routing]\nteaching = "claude"\n')
+    with pytest.raises(ConfigError):
+        load_config({"BRIGHTLEARN_HOME": str(tmp_path)})

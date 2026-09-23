@@ -2,10 +2,12 @@
 
 Setup (once):
     uv pip install "notebooklm-py[android,browser]"
-    NOTEBOOKLM_HOME=~/.brightlearn/notebooklm notebooklm login --master-token --account <gmail>
+    brightlearn dev nlm-login --account <gmail>
 
 Run (after `brightlearn sync --course CSE220`, so the syllabus is in the manifest):
-    NOTEBOOKLM_HOME=~/.brightlearn/notebooklm .venv/bin/python scripts/spike_c.py
+    .venv/bin/python scripts/spike_c.py
+
+Like the provider, the script points NOTEBOOKLM_HOME at ~/.brightlearn/notebooklm itself.
 
 Paste the output into docs/spike_c_results.md.
 
@@ -17,12 +19,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sqlite3
 import time
 import traceback
 from pathlib import Path
 
-from notebooklm import AudioFormat, AudioLength, NotebookLMClient
+os.environ["NOTEBOOKLM_HOME"] = str(Path.home() / ".brightlearn" / "notebooklm")
+
+from notebooklm import AudioFormat, AudioLength, NotebookLMClient  # noqa: E402
 
 NOTEBOOK_TITLE = "BrightLearn-spike"
 QUESTION = "What is the grading breakdown?"

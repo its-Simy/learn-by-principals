@@ -17,7 +17,7 @@ from core.ledger.ledger import estimate_tokens
 from core.memory.db import Manifest
 from core.memory.learner import Concept, LearnerMemory
 from core.personas import Persona, load, render
-from core.providers.knowledge.base import KnowledgeError, KnowledgeProvider
+from core.providers.knowledge.base import Conversation, KnowledgeError, KnowledgeProvider
 from core.providers.models.base import TaskPackage
 
 log = logging.getLogger(__name__)
@@ -47,6 +47,8 @@ class TutorSession:
     session_id: str
     course: str
     turns: list[Turn] = field(default_factory=list)
+    # One NotebookLM conversation per tutor session, so follow-ups ("why?") keep their context.
+    conversation: Conversation = field(default_factory=Conversation)
 
 
 def truncate_tokens(text: str, cap: int) -> str:
@@ -92,7 +94,8 @@ class ContextCompiler:
         persona = load(persona) if isinstance(persona, str) else persona
         concepts = match_concepts(question, self._learner.concepts(course))
         system = render(persona, {"course": course, "anchors": self.anchors(course)})
-        source = truncate_tokens(self._source_context(question, course), SOURCE_CAP)
+        conversation = session.conversation if session else None
+        source = truncate_tokens(self._source_context(question, course, conversation), SOURCE_CAP)
         learner = truncate_tokens(self._learner_context(concepts), LEARNER_CAP)
         recent = self._session_context(session)
         asked = truncate_tokens(question, QUESTION_CAP)
@@ -128,10 +131,10 @@ class ContextCompiler:
 
     # -- sections ----------------------------------------------------------------------------
 
-    def _source_context(self, question: str, course: str) -> str:
+    def _source_context(self, question: str, course: str, conversation: Conversation | None) -> str:
         try:
             notebook_id = self._knowledge.ensure_notebook(course)
-            answer = self._knowledge.query(notebook_id, question)
+            answer = self._knowledge.query(notebook_id, question, conversation=conversation)
         except KnowledgeError as exc:
             log.warning("No source context for %s: %s", course, exc)
             return f"(course sources unavailable: {exc})"

@@ -1,6 +1,44 @@
 # Problems — TICKETS-2 build
 
-Problems that the tickets don't settle. Each one says what I did (usually the most literal reading, or nothing) so work could move on. Nothing here is solved; each needs a decision from Simon.
+Problems that the tickets don't settle. Each one says what I did (usually the most literal reading, or nothing) so work could move on. The triage below (BL-028) records which have since been fixed.
+
+## Triage (BL-028)
+
+"Before real data" means the first real sync or tutoring session would otherwise do one of three things: put personal data somewhere it shouldn't be, write learner rows that can't be trusted or migrated later (evidence and mastery history are append-only), or lose course files. Everything else is "later" and is **not** fixed.
+
+### Fixed in BL-028: your decisions
+| # | Fix |
+| --- | --- |
+| P5 | Before a changed file is replaced, the old one is kept as `{bucket}/_versions/{name}.{old_hash[:8]}`. It's a hard link, or a copy where the filesystem has no hard links. |
+| P20 | The provider sets `NOTEBOOKLM_HOME=~/.brightlearn/notebooklm` itself, and doctor checks that location. **Added:** `brightlearn dev nlm-login --account <gmail>`, which runs `notebooklm login --master-token` into that location. A plain `notebooklm login` would still write to `~/.notebooklm`; doctor detects that and says so. |
+| P25 | A query with no conversation deletes the notebook's latest conversation, then asks. That is the library's documented way to start fresh. A tutor session carries one `Conversation` handle, and follow-ups reuse its id. |
+| P37 | Migration v3 adds `mastery_history`, which is append-only. Every `set_mastery` writes a row with its `evidence_ids` and `changed_by` (`analyzer` or `manual`). |
+| P40 | `vault_root` now defaults to `~/.brightlearn/vault/`. There was no `memory/` folder in the repo to remove. `/memory/` is gitignored as a guard, and `personas/` stays in the repo. |
+| P58 | The routing order comes from `[routing]` in `~/.brightlearn/config.toml` (teaching `claude, codex`; analysis `codex, claude`). Decision-log entry added to `CLAUDE.md`. |
+
+### Fixed in BL-028: my triage, before real data
+| # | Why it couldn't wait | Fix |
+| --- | --- | --- |
+| P64 | Evidence rows are append-only, so a made-up excerpt, or one taken from the tutor's words, would stay in the learner model for good. | An Analyzer item is written only if its excerpt occurs in the learner's own `**Learner:**` turns. A label, quotes and ellipses are allowed around it. Otherwise it's skipped and reported. |
+
+### Later, not fixed
+| # | Why it can wait |
+| --- | --- |
+| P3, P4 | Harmless. `config.toml` now exists, but only for `[routing]`. |
+| P10 | Real runs re-log in inside the provider. The engine's retry is only exercised by the fakes. |
+| P12 | `--force` recovers a deleted local file. |
+| P15 | Misfiles past terms. **Use `--course`, not `--all`, until the term is read from the course name.** |
+| P23, P24 | Revisit after the spike. Duplicate NotebookLM sources are possible but rare, and don't touch BrightLearn's own data. |
+| P26, P31, P32, P33 | Single user. Failures are loud but lose nothing. |
+| P35, P38, P41, P44, P46, P47 | Nothing is lost: misconceptions are evidence rows, and `week` stays in the draft YAML. Tunable or re-derivable later. |
+| P48, P51, P53, P54, P55, P57, P59, P60, P62 | Behaviour to tune once there's real usage. `needs_challenge` stays in session summaries until a Challenger exists. |
+| P65, P66 | New, listed below. |
+
+### Resolved, accepted or informational
+P1, P2 (decided as done) · P6 (historical) · P7 (your cleanup, whenever) · P8, P9, P11, P13, P14, P17, P27, P28, P29, P39, P42, P43, P45, P56, P63 · P19, P21, P36 (accepted) · P30 (superseded by P20).
+
+### Waiting on you or on data
+P16, P18, P22, P34, P49, P50, P52, P61. For P50 and P52, send the three CLI outputs.
 
 ## Setup
 
@@ -307,3 +345,13 @@ Jumps of more than one level are logged, and written to the session summary (`me
 
 ### P64. The Analyzer's output is trusted
 Nothing checks that an excerpt actually appears in the transcript, or that it's the learner's words rather than the tutor's. The persona's rules ask for this, but the code doesn't verify it.
+
+## BL-028
+
+### P65. Re-running `concepts seed` overwrites the reviewed draft
+`seed` always writes `concepts.draft.yaml`, even over one that says `reviewed: true`. Applied concepts are safe in SQLite, but the reviewed file, including its `week` values (P44), is lost.
+- **What I did:** nothing (triaged as later).
+
+### P66. Fresh conversations delete NotebookLM chat history
+Starting a fresh conversation means deleting the notebook's latest one. If `brightlearn ask` runs while a tutor session is open on the same course, it deletes the tutor's live conversation, and the tutor's next follow-up fails or starts over. The NotebookLM web UI also shows no chat history for BrightLearn notebooks. The decision log records this as accepted.
+- **What I did:** nothing more.

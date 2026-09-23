@@ -11,6 +11,7 @@ from core.providers.state import ProviderState
 
 __all__ = [
     "Citation",
+    "Conversation",
     "GroundedAnswer",
     "KnowledgeError",
     "KnowledgeRateLimited",
@@ -43,6 +44,19 @@ class Citation:
 class GroundedAnswer:
     text: str
     citations: list[Citation] = field(default_factory=list)
+    conversation_id: str | None = None
+
+
+@dataclass
+class Conversation:
+    """A NotebookLM conversation that the caller owns (e.g. one per tutor session).
+
+    Queries without one start a fresh conversation, so NotebookLM carries no hidden history
+    into the Context Compiler's package. The first query on a handle starts fresh and fills in
+    ``conversation_id``; later queries on it are follow-ups in that conversation.
+    """
+
+    conversation_id: str | None = None
 
 
 class KnowledgeError(Exception):
@@ -73,8 +87,13 @@ class KnowledgeProvider(ABC):
 
     @abstractmethod
     def query(
-        self, notebook_id: str, question: str, source_ids: list[str] | None = None
-    ) -> GroundedAnswer: ...
+        self,
+        notebook_id: str,
+        question: str,
+        source_ids: list[str] | None = None,
+        conversation: Conversation | None = None,
+    ) -> GroundedAnswer:
+        """Grounded answer. ``conversation=None`` means a fresh conversation for this query."""
 
     @abstractmethod
     def source_fulltext(self, source_id: str) -> str: ...

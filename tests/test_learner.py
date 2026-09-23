@@ -153,3 +153,39 @@ def test_sessions_round_trip(mem, now):
     session.summary_path = "memory/sessions/x.md"
     mem.update_session(session)
     assert mem.get_session(session.session_id) == session
+
+
+def test_every_set_mastery_writes_a_history_row_with_its_evidence(mem, now):
+    first = mem.add_evidence("cse220/pointers", "explained", "moderate")
+    mem.set_mastery("cse220/pointers", 2, 0.6, [first])
+    now.value = "2026-09-24T09:00:00+00:00"
+    second = mem.add_evidence("cse220/pointers", "applied", "strong")
+    mem.set_mastery("cse220/pointers", 3, 0.8, [first, second], changed_by="analyzer")
+
+    one, two = mem.mastery_history("cse220/pointers")
+    assert (one.old_level, one.new_level, one.evidence_ids, one.changed_by) == (
+        None,
+        2,
+        [first],
+        "manual",
+    )
+    assert (two.old_level, two.new_level, two.confidence) == (2, 3, 0.8)
+    assert two.evidence_ids == [first, second]
+    assert (two.changed_at, two.changed_by) == ("2026-09-24T09:00:00+00:00", "analyzer")
+
+
+def test_refused_set_mastery_writes_no_history(mem):
+    with pytest.raises(MasteryWithoutEvidence):
+        mem.set_mastery("cse220/pointers", 2, 0.7, [])
+    assert mem.mastery_history("cse220/pointers") == []
+
+
+def test_mastery_history_is_append_only_and_changer_is_checked(mem):
+    e = mem.add_evidence("cse220/pointers", "applied", "strong")
+    with pytest.raises(LearnerError):
+        mem.set_mastery("cse220/pointers", 3, 0.8, [e], changed_by="tutor")
+    mem.set_mastery("cse220/pointers", 3, 0.8, [e])
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        mem.conn.execute("DELETE FROM mastery_history")
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        mem.conn.execute("UPDATE mastery_history SET new_level = 5")

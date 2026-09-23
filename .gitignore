@@ -22,3 +22,6 @@ token*.json
 # Local databases
 *.db
 *.sqlite3
+
+# The vault holds personal learner data and lives in ~/.brightlearn/vault; never commit a copy.
+/memory/

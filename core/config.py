@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import os
+import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 DEFAULT_BASE_URL = "https://mycourses.stonybrook.edu"
 DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
-REPO_VAULT = Path(__file__).resolve().parents[1] / "memory"
+
+# v0 routing: provider order per purpose, overridable in config.toml [routing]. Benchmarks-driven
+# routing replaces this in Phase 10 (principle 8; see the decision log in CLAUDE.md).
+DEFAULT_ROUTING: dict[str, tuple[str, ...]] = {
+    "teaching": ("claude", "codex"),
+    "analysis": ("codex", "claude"),
+}
+
+
+class ConfigError(Exception):
+    pass
 
 
 def default_term(today: date | None = None) -> str:
@@ -36,12 +47,17 @@ class Config:
     storage_root: Path
     tmp_dir: Path
     db_path: Path
-    vault_dir: Path = REPO_VAULT
+    vault_root: Path
     login_timeout_s: int = 600
     nlm_min_interval_s: float = 1.5
     nlm_source_cap: int = 50
     nlm_artifact_timeout_s: float = 1200.0
     model_timeout_s: float = 300.0
+    routing: dict[str, tuple[str, ...]] = field(default_factory=lambda: dict(DEFAULT_ROUTING))
+
+    @property
+    def config_path(self) -> Path:
+        return self.home / "config.toml"
 
     @property
     def browser_profile_dir(self) -> Path:
@@ -71,12 +87,29 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
         storage_root=Path(env.get("BRIGHTLEARN_STORAGE_ROOT", home / "courses")).expanduser(),
         tmp_dir=Path(env.get("BRIGHTLEARN_TMP_DIR", DEFAULT_TMP_DIR)).expanduser(),
         db_path=Path(env.get("BRIGHTLEARN_DB", home / "brightlearn.db")).expanduser(),
-        vault_dir=Path(env.get("BRIGHTLEARN_VAULT", REPO_VAULT)).expanduser(),
+        vault_root=Path(env.get("BRIGHTLEARN_VAULT", home / "vault")).expanduser(),
         nlm_min_interval_s=float(env.get("BRIGHTLEARN_NLM_MIN_INTERVAL_S", 1.5)),
         nlm_source_cap=int(env.get("BRIGHTLEARN_NLM_SOURCE_CAP", 50)),
         nlm_artifact_timeout_s=float(env.get("BRIGHTLEARN_NLM_ARTIFACT_TIMEOUT_S", 1200)),
         model_timeout_s=float(env.get("BRIGHTLEARN_MODEL_TIMEOUT_S", 300)),
+        routing=load_routing(home / "config.toml"),
     )
+
+
+def load_routing(path: Path) -> dict[str, tuple[str, ...]]:
+    """``[routing]`` from config.toml over the defaults, e.g. ``teaching = ["claude", "codex"]``."""
+    routing = dict(DEFAULT_ROUTING)
+    if not path.exists():
+        return routing
+    try:
+        table = tomllib.loads(path.read_text()).get("routing", {})
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    for purpose, order in table.items():
+        if not (isinstance(order, list) and order and all(isinstance(n, str) for n in order)):
+            raise ConfigError(f"{path}: [routing] {purpose} must be a non-empty list of names")
+        routing[purpose] = tuple(order)
+    return routing
 
 
 def ensure_home(config: Config) -> None:

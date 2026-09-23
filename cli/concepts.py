@@ -24,7 +24,7 @@ def seed_cmd(course: str = typer.Option(..., help="Course code, e.g. CSE220.")) 
     conn = connect(config.db_path)
     try:
         with common.open_knowledge(config, conn) as knowledge:
-            path, concepts = seed(knowledge, Manifest(conn), course, config.vault_dir)
+            path, concepts = seed(knowledge, Manifest(conn), course, config.vault_root)
     except SeedingError as exc:
         raise typer.BadParameter(str(exc)) from exc
     finally:
@@ -41,7 +41,7 @@ def seed_cmd(course: str = typer.Option(..., help="Course code, e.g. CSE220.")) 
 def apply_cmd(course: str = typer.Option(..., help="Course code, e.g. CSE220.")) -> None:
     """Load the reviewed draft into the concepts table. Safe to re-run."""
     config = load_config()
-    path = draft_path(config.vault_dir, course.upper())
+    path = draft_path(config.vault_root, course.upper())
     conn = connect(config.db_path)
     try:
         result = apply(path, LearnerMemory(conn))
