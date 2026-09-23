@@ -1,4 +1,5 @@
 import hashlib
+from dataclasses import replace
 
 import pytest
 
@@ -151,6 +152,17 @@ def test_stale_row_stays_stale_until_relinked(sync, lms, db):
     sync()
 
     assert db.get(5002).sync_state == "stale"
+
+
+def test_deferred_rows_are_not_redownloaded(sync, lms, db):
+    sync()
+    db.upsert(replace(db.get(5002), sync_state="deferred"))
+    lms.downloads.clear()
+
+    sync()
+
+    assert lms.downloads == []
+    assert db.get(5002).sync_state == "deferred"
 
 
 def test_session_expired_once_is_retried_after_ensure_session(sync, lms, db):

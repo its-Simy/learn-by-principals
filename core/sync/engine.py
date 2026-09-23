@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 # States whose local file is current as of the row's last_modified.
-_UP_TO_DATE = frozenset({"synced", "stale"})
+_UP_TO_DATE = frozenset({"synced", "stale", "deferred"})
 
 
 def _utcnow() -> str:

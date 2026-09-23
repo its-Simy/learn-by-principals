@@ -135,3 +135,17 @@ The `notebooks` table (BL-014) and the `deferred` sync state (BL-015) went into 
 
 ### P30. Doctor shows NotebookLM as a yellow warning until the library is installed
 Once installed, doctor runs `python -m notebooklm --storage ~/.brightlearn/notebooklm/profiles/default/storage_state.json auth check --json`. That checks web cookies only, not the Android master token.
+
+## BL-015
+
+### P31. The source cap counts manifest rows, not the notebook
+The cap check counts rows already linked in the manifest. Sources added some other way (the spike, or by hand in the NotebookLM UI) don't count, so the real notebook can pass 50.
+- Linked sources keep their slot. A higher-priority file that arrives later (say, a new exam) is deferred rather than pushing out a linked lecture.
+- With `--include-code`, `code` and then `other` rank after `assignments`.
+
+### P32. Unsupported file types fail on every sync
+NotebookLM accepts `.pdf .docx .pptx .txt .md .csv .epub` (P21). A `.zip`, `.xlsx` or `.c` in a linked bucket fails `add_file` on every run and makes `sync` exit 1.
+- **What I did:** nothing. There's no file-type filter and no state for "can't link".
+
+### P33. A rate limit stops the link step
+If NotebookLM returns a rate limit, that course's link step stops, and the remaining rows are retried on the next sync. Other failures are recorded and the step carries on. The ticket doesn't cover this.

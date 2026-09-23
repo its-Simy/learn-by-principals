@@ -3,7 +3,7 @@
 Later tables (concepts, mastery, evidence, benchmarks) land with their phase as new migrations.
 """
 
-SYNC_STATES = ("pending", "synced", "stale", "failed", "link")
+SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
 
 RESOURCES = f"""
 CREATE TABLE resources (
