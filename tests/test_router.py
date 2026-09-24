@@ -256,3 +256,40 @@ def test_rate_validates_and_records(conn, models):
     with pytest.raises(ValueError):
         router.rate("claude", "explain", 6)
     assert Benchmarks(conn).for_task("explain")["claude"].learner_rating == 4
+
+
+# -- BL-040: one fallback per task -----------------------------------------------------------
+
+
+def test_one_fallback_per_task(conn):
+    from core.providers.models.base import ModelError
+
+    models = {n: Checked(n) for n in ("claude", "codex", "ollama")}
+
+    def boom(task):
+        raise ModelError("crashed")
+
+    models["claude"].run = boom
+    models["codex"].run = boom
+    router = Router(models, Ledger(conn), ["claude", "codex", "ollama"])
+
+    with pytest.raises(ModelError, match="crashed"):
+        router.run(task())
+    assert models["ollama"].tasks == []  # a second fallback is never tried
+    rows = conn.execute("SELECT provider, fallback_from FROM model_runs ORDER BY rowid").fetchall()
+    assert [tuple(r) for r in rows] == [("claude", None), ("codex", "claude")]
+
+
+def test_a_skipped_preferred_provider_is_the_one_fallback(conn):
+    from core.providers.models.base import ModelError
+
+    models = {n: Checked(n) for n in ("claude", "codex", "ollama")}
+    models["claude"].state = ProviderState.DISABLED
+
+    def boom(task):
+        raise ModelError("crashed")
+
+    models["codex"].run = boom
+    with pytest.raises(ModelError):
+        Router(models, Ledger(conn), ["claude", "codex", "ollama"]).run(task())
+    assert models["ollama"].tasks == []

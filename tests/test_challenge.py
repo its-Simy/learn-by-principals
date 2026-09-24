@@ -187,7 +187,7 @@ def test_session_opens_with_the_probe_and_grading_resolves_it(learner, store, mo
         row.session_id,
         "codex",
     )
-    assert learner.get_mastery(POINTERS).level == 1
+    assert learner.get_mastery(POINTERS) is None  # grading an exchange never applies ±1 itself
     # the probe isn't a tutoring turn: nothing for the end-of-session Analyzer to double count
     assert tutor.session.turns == []
     assert "**Learner:**" not in tutor.transcript_path.read_text()
@@ -299,3 +299,103 @@ def test_end_of_session_estimate_disagreement_queues_a_challenge(tmp_path, monke
     nxt = CliRunner().invoke(app, ["tutor", "--course", "CSE220"], input="/skip\n/end\n")
     assert nxt.exit_code == 0, nxt.output
     assert "Predict: what does *p give after p++?" in nxt.output
+
+
+# -- BL-040 (P72): the outcome of a probe ----------------------------------------------------
+
+
+def grade_reply(proposed, kind="applied", strength="strong"):
+    return json.dumps(
+        [
+            {
+                "concept": "Pointers",
+                "evidence_type": kind,
+                "strength": strength,
+                "excerpt": "it would still point at the old address",
+                "proposed_level": proposed,
+            }
+        ]
+    )
+
+
+def run_probe(learner, models, tmp_path):
+    tutor = make_tutor(learner, models, tmp_path)
+    tutor.start()
+    tutor.opening()
+    reply = tutor.handle("it would still point at the old address")
+    return tutor, reply
+
+
+def test_queueing_keeps_the_analyzers_proposal_and_its_evidence(store, learner):
+    e1 = learner.add_evidence(POINTERS, "applied", "strong")
+    r = report(needs=[(POINTERS, 0, 3)])
+    r.support = {POINTERS: [e1]}
+    queue_challenges(store, r)
+    e2 = learner.add_evidence(POINTERS, "transferred", "strong")
+    later = report(needs=[(POINTERS, 0, 4)], session_id="s2")
+    later.support = {POINTERS: [e2]}
+    queue_challenges(store, later)
+
+    (row,) = store.all()
+    assert row.proposed_level == 4  # the latest proposal
+    assert json.loads(row.evidence_ids) == [e1, e2]
+
+
+def test_upheld_probe_sets_the_full_proposed_level_citing_both(learner, store, tmp_path):
+    original = learner.add_evidence(POINTERS, "applied", "strong", session_id="earlier")
+    store.queue(POINTERS, "earlier", "analyzer proposed 0 -> 3", 3, [original])
+    models = {"claude": FakeModel("claude", "Q?"), "codex": FakeModel("codex", grade_reply(3))}
+
+    tutor, reply = run_probe(learner, models, tmp_path)
+
+    mastery = learner.get_mastery(POINTERS)
+    assert mastery.level == 3  # the whole jump, not +1 and never an average
+    change = learner.mastery_history(POINTERS)[-1]
+    assert (change.old_level, change.new_level, change.changed_by) == (None, 3, "challenger")
+    exchange = [e.evidence_id for e in learner.evidence(POINTERS) if e.session_id != "earlier"]
+    assert change.evidence_ids == [original, *exchange]
+    assert "Upheld: Pointers is now level 3." in reply
+    assert store.all()[0].status == "resolved"
+
+
+def test_failed_probe_writes_its_evidence_only(learner, store, tmp_path):
+    original = learner.add_evidence(POINTERS, "applied", "strong", session_id="earlier")
+    learner.set_mastery(POINTERS, 1, 0.6, [original])
+    store.queue(POINTERS, "earlier", "analyzer proposed 1 -> 4", 4, [original])
+    models = {
+        "claude": FakeModel("claude", "Q?"),
+        "codex": FakeModel("codex", grade_reply(1, "failed", "strong")),
+    }
+
+    tutor, reply = run_probe(learner, models, tmp_path)
+
+    assert learner.get_mastery(POINTERS).level == 1  # no level change
+    assert len(learner.mastery_history(POINTERS)) == 1
+    assert [e.type for e in learner.evidence(POINTERS)] == ["applied", "failed"]
+    assert store.all()[0].status == "resolved"  # needs_challenge cleared
+    assert "Upheld" not in reply
+
+
+def test_a_partial_answer_below_the_challenged_level_is_not_upheld(learner, store, tmp_path):
+    store.queue(POINTERS, "earlier", "analyzer proposed 0 -> 3", 3, [])
+    models = {"claude": FakeModel("claude", "Q?"), "codex": FakeModel("codex", grade_reply(2))}
+    run_probe(learner, models, tmp_path)
+    assert learner.get_mastery(POINTERS) is None
+    assert store.all()[0].status == "resolved"
+
+
+def test_an_estimate_challenge_never_changes_a_level(learner, store, tmp_path):
+    store.queue(POINTERS, "earlier", "tutor estimated 4, analyzer found 1")  # no proposal
+    models = {"claude": FakeModel("claude", "Q?"), "codex": FakeModel("codex", grade_reply(4))}
+    run_probe(learner, models, tmp_path)
+    assert learner.get_mastery(POINTERS) is None
+    assert [e.type for e in learner.evidence(POINTERS)] == ["applied"]
+
+
+def test_a_downward_proposal_is_never_applied_by_a_probe(learner, store, tmp_path):
+    e = learner.add_evidence(POINTERS, "transferred", "strong")
+    learner.set_mastery(POINTERS, 4, 0.8, [e])
+    store.queue(POINTERS, "earlier", "analyzer proposed 4 -> 1", 1, [e])
+    models = {"claude": FakeModel("claude", "Q?"), "codex": FakeModel("codex", grade_reply(4))}
+    run_probe(learner, models, tmp_path)
+    assert learner.get_mastery(POINTERS).level == 4

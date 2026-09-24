@@ -68,6 +68,8 @@ class AnalysisReport:
     proposals: dict[str, int] = field(default_factory=dict)
     excerpts_checked: int = 0
     excerpts_verified: int = 0
+    # Evidence ids behind each needs_challenge proposal (a challenge keeps them, BL-040).
+    support: dict[str, list[str]] = field(default_factory=dict)
 
     def summary(self) -> str:
         return (
@@ -99,6 +101,7 @@ def apply_proposal(
         report.applied.append(change)
     elif abs(proposed - current) > 1:
         report.needs_challenge.append(change)
+        report.support[concept_id] = list(evidence_ids)
 
 
 def tutor_providers(row: SessionRow) -> set[str]:
@@ -146,13 +149,19 @@ class Analyzer:
     ) -> AnalysisReport:
         """Grade one short exchange (a Challenger probe and its answer) for one concept alone.
 
-        The session row and summary are left alone; ``exclude`` keeps the provider that asked the
-        question from grading it (principle 6).
+        Evidence is written and proposals are reported, but mastery is never changed here: the
+        Challenger decides what the result means (BL-040). The session row and summary are left
+        alone; ``exclude`` keeps the provider that asked the question from grading it.
         """
-        return self._run(row, transcript, [concept], exclude)
+        return self._run(row, transcript, [concept], exclude, apply=False)
 
     def _run(
-        self, row: SessionRow, transcript: str, concepts: list[Concept], exclude: set[str]
+        self,
+        row: SessionRow,
+        transcript: str,
+        concepts: list[Concept],
+        exclude: set[str],
+        apply: bool = True,
     ) -> AnalysisReport:
         by_name = {c.name.lower(): c for c in concepts} | {c.concept_id: c for c in concepts}
         start_levels = {
@@ -173,7 +182,7 @@ class Analyzer:
         spoken = learner_words(transcript)
         for item in items:
             self._apply_item(
-                item, row, result.provider, by_name, start_levels, support, report, spoken
+                item, row, result.provider, by_name, start_levels, support, report, spoken, apply
             )
         if report.excerpts_checked:
             # Groundedness: the share of excerpts that really are the learner's words (P64).
@@ -202,7 +211,7 @@ class Analyzer:
         )
 
     def _apply_item(
-        self, item, row, provider, by_name, start_levels, support, report, spoken
+        self, item, row, provider, by_name, start_levels, support, report, spoken, apply=True
     ) -> None:
         if not isinstance(item, dict):
             report.skipped.append(f"not an object: {item!r}"[:120])
@@ -239,6 +248,10 @@ class Analyzer:
         try:
             proposed = int(item.get("proposed_level"))
         except (TypeError, ValueError):
+            return
+        if not apply:
+            if 0 <= proposed <= 5:
+                report.proposals[concept.concept_id] = proposed
             return
         apply_proposal(
             self._learner,

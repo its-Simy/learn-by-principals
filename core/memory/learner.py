@@ -11,7 +11,7 @@ import sqlite3
 import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from core.ledger.ledger import utcnow
 from core.memory.schema import EVIDENCE_STRENGTHS, EVIDENCE_TYPES, MASTERY_CHANGERS
@@ -38,6 +38,7 @@ class Concept:
     prerequisites: list[str] = field(default_factory=list)
     exam_tags: list[str] = field(default_factory=list)
     week: int | None = None
+    status: str = "active"  # "retired" once a reviewed draft drops it (never deleted)
 
 
 @dataclass
@@ -84,6 +85,12 @@ class SessionRow:
     tutor_provider: str | None = None
     analyzer_provider: str | None = None
     summary_path: str | None = None
+    last_turn_at: str | None = None
+
+
+def idle_for(session: SessionRow, now: datetime) -> timedelta:
+    """How long since the session's last turn (or its start, if it never had one)."""
+    return now - _as_datetime(session.last_turn_at or session.started_at)
 
 
 def _as_datetime(value: str | datetime) -> datetime:
@@ -113,6 +120,7 @@ def _concept(row: sqlite3.Row) -> Concept:
         prerequisites=json.loads(row["prerequisites"]),
         exam_tags=json.loads(row["exam_tags"]),
         week=row["week"],
+        status=row["status"],
     )
 
 
@@ -131,10 +139,10 @@ class LearnerMemory:
         with self.conn:
             self.conn.execute(
                 "INSERT INTO concepts (concept_id, course, name, module, prerequisites, exam_tags,"
-                " week) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (concept_id) DO UPDATE SET"
-                " course = excluded.course, name = excluded.name, module = excluded.module,"
+                " week, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (concept_id) DO UPDATE"
+                " SET course = excluded.course, name = excluded.name, module = excluded.module,"
                 " prerequisites = excluded.prerequisites, exam_tags = excluded.exam_tags,"
-                " week = excluded.week",
+                " week = excluded.week, status = excluded.status",
                 (
                     concept.concept_id,
                     concept.course,
@@ -143,6 +151,7 @@ class LearnerMemory:
                     json.dumps(concept.prerequisites),
                     json.dumps(concept.exam_tags),
                     concept.week,
+                    concept.status,
                 ),
             )
 
@@ -152,11 +161,20 @@ class LearnerMemory:
         ).fetchone()
         return _concept(row) if row else None
 
-    def concepts(self, course: str) -> list[Concept]:
-        rows = self.conn.execute(
-            "SELECT * FROM concepts WHERE course = ? ORDER BY concept_id", (course,)
-        )
+    def concepts(self, course: str, include_retired: bool = False) -> list[Concept]:
+        """The course's concepts; retired ones only when asked for."""
+        sql = "SELECT * FROM concepts WHERE course = ?"
+        if not include_retired:
+            sql += " AND status = 'active'"
+        rows = self.conn.execute(sql + " ORDER BY concept_id", (course,))
         return [_concept(r) for r in rows]
+
+    def retire_concept(self, concept_id: str) -> None:
+        """Mark a concept retired. Its row, mastery and evidence stay exactly as they are."""
+        with self.conn:
+            self.conn.execute(
+                "UPDATE concepts SET status = 'retired' WHERE concept_id = ?", (concept_id,)
+            )
 
     # -- mastery and evidence ----------------------------------------------------------------
 
@@ -298,7 +316,7 @@ class LearnerMemory:
             "SELECT c.*, m.level, m.confidence, m.evidence_count, m.last_evidence_at,"
             " m.retention_confidence, m.last_reviewed"
             " FROM concepts c LEFT JOIN mastery m ON m.concept_id = c.concept_id"
-            " WHERE c.course = ?"
+            " WHERE c.course = ? AND c.status = 'active'"
         )
         args: list[object] = [course]
         if exam_tag is not None:
@@ -373,25 +391,36 @@ class LearnerMemory:
             course=course,
             started_at=started,
             tutor_provider=tutor_provider,
+            last_turn_at=started,
         )
         with self.conn:
             self.conn.execute(
-                "INSERT INTO sessions (session_id, course, started_at, tutor_provider)"
-                " VALUES (?, ?, ?, ?)",
-                (session.session_id, course, started, tutor_provider),
+                "INSERT INTO sessions (session_id, course, started_at, tutor_provider,"
+                " last_turn_at) VALUES (?, ?, ?, ?, ?)",
+                (session.session_id, course, started, tutor_provider, started),
             )
         return session
+
+    def touch_session(self, session: SessionRow) -> None:
+        """Record a turn now, so the session isn't taken for idle (BL-040)."""
+        session.last_turn_at = self._now()
+        with self.conn:
+            self.conn.execute(
+                "UPDATE sessions SET last_turn_at = ? WHERE session_id = ?",
+                (session.last_turn_at, session.session_id),
+            )
 
     def update_session(self, session: SessionRow) -> None:
         with self.conn:
             self.conn.execute(
                 "UPDATE sessions SET ended_at = ?, tutor_provider = ?, analyzer_provider = ?,"
-                " summary_path = ? WHERE session_id = ?",
+                " summary_path = ?, last_turn_at = ? WHERE session_id = ?",
                 (
                     session.ended_at,
                     session.tutor_provider,
                     session.analyzer_provider,
                     session.summary_path,
+                    session.last_turn_at,
                     session.session_id,
                 ),
             )
@@ -417,13 +446,16 @@ class LearnerMemory:
         """Sessions with no ``ended_at``: each holds a live NotebookLM conversation (P66)."""
         return self.sessions(course, open_only=True)
 
-    def close_session(self, session_id: str) -> SessionRow:
-        """Mark an open session ended now. Transcript and analysis are left as they are."""
+    def close_session(self, session_id: str, at: str | datetime | None = None) -> SessionRow:
+        """Mark an open session ended (now, or ``at``). Transcript and analysis are left as
+        they are."""
         session = self.get_session(session_id)
         if session is None:
             raise LearnerError(f"No session {session_id!r}")
         if session.ended_at is not None:
             raise LearnerError(f"Session {session_id} already ended at {session.ended_at}")
-        session.ended_at = self._now()
+        if isinstance(at, datetime):
+            at = at.isoformat(timespec="seconds")
+        session.ended_at = at or self._now()
         self.update_session(session)
         return session

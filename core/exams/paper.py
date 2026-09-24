@@ -63,6 +63,8 @@ def new_exam(exam_id: str, plan: CoveragePlan, report: GenerationReport) -> dict
             }
             for r in plan.rows
         ],
+        # BL-040: no second provider reviewed an "uncritiqued" exam's questions.
+        "review": "critiqued" if report.critiqued else "uncritiqued",
         "questions": [{"index": i, **q.to_json()} for i, q in enumerate(report.questions)],
         "generation": {
             "planned": plan.total,
@@ -114,6 +116,8 @@ def to_markdown(exam: dict[str, Any]) -> str:
         f"`brightlearn exam take <this exam's .json>`.",
         "",
     ]
+    if exam.get("review") == "uncritiqued":
+        lines += ["**Uncritiqued:** no second model reviewed these questions.", ""]
     for q in exam["questions"]:
         n = q["index"] + 1
         label = q["format"].replace("_", " ")

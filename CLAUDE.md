@@ -27,7 +27,7 @@ brightlearn/
 │   │   ├── storage/      # base.py, local.py
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
 │   │   └── models/       # base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
-│   ├── memory/           # schema.py, db.py, learner.py, vault.py
+│   ├── memory/           # schema.py, db.py, learner.py, vault.py, migrations/vNNN_*.py
 │   ├── sync/             # classify.py, engine.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
 │   ├── tutor.py          # tutoring session (BL-026)
@@ -53,6 +53,11 @@ Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json`
 
 | Key | Default | Notes |
 | --- | --- | --- |
+| Sept 24, 2026 | Migrations are sequential integers, one file each under `core/memory/migrations/`, never renumbered or edited once committed. A test checksums each one and applies them all from v0 on an empty database. | BL-040 (P70). A committed migration may already have run on a real database, so changing it would split the history. |
+| Sept 24, 2026 | A tutor session with no turn for 2 hours is stale: `ask` and the other guarded commands say so and offer `sessions close`. `maintain` closes sessions idle more than 24 hours, without running the Analyzer. Sessions record `last_turn_at` (v12). | BL-040 (P67). A crashed session shouldn't block a course for long. |
+| Sept 24, 2026 | One fallback per task, recorded in `fallback_from`; a preferred provider skipped as unusable counts as that fallback. The Critic and the exam grader never run on a provider that wrote the questions. With only one provider, critique is skipped and the exam is marked `"review": "uncritiqued"`. | BL-040 (P79, P80, P85). |
+| Sept 24, 2026 | `concepts apply` upserts by concept id, keeping the `{course}/{slug(name)}` format. Concepts missing from the reviewed draft get `status = retired` (v11), never deleted, with mastery and evidence untouched. An optional `aliases: [...]` maps a renamed concept to its existing row. `apply` prints added / updated / retired counts. | BL-040. Requested under "P74", but this is P46 (concept ids); Simon chose to keep today's id format. P74 (weeks) is unchanged. |
+| Sept 24, 2026 | A Challenger probe on an Analyzer-proposed jump, resolved in the learner's favour (its grade proposes the challenged level or more), sets mastery to the Analyzer's full proposed level, citing the original evidence plus the exchange, `changed_by = "challenger"` (v9, v10). A failed probe writes its evidence only, resolves the challenge and changes no level. A probe raised by a tutor-estimate disagreement never changes a level. Never an average. | BL-040 (P72). Simon's decisions. |
 | Sept 23, 2026 | Router v1 replaces v0: the `[routing]` order per task type, minus unusable providers, re-ordered by the `benchmarks` composite once every candidate has 10+ measured runs. It falls back on any model error, not only rate limits. Principle 8's exception now covers only the config order used before there's data. | BL-035. The benchmarks are measured, not decreed, and the config order is only the cold start. |
 | `home` | `~/.brightlearn` | Secrets directory, mode 700 |
 | `brightspace_base_url` | `https://mycourses.stonybrook.edu` | |
@@ -120,7 +125,7 @@ Implementations (V1): `BrightspaceSessionProvider` (Playwright session + `/d2l/a
 
 ## Data model (SQLite)
 
-Versioned migrations in `core/memory/schema.py`, tracked in `PRAGMA user_version`.
+Migrations live one per file in `core/memory/migrations/vNNN_<name>.py`, applied in order and tracked in `PRAGMA user_version` (rules under Conventions).
 
 ```
 resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identifier, url,
@@ -130,17 +135,21 @@ resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identi
              -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
 model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
              input_tokens_est, output_tokens_est, fallback_from, error
-concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags, week      (Phase 4)
+concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags, week,
+             status (active|retired)   -- retired, never deleted                        (Phase 4)
 mastery:     concept_id, level 0-5, confidence, evidence_count, last_evidence_at,
              retention_confidence, last_reviewed                                         (Phase 4)
 evidence:    evidence_id, concept_id, session_id, type, strength, source_provider,
              excerpt_ref, recorded_at   (append-only)                                    (Phase 4)
 sessions:    session_id, course, started_at, ended_at, tutor_provider, analyzer_provider,
-             summary_path                                                                (Phase 4)
+             summary_path, last_turn_at                                                  (Phase 4)
 mastery_history: id, concept_id, old_level, new_level, confidence, evidence_ids (JSON),
-             changed_at, changed_by (analyzer|manual)   (append-only; one row per set_mastery)
+             changed_at, changed_by (analyzer|manual|challenger)
+             (append-only; one row per set_mastery)
 challenges:  id, concept_id, session_id, reason, question,
-             status (pending|asked|answered|resolved), created_at
+             status (pending|asked|answered|resolved), created_at,
+             proposed_level (the Analyzer's jump; NULL if raised by a tutor estimate),
+             evidence_ids (JSON: the evidence behind that proposal)
              -- at most one unresolved challenge per concept                             (BL-030)
 podcasts:    id, course, concepts (JSON concept ids), instruction_path, audio_path,
              created_at                                                                  (BL-034)
@@ -149,7 +158,7 @@ benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
              -- a VIEW averaging benchmark_samples (provider, task_type, metric, value,
              -- recorded_at; append-only); sample_count = runs measured
 provider_health: provider (PK), state, checked_at, cooldown_until, detail               (BL-035)
-maintenance_runs: id, ran_at, trigger (manual|auto), decayed, archived                  (BL-038)
+maintenance_runs: id, ran_at, trigger (manual|auto), decayed, archived, closed          (BL-038)
 ```
 
 Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.
@@ -161,6 +170,7 @@ Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with bucke
 - Temp downloads go to `config.tmp_dir/{uuid}` and are always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.
 - Commit message format: `BL-0XX: <ticket title>`.
+- Migrations: sequential integers, one file each (`core/memory/migrations/vNNN_<name>.py`, literal SQL that never imports shared constants). Never renumber or edit a committed one; a schema change is a new file. `tests/test_migrations.py` checksums every committed migration and applies them all from v0 on an empty database.
 
 ## Not in V1
 

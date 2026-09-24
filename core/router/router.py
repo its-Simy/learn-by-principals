@@ -8,7 +8,8 @@
 3. ordered by the benchmarks' composite score when every candidate has at least
    ``MIN_SAMPLES`` measured runs of that task, else in config order.
 
-``run`` tries the candidates in that order and falls back to the next on any model error.
+``run`` tries the best candidate and falls back once, to the next, on any model error; a preferred
+provider skipped as unusable counts as that one fallback (BL-040).
 A rate limit puts the provider in a cooldown (from its usage hint, default 60 minutes) that is
 kept in ``provider_health``, so it holds across commands; once it has passed, the provider
 comes back after a successful ``health()`` check. Other failures only last for this process.
@@ -195,7 +196,8 @@ class Router:
             None,
         )
         fallback_from = preferred if preferred not in names else None
-        for name in names:
+        # One fallback per task (BL-040): a skipped preferred provider already used it.
+        for name in names[:1] if fallback_from else names[:2]:
             provider = self.providers[name]
             started, t0 = utcnow(), time.monotonic()
             try:

@@ -100,14 +100,15 @@ def test_old_ended_sessions_are_archived_not_deleted(world):
     report = maintain(conn, vault_root, T0, HALF_LIFE)
 
     archive = vault_root / "sessions" / "archive"
-    old = rows["old"].session_id
-    assert report.archived == [old]
+    old, stuck = rows["old"].session_id, rows["stuck"].session_id
+    assert report.closed == [stuck]  # idle for 60 days: closed (BL-040), then old enough to archive
+    assert report.archived == [old, stuck]
     assert (archive / f"{old}.md").read_text() == "# old"
     assert (archive / f"{old}.summary.md").exists()
     assert not vault.session_transcript_path(old).exists()
     assert learner.get_session(old).summary_path == str(archive / f"{old}.summary.md")
     assert vault.session_transcript_path(rows["recent"].session_id).exists()
-    assert vault.session_transcript_path(rows["stuck"].session_id).exists()  # never ended
+    assert learner.get_session(stuck).ended_at == iso(T0)
     assert maintain(conn, vault_root, T0 + timedelta(days=1), HALF_LIFE).archived == []
 
 
@@ -165,3 +166,23 @@ def test_maintain_command_prints_what_changed():
     assert "cse220/x" in result.output and "0.80 → 0.40" in result.output
     assert "nothing old enough to archive" in result.output
     assert _runs() == [("manual", 1)]
+
+
+# -- BL-040: idle sessions ---------------------------------------------------------------------
+
+
+def test_maintain_closes_sessions_idle_over_24_hours(world):
+    conn, learner, clock, vault = world
+    clock.now = T0 - timedelta(hours=30)
+    idle = learner.start_session("CSE220")
+    clock.now = T0 - timedelta(hours=26)
+    busy = learner.start_session("CSE214")
+    clock.now = T0 - timedelta(hours=1)
+    learner.touch_session(busy)  # a turn an hour ago
+
+    report = maintain(conn, vault, T0, HALF_LIFE)
+
+    assert report.closed == [idle.session_id]
+    assert learner.get_session(idle.session_id).ended_at == iso(T0)
+    assert learner.get_session(busy.session_id).ended_at is None
+    assert conn.execute("SELECT closed FROM maintenance_runs").fetchone()[0] == 1

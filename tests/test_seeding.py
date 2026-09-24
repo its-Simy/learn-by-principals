@@ -257,3 +257,88 @@ def test_cli_seed_refuses_while_a_tutor_session_is_open(kp, tmp_path, monkeypatc
     assert result.exit_code == 1
     assert "is open on CSE220" in result.output
     assert kp.queries == []
+
+
+# -- BL-040 (P46): identity, retirement, aliases ---------------------------------------------
+
+
+def write_reviewed(path, concepts):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump({"course": "CSE220", "reviewed": True, "concepts": concepts}))
+
+
+def test_missing_concepts_are_retired_never_deleted(tmp_path, db):
+    learner = LearnerMemory(db.conn)
+    first = tmp_path / "d1.yaml"
+    write_reviewed(first, [{"name": "Pointers"}, {"name": "Structs"}])
+    apply(first, learner)
+    e = learner.add_evidence("cse220/structs", "applied", "strong")
+    learner.set_mastery("cse220/structs", 2, 0.6, [e])
+
+    second = tmp_path / "d2.yaml"
+    write_reviewed(second, [{"name": "Pointers", "week": 3}])
+    result = apply(second, learner)
+
+    assert [c.name for c in result.retired] == ["Structs"]
+    assert [c.name for c in result.updated] == ["Pointers"]  # the week changed
+    assert result.added == [] and result.unchanged == []
+    structs = learner.get_concept("cse220/structs")
+    assert structs.status == "retired"
+    assert learner.get_mastery("cse220/structs").level == 2  # untouched
+    assert len(learner.evidence("cse220/structs")) == 1
+    assert [c.name for c in learner.concepts("CSE220")] == ["Pointers"]
+    assert len(learner.concepts("CSE220", include_retired=True)) == 2
+
+    again = apply(first, learner)  # back in the draft: active again (Pointers loses its week)
+    assert [c.name for c in again.updated] == ["Pointers", "Structs"]
+    assert learner.get_concept("cse220/structs").status == "active"
+
+
+def test_an_alias_maps_a_renamed_concept_to_its_existing_row(tmp_path, db):
+    learner = LearnerMemory(db.conn)
+    first = tmp_path / "d1.yaml"
+    write_reviewed(first, [{"name": "Pointers"}, {"name": "Arrays", "prerequisites": ["Pointers"]}])
+    apply(first, learner)
+    e = learner.add_evidence("cse220/pointers", "applied", "strong")
+    learner.set_mastery("cse220/pointers", 3, 0.8, [e])
+
+    renamed = tmp_path / "d2.yaml"
+    write_reviewed(
+        renamed,
+        [
+            {"name": "Pointer basics", "aliases": ["Pointers"]},
+            {"name": "Arrays", "prerequisites": ["Pointer basics"]},
+        ],
+    )
+    result = apply(renamed, learner)
+
+    assert (len(result.added), len(result.updated), len(result.retired)) == (0, 1, 0)
+    row = learner.get_concept("cse220/pointers")
+    assert (row.name, row.status) == ("Pointer basics", "active")
+    assert learner.get_mastery("cse220/pointers").level == 3
+    assert learner.get_concept("cse220/pointer-basics") is None  # no new row
+    assert learner.get_concept("cse220/arrays").prerequisites == ["cse220/pointers"]
+    assert result.unknown_prerequisites == []
+
+
+def test_two_draft_entries_on_one_row_are_refused(tmp_path, db):
+    learner = LearnerMemory(db.conn)
+    path = tmp_path / "d.yaml"
+    write_reviewed(path, [{"name": "Pointers"}, {"name": "pointers!"}])
+    with pytest.raises(SeedingError, match="map to cse220/pointers"):
+        apply(path, learner)
+
+
+def test_cli_apply_prints_added_updated_retired(tmp_path, monkeypatch):
+    monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "memory"))
+    folder = drafts_dir(tmp_path / "memory", "CSE220")
+    write_reviewed(folder / "concepts.draft.20260901-000000.yaml", [{"name": "A"}, {"name": "B"}])
+    assert runner.invoke(app, ["concepts", "apply", "--course", "CSE220"]).exit_code == 0
+    write_reviewed(folder / "concepts.draft.20260902-000000.yaml", [{"name": "A"}, {"name": "C"}])
+
+    result = runner.invoke(app, ["concepts", "apply", "--course", "CSE220"])
+
+    assert result.exit_code == 0, result.output
+    output = " ".join(result.output.split())
+    assert "1 added, 0 updated, 1 retired (1 unchanged)" in output
+    assert "Retired (kept with their mastery and evidence): B" in output

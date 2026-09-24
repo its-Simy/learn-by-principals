@@ -2,20 +2,22 @@
 
 A tutor session owns its course's live NotebookLM conversation until it ends. Anything else that
 would start a fresh conversation on that course (which deletes the latest one) refuses while a
-session is open.
+session is open, and says so when that session has been idle over two hours (BL-040).
 """
 
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime
 
 import typer
 from rich.console import Console
 from rich.table import Column, Table
 
 from core.config import load_config
+from core.maintenance import STALE_AFTER
 from core.memory.db import connect
-from core.memory.learner import LearnerError, LearnerMemory
+from core.memory.learner import LearnerError, LearnerMemory, idle_for
 
 app = typer.Typer(no_args_is_help=True, help="Tutor sessions.")
 console = Console()
@@ -29,10 +31,17 @@ def refuse_if_session_open(conn: sqlite3.Connection, course: str, hint: str | No
     if not open_rows:
         return
     session = open_rows[0]
+    idle = idle_for(session, datetime.now(UTC))
     lines = [
         f"[red]Tutor session {session.session_id} is open on {course}[/] (started "
         f"{session.started_at}); NotebookLM keeps one live conversation per course.",
     ]
+    if idle > STALE_AFTER:
+        hours = idle.total_seconds() / 3600
+        lines.append(
+            f"[yellow]It looks stale: no turn for {hours:.0f} hours.[/] If it's finished or "
+            "crashed, close it."
+        )
     if hint:
         lines.append(f"{hint}, or end it first:")
     else:
@@ -58,10 +67,21 @@ def list_cmd(
         console.print("No sessions.")
         return
     table = Table(
-        Column("Session", no_wrap=True), "Course", "Started", "Ended", "Tutor", "Analyzer"
+        Column("Session", no_wrap=True),
+        "Course",
+        "Started",
+        Column("Ended", no_wrap=True),
+        "Tutor",
+        "Analyzer",
     )
+    now = datetime.now(UTC)
     for r in rows:
-        ended = r.ended_at[:16] if r.ended_at else "[yellow]open[/]"
+        if r.ended_at:
+            ended = r.ended_at[:16]
+        elif idle_for(r, now) > STALE_AFTER:
+            ended = "[yellow]open, stale[/]"
+        else:
+            ended = "[yellow]open[/]"
         table.add_row(
             r.session_id,
             r.course,

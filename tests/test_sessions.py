@@ -131,3 +131,51 @@ def test_every_tutor_query_uses_the_sessions_conversation(tmp_path):
     text = tutor.transcript_path.read_text()
     assert "**Ask (NotebookLM):** Where are pointers introduced?" in text
     assert tutor.handle("/ask") == "Usage: /ask <question>"
+
+
+# -- BL-040: stale sessions --------------------------------------------------------------------
+
+
+def test_ask_calls_a_session_idle_over_two_hours_stale(env):
+    from datetime import UTC, datetime, timedelta
+
+    conn = connect(load_config().db_path)
+    three_hours_ago = (datetime.now(UTC) - timedelta(hours=3)).isoformat(timespec="seconds")
+    row = LearnerMemory(conn, now=lambda: three_hours_ago).start_session("CSE220")
+    conn.close()
+
+    result = runner.invoke(app, ["ask", "--course", "CSE220", "q"])
+
+    output = " ".join(result.output.split())
+    assert result.exit_code == 1
+    assert "It looks stale: no turn for 3 hours." in output
+    assert f"brightlearn sessions close --id {row.session_id}" in output
+    listed = runner.invoke(app, ["sessions", "list"])
+    assert "open, stale" in listed.output
+
+
+def test_a_recent_session_is_not_called_stale(env):
+    open_session()
+    result = runner.invoke(app, ["ask", "--course", "CSE220", "q"])
+    assert result.exit_code == 1 and "stale" not in result.output
+
+
+def test_every_turn_moves_last_turn_at(tmp_path):
+    times = iter(f"2026-09-24T10:0{i}:00+00:00" for i in range(10))
+    conn = connect(":memory:")
+    learner = LearnerMemory(conn, now=lambda: next(times))
+    tutor = Tutor(
+        "CSE220",
+        "simplifier",
+        ContextCompiler(FakeKnowledge(), learner),
+        Router({"claude": FakeModel("claude")}, Ledger(conn)),
+        learner,
+        Vault(tmp_path),
+    )
+    row = tutor.start()
+    started = learner.get_session(row.session_id).last_turn_at
+    tutor.handle("What is a pointer?")
+    after_turn = learner.get_session(row.session_id).last_turn_at
+    tutor.handle("/ask where?")
+    after_ask = learner.get_session(row.session_id).last_turn_at
+    assert started < after_turn < after_ask

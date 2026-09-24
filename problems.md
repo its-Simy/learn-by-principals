@@ -246,6 +246,7 @@ The seed prompt asks for `week`, as the ticket says, but `concepts` in `CLAUDE.m
 The draft is written with `reviewed: false`, and `concepts apply` refuses to load it until someone edits that line to `true`.
 
 ### P46. Concept ids come from names
+**Decided in BL-040:** ids keep this format; missing concepts are retired, and `aliases` handle renames.
 A concept's id is `{course}/{slug(name)}`, for example `cse220/pointer-arithmetic`.
 - **Renames:** renaming a concept in the draft creates a new concept. The old row is never deleted.
 - **Prerequisites:** a prerequisite is linked by its name's slug. Names that aren't concepts in the draft are reported but still stored.
@@ -363,6 +364,7 @@ Starting a fresh conversation means deleting the notebook's latest one. If `brig
 ## BL-029
 
 ### P67. The open-session guard covers more than `ask`
+**Decided in BL-040:** stale after 2 hours idle; `maintain` closes sessions idle more than 24 hours.
 The ticket names `ask`, but anything that starts a fresh conversation on a course deletes a live tutor's conversation the same way.
 - **What I did:** `ask`, `concepts seed` and `tutor` (a second session on the same course) all refuse while `sessions` has an open row for that course, and say how to close it. Other courses aren't blocked.
 - **`/ask` added to the tutor REPL.** The ticket's "`/ask` hint" had nothing to point at, so `/ask <question>` now asks NotebookLM inside the session's own conversation and prints the grounded answer with citations. It runs no model, and its lines go into the transcript as `**Ask (NotebookLM):**`, so the Analyzer doesn't read them as learner turns.
@@ -379,6 +381,7 @@ The ticket names `ask`, but anything that starts a fresh conversation on a cours
 ## BL-030
 
 ### P70. Migration numbers follow ticket order
+**Decided in BL-040:** one file per migration, never renumbered or edited, with a checksum test.
 `challenges` is migration v4. BL-035 calls `benchmarks` "migration v4", but by then v4 is taken, so each ticket takes the next free number.
 - A unique partial index allows one open (unresolved) challenge per concept. A second disagreement merges its reason into the open row. That is how "two pending challenges collapse to one" and "max one per concept per session" are enforced.
 
@@ -386,6 +389,7 @@ The ticket names `ask`, but anything that starts a fresh conversation on a cours
 At `/end`, the provider that tutored gets one extra call (task type `tutor_estimate`, not in the spec's list) asking for one line, `Concept: level; …`. It's parsed against the course's concept names and stored as `tutor_estimate` in the session summary's front matter. It's only compared where the Analyzer also proposed a level for that concept. If the call fails, the session is analyzed without it.
 
 ### P72. A probe's grade follows the ±1 rule and is never re-challenged
+**Decided in BL-040:** an upheld probe applies the Analyzer's full proposed level (see P92).
 The Analyzer grades the probe's exchange alone and writes evidence as usual. Only a proposal exactly one level from the current one changes mastery. A bigger jump, even one the probe confirms, is **not** applied and doesn't queue another challenge (principle 7: at most two rounds). So a probe that confirms "0 → 3" records strong evidence but leaves the level at 0. **Your call:** should a confirmed probe apply the jump?
 
 ### P73. Who asks and who grades
@@ -432,6 +436,7 @@ The Questioner's output shape listed `concept, level, question, answer, source`,
 ## BL-033
 
 ### P80. How exam grades become evidence and mastery
+**Changed in BL-040:** the grader is now kept off the providers that wrote the questions.
 - **Evidence:** one row per graded answer. `session_id` is `exam:{exam id}:{attempt}`, `excerpt_ref` is `Q{n}: <the learner's answer>`, and `source_provider` is `local` for multiple choice or the grader's name. Strength: easy → weak, medium → moderate, hard → strong.
 - **Skipped questions** write no evidence (principle 5: skipping isn't a demonstrated failure). The score reports them as skipped.
 - **Mastery:** once every answered question on a concept is graded, its results propose a level. At least 75% correct proposes `max(current, the plan's target level)`, at most 25% proposes `current − 1`, and anything else proposes no change. The proposal then goes through the Analyzer's own rule (`apply_proposal`, now shared): exactly ±1 is applied with `set_mastery(changed_by="analyzer")`, citing that concept's exam evidence. ±2 or more queues a Challenger probe instead. A concept at level 0 answering its level-2 questions correctly therefore gets a challenge, not an instant level 2. Each concept is decided once per attempt.
@@ -475,6 +480,7 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 - **"≥ 10 samples":** benchmark order applies only when **every** usable candidate has 10+ runs of that task. Otherwise it's config order, because a provider with 50 runs can't be compared fairly with one that has 3. Ties keep config order.
 
 ### P85. Health: when the router calls `health()`
+**Changed in BL-040:** one fallback per task.
 `health()` on the CLI providers is a real one-token model call (P51), so the router doesn't call it on every route. It reads each provider's `state` attribute, which every run keeps up to date. It calls `health()` only when a provider has no `state`, or when a rate-limit cooldown has passed ("AVAILABLE on next successful health check").
 - **Cooldowns** come from the hint's `resets_at` when it's readable (ISO, epoch seconds, or "in N minutes/hours"), else 60 minutes. They're stored in `provider_health` (migration v7), so a rate limit hit in one command still holds in the next. Claude's "resets 3pm" wording isn't parsed, so it gets the 60-minute default.
 - **Other failures** (auth, crash, missing binary) drop the provider for the rest of that command only, and it is tried again in the next command. The state is still written to `provider_health` for the dashboard.
@@ -516,3 +522,16 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 - **Archive:** ended sessions that started more than 30 days ago. Their transcript and summary are **moved** to `vault/sessions/archive/`, never deleted, and `summary_path` follows. Open (crashed) sessions are never archived; close them with `brightlearn sessions close`.
 - **Auto-run:** the CLI's root callback runs maintenance first when the last run (`maintenance_runs`, migration v8) is 24+ hours old. It skips `maintain` itself and **`doctor`, whose contract is read-only**. It also skips when there's no database yet, so `--help` or a first command doesn't create one. A failure only logs a warning; the command still runs.
 - **Test isolation:** a conftest fixture now points `BRIGHTLEARN_HOME` and `BRIGHTLEARN_VAULT` at a temp folder for every test, so the auto-run can never reach your real `~/.brightlearn`. Your real database was never touched: it's still at schema v0.
+
+## BL-040
+
+### P92. How the decisions were applied
+- **P72, "in the learner's favour":** the Analyzer grades the probe's exchange alone and proposes a level. The probe is upheld when that grade is at or above the challenged level (the Analyzer's original proposal) and the proposal was a jump **up**. Then mastery is set to the full proposed level, citing the challenge's stored evidence plus the exchange's, with the exchange's strongest evidence setting the confidence. A downward proposal (e.g. "4 → 1") is never applied by a probe: upheld means the learner kept their level, and a failed probe changes no level either.
+- **Grading an exchange no longer applies ±1 itself.** The Challenger decides the outcome, so a probe can't move a level twice.
+- **Challenges store** `proposed_level` and the evidence behind it (v10). Merging keeps the latest proposal and the union of the evidence. Challenges raised by the tutor's estimate have no proposal and never change a level (Simon's decision).
+- **`changed_by = "challenger"`** needed the `mastery_history` CHECK widened. SQLite can't alter a CHECK, so v9 rebuilds the table: every row is copied first, then its index and append-only triggers are recreated. The test covers a v8 database with history rows.
+- **"P74" was really P46.** Simon chose to keep `{course}/{slug(name)}` ids. P74 (weeks) still stands: re-run `concepts apply` once.
+- **Retired concepts** drop out of every active list: the Analyzer, compiler, planner, podcast, `weakest()` and the dashboard. `get_concept` and history still see them. Re-listing a retired concept in a draft makes it active again (counted as updated). Two draft entries that resolve to one row are refused.
+- **Fallback:** at most two attempts per task (the best, then one more). If the preferred provider was skipped as unusable, only one attempt is made.
+- **Uncritiqued** means no valid critique: no other provider, or an unreadable critic answer. The exam JSON says `"review": "uncritiqued"`, and so do the `.md` and the CLI.
+- **Idle sessions:** each turn (`ask`, `/ask`, challenge answer) updates `last_turn_at` (v12). Auto-closing doesn't run the Analyzer, like `sessions close`. A closed session older than 30 days is then archived as usual.

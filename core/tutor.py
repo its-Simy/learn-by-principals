@@ -132,6 +132,7 @@ class Tutor:
         if not question:
             return "Usage: /ask <question>"
         answer = self._compiler.ground(question, self.course, self.session)
+        self._touch()
         quoted = "\n".join(f"> {line}" for line in answer.splitlines())
         self._append(f"\n**Ask (NotebookLM):** {question}\n\n{quoted}\n")
         return answer
@@ -146,6 +147,7 @@ class Tutor:
             return f"(no answer: {exc})"
         self.session.turns += [Turn("learner", question), Turn("tutor", result.text)]
         self.last_answer = (result.provider, task.task_type)
+        self._touch()
         if result.provider not in self.providers_used:
             self.providers_used.append(result.provider)
         self._append(
@@ -188,10 +190,13 @@ class Tutor:
     def answer_probe(self, answer: str) -> str:
         assert self.probe is not None and self.row is not None and self._challenges is not None
         probe, self.probe = self.probe, None
+        self._touch()
         self._append(f"\n**Learner (challenge answer):** {answer}\n")
         try:
             report = self._challenges.grade(probe, answer, self.row)
             note = f"Challenge graded by {report.provider}: {len(report.evidence_ids)} evidence."
+            for change in report.applied:
+                note += f" Upheld: {probe.concept.name} is now level {change.proposed}."
         except AnalysisError as exc:
             log.warning("Challenge %d not graded: %s", probe.challenge.id, exc)
             note = f"Challenge not graded ({exc}); it will be asked again next session."
@@ -235,6 +240,11 @@ class Tutor:
         self._append(f"\n_Session ended {self.row.ended_at}._\n")
         note = self._on_end(self) if self._on_end else None
         return "Session ended." + (f" {note}" if note else "")
+
+    def _touch(self) -> None:
+        """A turn happened: the session isn't idle (BL-040)."""
+        if self.row is not None:
+            self._learner.touch_session(self.row)
 
     def _append(self, text: str) -> None:
         with self.transcript_path.open("a") as f:

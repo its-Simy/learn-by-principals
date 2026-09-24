@@ -87,6 +87,11 @@ class GenerationReport:
     critic_provider: str | None = None
     critique_skipped: str | None = None
 
+    @property
+    def critiqued(self) -> bool:
+        """A different provider reviewed the draft; otherwise the exam is "uncritiqued"."""
+        return self.critic_provider is not None and self.critique_skipped is None
+
 
 # -- validation -------------------------------------------------------------------------------
 

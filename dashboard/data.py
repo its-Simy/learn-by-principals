@@ -111,6 +111,7 @@ def collect(conn: sqlite3.Connection, now: datetime | None = None) -> DashboardD
         "SELECT c.course, c.name, coalesce(m.level, 0) AS level,"
         " coalesce(m.confidence, 0) AS confidence, m.retention_confidence AS retention"
         " FROM concepts c LEFT JOIN mastery m ON m.concept_id = c.concept_id"
+        " WHERE c.status = 'active'"
         " ORDER BY level, coalesce(m.retention_confidence, 0), confidence, c.name LIMIT ?",
         (WEAKEST,),
     )

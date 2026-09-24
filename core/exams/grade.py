@@ -3,7 +3,7 @@ only through the Analyzer's rule (``apply_proposal``), citing those rows.
 
 - multiple choice: graded locally against the answer key
 - short answer and coding: one ``critic`` call for all of them, against each rubric, on the
-  ``analysis`` routing order
+  ``analysis`` routing order, never on a provider that wrote the questions
 - evidence: ``applied`` when correct, ``failed`` when wrong; strength by difficulty
 - idempotent: a question already graded in this attempt (per the exam file, or per an evidence
   row this attempt already wrote) is never graded again
@@ -211,8 +211,10 @@ class ExamGrader:
         task = TaskPackage(
             "grade", "critic", system, user, 200 * len(questions) + 200, {}, output_format="json"
         )
+        # The grader never runs on a provider that wrote the questions (BL-040).
+        writers = set(exam.get("generation", {}).get("generator_providers") or [])
         try:
-            result = self._router.run(task)
+            result = self._router.run(task, exclude=writers)
         except ModelError as exc:
             report.grader_error = str(exc)
             log.warning("Open answers not graded: %s", exc)

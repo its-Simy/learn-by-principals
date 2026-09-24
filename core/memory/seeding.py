@@ -180,12 +180,31 @@ def write_draft(path: Path, course: str, concepts: list[DraftConcept]) -> None:
 
 @dataclass(frozen=True)
 class ApplyResult:
-    applied: list[Concept]
+    added: list[Concept]
+    updated: list[Concept]
+    unchanged: list[Concept]
+    retired: list[Concept]  # in the database, missing from the draft: kept, marked retired
     unknown_prerequisites: list[str]  # named as prerequisites but not in the draft
+
+    @property
+    def applied(self) -> list[Concept]:
+        return [*self.added, *self.updated, *self.unchanged]
+
+
+def _names(item: dict[str, Any]) -> list[str]:
+    aliases = item.get("aliases") or []
+    if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
+        raise SeedingError(f"{item.get('name')!r}: aliases must be a list of names")
+    return [item["name"], *aliases]
 
 
 def apply(path: Path, learner: LearnerMemory) -> ApplyResult:
-    """Upsert the reviewed draft into ``concepts``. Idempotent; never deletes concepts."""
+    """Upsert the reviewed draft into ``concepts`` by concept id (BL-040, P46).
+
+    A concept whose id isn't in the database but one of its ``aliases`` is keeps that existing
+    row (a rename). Concepts of the course that the draft no longer lists are marked
+    ``retired``, never deleted; their mastery and evidence are untouched. Idempotent.
+    """
     if not path.exists():
         raise SeedingError(f"No draft at {path}; run `brightlearn concepts seed` first")
     doc = yaml.safe_load(path.read_text()) or {}
@@ -193,19 +212,46 @@ def apply(path: Path, learner: LearnerMemory) -> ApplyResult:
         raise DraftNotReviewed(f"{path} still says `reviewed: false`; review it, then flip it")
     course = doc["course"]
     items = doc.get("concepts") or []
-    applied = []
+    existing = {c.concept_id: c for c in learner.concepts(course, include_retired=True)}
+
+    resolved: list[tuple[dict[str, Any], str]] = []
+    lookup: dict[str, str] = {}  # slug of any name or alias -> the id it resolved to
     for item in items:
+        names = _names(item)
+        ids = [concept_id(course, n) for n in names]
+        cid = next((i for i in ids if i in existing), ids[0])
+        if cid in {c for _, c in resolved}:
+            raise SeedingError(f"Two concepts in the draft map to {cid}; merge them or rename one")
+        resolved.append((item, cid))
+        lookup.update({slug(n): cid for n in names})
+
+    added, updated, unchanged = [], [], []
+    for item, cid in resolved:
+        week = item.get("week")
         concept = Concept(
-            concept_id=concept_id(course, item["name"]),
+            concept_id=cid,
             course=course,
             name=item["name"],
             module=item.get("module"),
-            prerequisites=[concept_id(course, p) for p in item.get("prerequisites") or []],
+            prerequisites=[
+                lookup.get(slug(p), concept_id(course, p)) for p in item.get("prerequisites") or []
+            ],
             exam_tags=list(item.get("exam_tags") or []),
-            week=int(week) if isinstance(week := item.get("week"), int | float) else None,
+            week=int(week) if isinstance(week, int | float) else None,
         )
+        before = existing.get(cid)
         learner.upsert_concept(concept)
-        applied.append(concept)
-    names = {item["name"] for item in items}
+        if before is None:
+            added.append(concept)
+        elif before != concept:
+            updated.append(concept)
+        else:
+            unchanged.append(concept)
+
+    kept = {cid for _, cid in resolved}
+    retired = [c for cid, c in existing.items() if cid not in kept and c.status == "active"]
+    for concept in retired:
+        learner.retire_concept(concept.concept_id)
     wanted = {p for item in items for p in item.get("prerequisites") or []}
-    return ApplyResult(applied, sorted(wanted - names))
+    unknown = sorted(p for p in wanted if slug(p) not in lookup)
+    return ApplyResult(added, updated, unchanged, retired, unknown)

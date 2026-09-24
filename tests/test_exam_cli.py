@@ -255,3 +255,49 @@ def test_invalid_spec_is_a_usage_error(env, tmp_path):
     bad.write_text(yaml.safe_dump({**SPEC, "length": 60}))
     result = runner.invoke(app, ["exam", "create", "--spec", str(bad)])
     assert result.exit_code == 2
+
+
+# -- BL-040: critic and grader never run on the question writer ------------------------------
+
+
+def test_a_single_provider_makes_an_uncritiqued_exam(env, monkeypatch):
+    spec, models, _ = env
+    monkeypatch.setattr(
+        common, "model_providers", lambda config, purposes: {"claude": models["claude"]}
+    )
+
+    path, result = create(spec)
+
+    exam = json.loads(path.read_text())
+    assert exam["review"] == "uncritiqued"
+    assert "Uncritiqued" in result.output
+    assert (
+        "**Uncritiqued:** no second model reviewed these questions."
+        in path.with_suffix(".md").read_text()
+    )
+    assert models["codex"].tasks == []
+
+
+def test_a_critiqued_exam_says_so(env):
+    spec, _, _ = env
+    path, result = create(spec)
+    assert json.loads(path.read_text())["review"] == "critiqued"
+    assert "Uncritiqued" not in result.output
+
+
+def test_the_grader_never_runs_on_a_question_writer(env):
+    spec, models, _ = env
+    path, _ = create(spec)
+    exam = json.loads(path.read_text())
+    runner.invoke(app, ["exam", "take", str(path)], input=script(exam))
+    exam = json.loads(path.read_text())
+    exam["generation"]["generator_providers"] = ["claude", "codex"]  # both wrote questions
+    path.write_text(json.dumps(exam))
+
+    graded = runner.invoke(app, ["exam", "grade", str(path)])
+
+    assert graded.exit_code == 0, graded.output
+    assert "3 answer(s) not graded yet" in graded.output
+    assert "No model provider left for grade" in " ".join(graded.output.split())
+    assert [t.task_type for t in models["codex"].tasks] == ["critique"]  # no grade call
+    assert len(evidence_rows()) == 3  # multiple choice, graded locally

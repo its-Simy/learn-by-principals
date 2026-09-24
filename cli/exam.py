@@ -87,8 +87,9 @@ def create(
     )
     for reason in report.dropped:
         console.print(f"[yellow]Dropped: {escape(reason)}[/]")
-    if report.critique_skipped:
-        console.print(f"[yellow]Critique skipped: {escape(report.critique_skipped)}[/]")
+    if not report.critiqued:
+        reason = report.critique_skipped or "no critic"
+        console.print(f"[yellow]Uncritiqued: {escape(reason)}[/]")
     console.print(f"{json_path}\n{md_path}")
 
 

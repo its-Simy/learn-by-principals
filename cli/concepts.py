@@ -92,7 +92,16 @@ def apply_cmd(
         raise typer.Exit(1) from exc
     finally:
         conn.close()
-    console.print(f"Applied {len(result.applied)} concepts from {path}.")
+    console.print(
+        f"Applied {path.name}: {len(result.added)} added, {len(result.updated)} updated, "
+        f"{len(result.retired)} retired ({len(result.unchanged)} unchanged)."
+    )
+    if result.retired:
+        console.print(
+            "[yellow]Retired (kept with their mastery and evidence): "
+            + ", ".join(c.name for c in result.retired)
+            + ". Add an `aliases:` entry if one was renamed.[/]"
+        )
     if result.unknown_prerequisites:
         console.print(
             "[yellow]Prerequisites not defined as concepts: "

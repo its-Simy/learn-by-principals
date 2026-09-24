@@ -38,6 +38,11 @@ def print_report(report: MaintenanceReport) -> None:
         console.print(table)
     else:
         console.print("Retention: nothing changed.")
+    if report.closed:
+        console.print(
+            f"Closed {len(report.closed)} session(s) idle over 24 hours (not analyzed): "
+            + ", ".join(report.closed)
+        )
     if report.archived:
         console.print(f"Archived {len(report.archived)} session(s): {', '.join(report.archived)}")
     else:
@@ -60,9 +65,11 @@ def auto_maintain(command: str | None, config: Config | None = None) -> None:
     except Exception:
         log.warning("Automatic maintenance failed; run `brightlearn maintain`", exc_info=True)
         return
-    if report is not None and (report.decayed or report.archived):
+    if report is not None and (report.decayed or report.archived or report.closed):
         log.info(
-            "Daily maintenance: %d retention value(s) decayed, %d session(s) archived",
+            "Daily maintenance: %d retention value(s) decayed, %d idle session(s) closed,"
+            " %d session(s) archived",
             len(report.decayed),
+            len(report.closed),
             len(report.archived),
         )

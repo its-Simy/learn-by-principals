@@ -4,21 +4,30 @@ A challenge is queued when the Analyzer proposes a jump of two or more levels (`
 or when the tutor's end-of-session estimate and the Analyzer's finding differ by two or more.
 The next tutor session on that course opens with it: the ``challenger`` persona asks one question,
 the learner answers, and the Analyzer grades that exchange alone, on a different provider.
-Grading writes evidence and resolves the challenge; it never queues another (principle 7).
+Grading writes evidence and resolves the challenge; it never queues another (principle 7). A probe
+resolved in the learner's favour applies the Analyzer's full proposed level (BL-040, P72).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from core.analysis.analyzer import AnalysisError, AnalysisReport, Analyzer
+from core.analysis.analyzer import (
+    STRENGTH_CONFIDENCE,
+    AnalysisError,
+    AnalysisReport,
+    Analyzer,
+    LevelChange,
+)
 from core.context.compiler import ContextCompiler, Turn, TutorSession
 from core.ledger.ledger import estimate_tokens, utcnow
 from core.memory.learner import Concept, LearnerMemory, SessionRow
+from core.memory.schema import EVIDENCE_STRENGTHS
 from core.personas import load, render
 from core.providers.models.base import TaskPackage
 from core.router.router import Router
@@ -44,6 +53,8 @@ class Challenge:
     question: str | None
     status: str
     created_at: str
+    proposed_level: int | None = None  # the Analyzer's jump; None when raised by an estimate
+    evidence_ids: str = "[]"  # JSON: the evidence behind that proposal
 
 
 class ChallengeStore:
@@ -53,23 +64,46 @@ class ChallengeStore:
         self.conn = conn
         self._now = now
 
-    def queue(self, concept_id: str, session_id: str | None, reason: str) -> Challenge:
-        """A new pending challenge, or the concept's open one with ``reason`` merged in."""
+    def queue(
+        self,
+        concept_id: str,
+        session_id: str | None,
+        reason: str,
+        proposed_level: int | None = None,
+        evidence_ids: list[str] | tuple[str, ...] = (),
+    ) -> Challenge:
+        """A new pending challenge, or the concept's open one with ``reason`` merged in.
+
+        ``proposed_level`` is the Analyzer's jump (the latest one wins when merging);
+        ``evidence_ids`` are the rows behind it (merged as a union).
+        """
         existing = self.open_for_concept(concept_id)
         if existing is not None:
             if reason not in existing.reason.split("; "):
                 existing.reason = f"{existing.reason}; {reason}"
-                with self.conn:
-                    self.conn.execute(
-                        "UPDATE challenges SET reason = ? WHERE id = ?",
-                        (existing.reason, existing.id),
-                    )
+            if proposed_level is not None:
+                existing.proposed_level = proposed_level
+            merged = list(dict.fromkeys([*json.loads(existing.evidence_ids), *evidence_ids]))
+            existing.evidence_ids = json.dumps(merged)
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE challenges SET reason = ?, proposed_level = ?, evidence_ids = ?"
+                    " WHERE id = ?",
+                    (existing.reason, existing.proposed_level, existing.evidence_ids, existing.id),
+                )
             return existing
         with self.conn:
             cursor = self.conn.execute(
-                "INSERT INTO challenges (concept_id, session_id, reason, status, created_at)"
-                " VALUES (?, ?, ?, 'pending', ?)",
-                (concept_id, session_id, reason, self._now()),
+                "INSERT INTO challenges (concept_id, session_id, reason, status, created_at,"
+                " proposed_level, evidence_ids) VALUES (?, ?, ?, 'pending', ?, ?, ?)",
+                (
+                    concept_id,
+                    session_id,
+                    reason,
+                    self._now(),
+                    proposed_level,
+                    json.dumps(list(evidence_ids)),
+                ),
             )
         challenge = self.get(cursor.lastrowid)
         assert challenge is not None
@@ -117,19 +151,27 @@ class ChallengeStore:
 # -- deciding what to challenge ------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class Disagreement:
+    concept_id: str
+    reason: str
+    proposed_level: int | None  # the Analyzer's jump; None for a tutor-estimate disagreement
+
+
 def disagreements(
     report: AnalysisReport, tutor_estimate: dict[str, int] | None = None
-) -> list[tuple[str, str]]:
-    """(concept_id, reason) for every disagreement of ``DISAGREEMENT`` levels or more."""
-    found: list[tuple[str, str]] = [
-        (c.concept_id, f"analyzer proposed {c.current} -> {c.proposed}")
+) -> list[Disagreement]:
+    """Every disagreement of ``DISAGREEMENT`` levels or more."""
+    found = [
+        Disagreement(c.concept_id, f"analyzer proposed {c.current} -> {c.proposed}", c.proposed)
         for c in report.needs_challenge
         if abs(c.proposed - c.current) >= DISAGREEMENT
     ]
     for concept_id, estimate in (tutor_estimate or {}).items():
         finding = report.proposals.get(concept_id)
         if finding is not None and abs(estimate - finding) >= DISAGREEMENT:
-            found.append((concept_id, f"tutor estimated {estimate}, analyzer found {finding}"))
+            reason = f"tutor estimated {estimate}, analyzer found {finding}"
+            found.append(Disagreement(concept_id, reason, None))
     return found
 
 
@@ -140,8 +182,14 @@ def queue_challenges(
 ) -> list[Challenge]:
     """Queue one challenge per disagreeing concept (collapsing into any open one)."""
     queued: dict[int, Challenge] = {}
-    for concept_id, reason in disagreements(report, tutor_estimate):
-        challenge = store.queue(concept_id, report.session_id, reason)
+    for d in disagreements(report, tutor_estimate):
+        challenge = store.queue(
+            d.concept_id,
+            report.session_id,
+            d.reason,
+            d.proposed_level,
+            report.support.get(d.concept_id, []),
+        )
         queued[challenge.id] = challenge
     return list(queued.values())
 
@@ -218,8 +266,15 @@ class ChallengeRunner:
         return Probe(challenge, concept, question, result.provider)
 
     def grade(self, probe: Probe, answer: str, row: SessionRow) -> AnalysisReport:
-        """Grade the exchange alone and resolve the challenge. On failure it goes back to
-        ``asked``, so the same question is asked next session."""
+        """Grade the exchange alone, apply the outcome, and resolve the challenge (BL-040, P72).
+
+        In the learner's favour (the grade proposes the challenged level or more, for a jump
+        upward): mastery is set to the Analyzer's full proposed level, citing the original
+        evidence plus this exchange's, ``changed_by="challenger"``. Otherwise the exchange's
+        evidence is all that's written and no level changes. Never an average. A challenge
+        raised only by the tutor's estimate never changes a level. If grading itself fails,
+        the challenge goes back to ``asked`` so the same question is asked next session.
+        """
         self.store.mark(probe.challenge, "answered")
         transcript = (
             f"**Tutor (challenger · {probe.provider or 'earlier session'}):** {probe.question}\n\n"
@@ -231,8 +286,34 @@ class ChallengeRunner:
         except AnalysisError:
             self.store.mark(probe.challenge, "asked")
             raise
+        self._apply_outcome(probe, report)
         self.store.mark(probe.challenge, "resolved")
         return report
+
+    def _apply_outcome(self, probe: Probe, report: AnalysisReport) -> None:
+        challenge, concept_id = probe.challenge, probe.concept.concept_id
+        mastery = self._learner.get_mastery(concept_id)
+        current = mastery.level if mastery else 0
+        target = challenge.proposed_level
+        graded = report.proposals.get(concept_id)
+        upheld = (
+            target is not None
+            and target > current
+            and graded is not None
+            and graded >= target
+            and bool(report.evidence_ids)
+        )
+        if not upheld:
+            return
+        exchange = [
+            e for e in self._learner.evidence(concept_id) if e.evidence_id in report.evidence_ids
+        ]
+        strongest = max((e.strength for e in exchange), key=EVIDENCE_STRENGTHS.index)
+        cited = list(dict.fromkeys([*json.loads(challenge.evidence_ids), *report.evidence_ids]))
+        self._learner.set_mastery(
+            concept_id, target, STRENGTH_CONFIDENCE[strongest], cited, changed_by="challenger"
+        )
+        report.applied.append(LevelChange(concept_id, current, target))
 
     def _question_task(
         self, challenge: Challenge, concept: Concept, session: TutorSession

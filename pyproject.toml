@@ -37,5 +37,9 @@ select = ["E", "F", "I", "UP", "B"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
+[tool.ruff.lint.per-file-ignores]
+# Committed migrations are frozen SQL: reflowing a line would change the migration.
+"core/memory/migrations/v*.py" = ["E501"]
+
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument"]
