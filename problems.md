@@ -262,15 +262,20 @@ The spec says the Model Router is the only thing that talks to models and that i
 ## BL-022
 
 ### P49. `claude` isn't on PATH on this machine
-The only copy is the one bundled with the VS Code extension, at `~/.vscode/extensions/anthropic.claude-code-2.1.280-darwin-arm64/resources/native-binary/claude`. **(you)** Install the CLI, or put it on PATH, then run `brightlearn dev model-test claude "Say hi"`. Doctor shows Claude Code as a yellow warning until then.
+**Resolved Oct 17, 2026:** the standalone install at `~/.local/bin/claude` was updated to 2.1.302 and `~/.local/bin` added to PATH (`~/.zshrc` was root-owned and had to be chowned first).
+
+Original note: The only copy is the one bundled with the VS Code extension, at `~/.vscode/extensions/anthropic.claude-code-2.1.280-darwin-arm64/resources/native-binary/claude`. **(you)** Install the CLI, or put it on PATH, then run `brightlearn dev model-test claude "Say hi"`. Doctor shows Claude Code as a yellow warning until then.
 
 ### P50. Claude's JSON output wasn't checked live
+**Resolved Oct 17, 2026:** a live `claude -p "Say hi"` (2.1.302) is saved as `tests/fixtures/cli/claude_hi.json` and the parser reads it correctly (`result`, `subtype`, `usage`, `modelUsage` are where expected). The usage-limit wording is still unverified: no limit was hit.
+
+Original note:
 - **What was checked:** the flags, against the bundled `claude --help` (2.1.280).
 - **What wasn't:** the output shape (`result`, `is_error`, `subtype`, `usage`, `modelUsage`) and the usage-limit wording (e.g. "Claude AI usage limit reached|<epoch>", "5-hour limit reached ∙ resets 3pm"). Both come from memory, not from a run, because a run spends your quota. The manual test will show whether the parser is right.
 
 ### P51. Claude CLI limits
 - **Output length:** `claude -p` has no max-output-tokens flag, so `TaskPackage.max_output_tokens` is ignored.
-- **Settings still load:** `--tools ""` disables tools. The scratch working directory keeps the repo's `CLAUDE.md` out. User-level `~/.claude` settings, hooks and plugins still load. `--bare` would skip them, but it only accepts `ANTHROPIC_API_KEY` auth, which breaks principle 1.
+- **Settings still load:** `--tools ""` disables tools. The scratch working directory keeps the repo's `CLAUDE.md` out. User-level `~/.claude` settings, hooks and plugins still load. `--bare` would skip them, but it only accepts `ANTHROPIC_API_KEY` auth, which breaks principle 1. See P106 for what `--system-prompt` and `--strict-mcp-config` remove.
 - **Health checks cost quota:** `health()` makes a real one-token call, at most once every 10 minutes. Doctor only runs `claude --version`.
 - **Timeouts:** a timeout sets the state to `LIMITED`.
 
@@ -669,3 +674,6 @@ The CLI's root callback runs auto-maintenance before every command except `maint
 
 ### P105. `nlm-login` needed Playwright's Chromium
 The first real `brightlearn dev nlm-login` stopped with "Playwright's bundled Chromium is not installed": `notebooklm-py[browser]` installs the Playwright package but not a browser, and the library's own help says its Chromium crashes on macOS 15+ and recommends `--browser chrome`. **Fixed:** `nlm-login` takes `--browser` and defaults to `chrome`; `chromium` still works after `python -m playwright install chromium`.
+
+### P106. Every Claude call carried the coding-agent prompt
+The first live `claude -p "Say hi"` cost 17,478 cache-creation tokens and replied about the repo's git branch: `-p` runs the full coding agent, so the default system prompt, the user's MCP servers' tool definitions and the working directory's git state went out with a two-token question. `--bare` is the CLI's answer, but it never reads the OAuth login (principle 1). **Fixed:** the provider always passes `--system-prompt` (the persona, or a one-line default) and `--strict-mcp-config`; the same question then costs 1,375 cache-creation tokens, measured from a scratch directory the way the provider runs. The remainder is the CLI's own preamble, which no flag removes under subscription auth.

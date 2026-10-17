@@ -111,13 +111,13 @@ Copy this block for any step not listed below.
 - **Date:**
 - **Command:** Install the `claude` CLI on PATH (P49) and Codex (P52), check `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are unset, then capture exactly what the providers will parse:
   ```
-  claude -p "Say hi" --output-format json --tools "" --no-session-persistence > claude_hi.json
+  claude -p "Say hi" --output-format json --tools "" --no-session-persistence --strict-mcp-config --system-prompt "Answer the user directly and briefly." > claude_hi.json
   codex --help > codex_help.txt
   codex exec --skip-git-repo-check --sandbox read-only --color never -o codex_last.txt "Say hi" > codex_hi.txt 2>&1
   ```
   `-o` matters: `CodexProvider` reads the reply from that file and uses stdout and stderr only for the `model:` and `tokens used` lines. Paste all four files (`claude_hi.json`, `codex_help.txt`, `codex_hi.txt`, `codex_last.txt`) into the chat; they become `tests/fixtures/cli/`.
 - **Expected:**
-  - `claude_hi.json` is one JSON object with `result`, `subtype`, `usage` and `modelUsage` (P50).
+  - `claude_hi.json` is one JSON object with `result`, `subtype`, `usage` and `modelUsage` (P50; done Oct 17, 2026, saved as `tests/fixtures/cli/claude_hi.json`). Its `usage.cache_creation_input_tokens` should be about 1,400, not 17,000: the two extra flags keep the CLI's coding-agent prompt and MCP tools out (P106).
   - `codex_hi.txt` holds the run's header and footer; `codex_last.txt` holds only the final message (P52).
   - Any usage-limit wording you run into goes into P50 or P52.
 - **Output summary:**

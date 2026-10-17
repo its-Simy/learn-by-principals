@@ -1,8 +1,12 @@
 """Claude Code on the Pro/Max subscription, via ``claude -p … --output-format json``.
 
-Flags checked against ``claude --help`` (Claude Code 2.1.280, Sept 23, 2026): ``-p/--print``,
-``--output-format json``, ``--system-prompt``, ``--tools ""`` (no tools), and
-``--no-session-persistence``. The CLI has no max-output-tokens flag.
+Flags checked against ``claude --help`` and a live run (Claude Code 2.1.302, Oct 17, 2026; the
+output is ``tests/fixtures/cli/claude_hi.json``): ``-p/--print``, ``--output-format json``,
+``--tools ""`` (no tools), ``--no-session-persistence``, ``--strict-mcp-config`` and
+``--system-prompt``. The last two are always passed: without them the CLI sends its coding-agent
+prompt, the user's MCP tool definitions and the git state of the working directory, 17k tokens
+on a two-token question; with them, 1.4k (P106). ``--bare`` would cut more but only accepts an
+API key, which principle 1 forbids. The CLI has no max-output-tokens flag.
 """
 
 from __future__ import annotations
@@ -21,6 +25,9 @@ LIMIT_NOTICE_RE = re.compile(
     re.IGNORECASE,
 )
 EPOCH_RE = re.compile(r"\|(\d{9,11})\b")
+# For tasks that bring no persona (health checks, `dev model-test`): a replacement for the CLI's
+# default prompt, not an instruction set.
+DEFAULT_SYSTEM_PROMPT = "Answer the user directly and briefly."
 
 
 class ClaudeCodeProvider(CLIModelProvider):
@@ -33,9 +40,9 @@ class ClaudeCodeProvider(CLIModelProvider):
 
     def argv(self, task: TaskPackage) -> list[str]:
         argv = ["-p", task.user, "--output-format", "json", "--tools", ""]
-        argv += ["--no-session-persistence"]
-        if task.system:
-            argv += ["--system-prompt", task.system]
+        argv += ["--no-session-persistence", "--strict-mcp-config"]
+        # Always given, or the CLI's own coding-agent prompt goes out with every call.
+        argv += ["--system-prompt", task.system or DEFAULT_SYSTEM_PROMPT]
         return argv
 
     def parse(self, done: Completed) -> tuple[str, str | None, UsageHint | None]:

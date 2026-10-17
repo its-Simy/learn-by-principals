@@ -1,13 +1,17 @@
 """ClaudeCodeProvider against a fake ``claude`` script on PATH."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from core.providers.models.base import ModelError, ModelRateLimited, ModelTimeout, TaskPackage
-from core.providers.models.claude_code import ClaudeCodeProvider
+from core.providers.models.claude_code import DEFAULT_SYSTEM_PROMPT, ClaudeCodeProvider
 from core.providers.state import ProviderState
 from tests.fakes.fake_cli import install
+
+# A real `claude -p "Say hi" --output-format json …` (2.1.302), with the reply text neutralised.
+REAL_OUTPUT = Path(__file__).parent / "fixtures" / "cli" / "claude_hi.json"
 
 SUCCESS = {
     "type": "result",
@@ -56,8 +60,21 @@ def test_success_parses_text_model_and_usage(provider, fake, monkeypatch, tmp_pa
     assert call["argv"][:4] == ["-p", "Say hi", "--output-format", "json"]
     assert call["argv"][call["argv"].index("--system-prompt") + 1] == "You are a patient tutor."
     assert call["argv"][call["argv"].index("--tools") + 1] == ""
+    assert "--strict-mcp-config" in call["argv"]
     assert call["api_key"] is False  # ANTHROPIC_API_KEY scrubbed
     assert call["cwd"] == str((tmp_path / "scratch").resolve())
+
+
+def test_the_real_cli_output_parses(provider, fake, monkeypatch):
+    """The shape the live CLI produced (P50): the reply, the model and the token counts."""
+    monkeypatch.setenv("FAKE_STDOUT", REAL_OUTPUT.read_text())
+
+    result = provider.run(task())
+
+    assert result.text == "Hi! What would you like to learn today?"
+    assert result.model == "claude-fable-5-1"
+    assert (result.usage_hint.input_tokens, result.usage_hint.output_tokens) == (2, 49)
+    assert result.usage_hint.raw["total_cost_usd"] > 0  # list price, not billed on a subscription
 
 
 @pytest.mark.parametrize(
@@ -122,10 +139,11 @@ def test_other_failure_is_broken(provider, fake, monkeypatch):
     assert provider.state is ProviderState.BROKEN
 
 
-def test_no_system_prompt_flag_when_empty(provider, fake, monkeypatch):
+def test_a_task_without_a_persona_still_replaces_the_default_prompt(provider, fake, monkeypatch):
     monkeypatch.setenv("FAKE_STDOUT", json.dumps(SUCCESS))
     provider.run(task(system=""))
-    assert "--system-prompt" not in fake()[0]["argv"]
+    argv = fake()[0]["argv"]
+    assert argv[argv.index("--system-prompt") + 1] == DEFAULT_SYSTEM_PROMPT
 
 
 def test_health_is_a_cached_one_token_call(tmp_path, fake, monkeypatch):
