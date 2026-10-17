@@ -32,22 +32,27 @@ Copy this block for any step not listed below.
 
 ## Entries
 
-### 1. NotebookLM login, then doctor
+### 1. NotebookLM login, Brightspace login, then doctor
 - **Date:**
 - **Command:**
   ```
   uv pip install "notebooklm-py[android,browser]"
   brightlearn dev nlm-login --account <gmail>
+  brightlearn dev courses
   brightlearn doctor
   ```
+  `dev courses` is the one command that logs into Brightspace without syncing: a headed browser with the Duo pause opens only when the saved session has expired. Doctor never opens one.
 - **Expected:**
   - Credentials land in `~/.brightlearn/notebooklm/`, not `~/.notebooklm/` (P20).
+  - `dev courses` lists CSE220 with its org unit id.
   - Doctor's NotebookLM row is green.
   - Brightspace is green (`whoami 200`).
+  - `ANTHROPIC_API_KEY` is green (unset). Red means the key is exported: unset it before going on, or Claude Code would bill the API (principle 1).
   - Chromium, Config, Storage root and Temp dir are green.
-  - DB schema is green at v12, or yellow saying it migrates on the next run.
-  - Claude Code and Codex stay yellow until step 4.
+  - DB schema is yellow, "no database yet", on a machine that has never synced: step 2 creates it. On one that has, it's green at v12 or yellow saying it migrates on the next run.
+  - Claude Code and Codex stay yellow until step 5.
   - Ollama is an optional yellow warning.
+  - Doctor exits 0. It exits 1 only when a row is red.
 - **Output summary:**
 - **Problems opened:**
 - **Tickets created:**
@@ -63,7 +68,7 @@ Copy this block for any step not listed below.
   ```
   Use `--course`, not `--all`: past terms would be filed under Fall-2026 (P15).
 - **Expected:**
-  - **First run:** files land in `~/.brightlearn/courses/Fall-2026/CSE220/{bucket}/`. `Link` topics are counted, not downloaded. The NotebookLM table shows sources added, with `code` and `other` deferred.
+  - **First run:** files land in `~/.brightlearn/courses/Fall-2026/CSE220/{bucket}/`. `Link` topics are counted, not downloaded. The NotebookLM table shows the sources added. `code` and `other` are not sent at all (nothing counts them, so they don't show as deferred) unless `--include-code` is passed. Deferred counts only files past the 50-source cap, so it's 0 for a course under the cap.
   - **Second run:** every file is skipped, and NotebookLM adds or replaces nothing (P16).
   - **Doctor afterwards:** Temp dir is green, so `/tmp/brightlearn` was left empty.
   - **Check by hand:** if a file landed in the wrong bucket, note which one. P32 covers file types NotebookLM rejects.
@@ -80,23 +85,35 @@ Copy this block for any step not listed below.
   brightlearn dev nlm-test
   ```
 - **Expected:**
-  - The spike creates or finds `BrightLearn-spike`, adds the syllabus, answers "What is the grading breakdown?" with citations, and generates audio from the prompt file on the Android backend.
-  - `nlm-test` does the same through `GeminiNotebookProvider` and removes its source afterwards (P18, P22).
+  - The spike creates or finds `BrightLearn-spike`, adds the syllabus, answers "What is the grading breakdown?" with citations, generates audio from the prompt file on the Android backend, then removes and re-adds the syllabus and reports whether the source id changed.
+  - `nlm-test` covers the first three of those through `GeminiNotebookProvider`: find the notebook, add the syllabus, ask the same question. It removes its source afterwards (P18, P22). No audio and no re-add: those are only in the spike.
   - Paste the spike's output into `docs/spike_c_results.md`, and note anything that disagrees with what that file says the library does.
 - **Output summary:**
 - **Problems opened:**
 - **Tickets created:**
 - **Status:** not run
 
-### 4. BL-039: capture the model CLI outputs, then model-test
+### 4. Capture the model CLI outputs for BL-039
 - **Date:**
 - **Command:** Install the `claude` CLI on PATH (P49) and Codex (P52), check `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are unset, then capture exactly what the providers will parse:
   ```
   claude -p "Say hi" --output-format json --tools "" --no-session-persistence > claude_hi.json
   codex --help > codex_help.txt
-  codex exec --skip-git-repo-check --sandbox read-only --color never "Say hi" > codex_hi.txt 2>&1
+  codex exec --skip-git-repo-check --sandbox read-only --color never -o codex_last.txt "Say hi" > codex_hi.txt 2>&1
   ```
-  Paste the three files into the chat (they become `tests/fixtures/cli/`). After BL-039 lands:
+  `-o` matters: `CodexProvider` reads the reply from that file and uses stdout and stderr only for the `model:` and `tokens used` lines. Paste all four files into the chat (they become `tests/fixtures/cli/`).
+- **Expected:**
+  - `claude_hi.json` is one JSON object with `result`, `subtype`, `usage` and `modelUsage` (P50).
+  - `codex_hi.txt` holds the run's header and footer; `codex_last.txt` holds only the final message (P52).
+  - Any usage-limit wording you run into goes into P50 or P52.
+- **Output summary:**
+- **Problems opened:**
+- **Tickets created:**
+- **Status:** not run
+
+### 5. BL-039: model-test
+- **Date:**
+- **Command:** After BL-039 lands:
   ```
   brightlearn dev model-test claude "Say hi"
   brightlearn dev model-test codex "Say hi"
@@ -110,9 +127,9 @@ Copy this block for any step not listed below.
 - **Output summary:**
 - **Problems opened:**
 - **Tickets created:**
-- **Status:** not run (blocked until the three outputs are pasted)
+- **Status:** not run
 
-### 5. Seed and apply CSE220's concepts
+### 6. Seed and apply CSE220's concepts
 - **Date:**
 - **Command:**
   ```
@@ -133,7 +150,7 @@ Copy this block for any step not listed below.
 - **Tickets created:**
 - **Status:** not run
 
-### 6. First tutor session
+### 7. First tutor session
 - **Date:**
 - **Command:**
   ```
@@ -155,7 +172,7 @@ Copy this block for any step not listed below.
 - **Tickets created:**
 - **Status:** not run
 
-### 7. First exam
+### 8. First exam
 - **Date:**
 - **Command:** Write a spec outside the repo, e.g. `~/.brightlearn/exams/cse220-midterm1.yaml`:
   ```yaml

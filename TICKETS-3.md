@@ -58,7 +58,13 @@ Log anything unresolved in problems.md instead of guessing.
 **Acceptance:** decay halves retention at exactly one half-life; a concept with fresh evidence is untouched; auto-run guard respects the 24 h window.
 
 ### BL-039 Claude and Codex parser fixes
-**Blocked until Simon pastes the real CLI outputs.** When they arrive: fix `ClaudeCodeProvider` JSON parsing and `CodexProvider` output/allowance parsing against the real text; save the pasted outputs as `tests/fixtures/cli/claude_hi.json`, `codex_help.txt`, `codex_hi.txt`; tests use them.
+**Blocked until Simon pastes the real CLI outputs.** When they arrive: fix `ClaudeCodeProvider` JSON parsing and `CodexProvider` output/allowance parsing against the real text; save the pasted outputs as `tests/fixtures/cli/claude_hi.json`, `codex_help.txt`, `codex_hi.txt`, `codex_last.txt` (the `-o` file); tests use them.
+
+### BL-040 Decisions
+Simon's answers to the open problems, applied across the code: one file per migration with a checksum test (P70), stale and auto-closed sessions (P67), one fallback per task and the grader kept off the question writers (P79, P80, P85), retired concepts and `aliases` in `concepts apply` (P46), and the upheld-probe rule (P72). Details in `problems.md` (P92) and the `CLAUDE.md` decision log.
+
+### BL-041 Validation log
+`docs/validation-log.md`: one entry per manual step against the real accounts, in dependency order, with the command, what passing looks like, and room for the output summary and the problems and tickets it produced. Corrections to the log stay under this ticket.
 
 ---
 
