@@ -1,4 +1,4 @@
-"""Health, personas, the usage dashboard, doctor and jobs."""
+"""Health, personas, the usage dashboard, doctor and jobs; and the text body every router uses."""
 
 from __future__ import annotations
 
@@ -14,6 +14,19 @@ from core.providers.state import ProviderState
 from core.router.benchmarks import Benchmark
 from core.router.health import HealthRecord
 from dashboard.data import DashboardData, ProviderRuns, WeakConcept
+
+
+class TextIn(BaseModel):
+    """A text file's new contents (a concept draft)."""
+
+    text: str
+
+
+# One model for every router, so the OpenAPI document (and the web types) have one TextOut.
+class TextOut(BaseModel):
+    """A text file's contents: a transcript, a draft, its diff, an exam paper or a brief."""
+
+    text: str
 
 
 class HealthOut(BaseModel):

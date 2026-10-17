@@ -9,6 +9,7 @@ while one is queued or running, and the check, the imports and the next job's su
 
 from __future__ import annotations
 
+import errno
 import shutil
 import uuid
 from collections.abc import Callable
@@ -19,6 +20,7 @@ from fastapi import APIRouter, File, Form, UploadFile
 
 from api.deps import ConfigDep, CourseDep, DbDep, EngineDep
 from api.engine import JobRunning, Resources
+from api.errors import LINK_JOB, conflicts
 from api.schemas.sources import SourceOut, UploadOut
 from api.schemas.system import JobOut
 from core.memory.db import Courses, Manifest
@@ -30,6 +32,19 @@ router = APIRouter(tags=["sources"])
 
 LINK_JOBS = frozenset({"link"})
 
+# The longest file name macOS and Linux file systems take (APFS, ext4: 255 bytes of UTF-8).
+MAX_NAME_BYTES = 255
+
+
+class NameTooLong(ValueError):
+    """A 422 (it's a ValueError): the learner renames the file."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            f"The file name {name[:40]!r}... is too long to store ({len(name.encode())} bytes); "
+            "rename it to something shorter and upload it again."
+        )
+
 
 @router.get("/courses/{course}/sources")
 def list_sources(course: CourseDep, conn: DbDep) -> list[SourceOut]:
@@ -37,7 +52,7 @@ def list_sources(course: CourseDep, conn: DbDep) -> list[SourceOut]:
     return [SourceOut.from_core(row) for row in Manifest(conn).all(course)]
 
 
-@router.post("/courses/{course}/sources/upload")
+@router.post("/courses/{course}/sources/upload", responses=conflicts(LINK_JOB))
 def upload(
     course: CourseDep,
     files: Annotated[list[UploadFile], File()],
@@ -47,7 +62,9 @@ def upload(
     bucket: Annotated[str | None, Form()] = None,
 ) -> UploadOut:
     """Store each file in its bucket (``bucket`` for all of them, else classified by name), then
-    queue one link job. An unknown bucket is a 422 before anything is stored."""
+    queue one link job. An unknown bucket is a 422 before anything is stored; a file that can't
+    be stored (a name too long, say) is a 422 with the files before it stored and no link job
+    queued, which a retry of the link picks up."""
     importer = Importer(LocalStorageBackend(cfg.storage_root), Manifest(conn), Courses(conn))
     staging = cfg.tmp_dir / uuid.uuid4().hex
     imported: list[SourceOut] = []
@@ -60,10 +77,19 @@ def upload(
             # One file at a time: two uploads with the same name are two versions of one file.
             for part in files:
                 name = sanitize_filename(part.filename or "")
+                if len(name.encode()) > MAX_NAME_BYTES:
+                    raise NameTooLong(name)
                 src = staging / name
-                with src.open("wb") as out:
-                    shutil.copyfileobj(part.file, out)
-                result = importer.import_file(src, course, name, bucket or None)
+                try:
+                    with src.open("wb") as out:
+                        shutil.copyfileobj(part.file, out)
+                    result = importer.import_file(src, course, name, bucket or None)
+                except OSError as exc:
+                    # Storing derives longer names (a replaced file's ``_versions`` copy), which
+                    # can pass the limit when the name itself is close to it.
+                    if exc.errno == errno.ENAMETOOLONG:
+                        raise NameTooLong(name) from exc
+                    raise
                 imported.append(SourceOut.from_core(result.row))
         finally:
             shutil.rmtree(staging, ignore_errors=True)  # doctor's "Temp dir" check sees leftovers
@@ -74,9 +100,13 @@ def upload(
 @router.post("/courses/{course}/sources/link")
 def link(course: CourseDep, engine: EngineDep) -> JobOut:
     """The retry: the link step adds every stored file NotebookLM doesn't have yet and replaces
-    the stale ones, so running it again picks up whatever failed last time."""
+    the stale ones, so running it again picks up whatever failed last time. While a link job is
+    already queued or running on the course, that job is returned rather than a second queued:
+    uploads are refused until it ends, so it has every stored file a second one would."""
     with engine.lock:  # never mid-way through an upload's imports
-        job = engine.jobs.submit("link", course, link_job(course))
+        job = engine.jobs.running(course, LINK_JOBS) or engine.jobs.submit(
+            "link", course, link_job(course)
+        )
     return JobOut.from_core(job)
 
 

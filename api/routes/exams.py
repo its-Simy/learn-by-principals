@@ -19,12 +19,20 @@ from typing import Any
 
 import yaml
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
 
 from api.deps import SAFE_NAME, ConfigDep, CourseDep, DbDep, EngineDep, named_file
 from api.engine import Engine, JobKind, JobRunning, Resources
-from api.schemas.studio import AnswerIn, ExamCreateIn, ExamOut, ResultsOut, TakeOut, TextOut
-from api.schemas.system import JobOut
+from api.errors import (
+    ASK_RUNNING,
+    GRADE_JOB,
+    NO_OPEN_ATTEMPT,
+    SESSION_OPEN,
+    Conflict,
+    conflicts,
+    refuse_while_asking,
+)
+from api.schemas.studio import AnswerIn, ExamCreateIn, ExamOut, ResultsOut, TakeOut
+from api.schemas.system import JobOut, TextOut
 from core.analysis.challenge import ChallengeStore
 from core.config import Config
 from core.context.compiler import ContextCompiler
@@ -52,11 +60,8 @@ router = APIRouter(tags=["exams"])
 
 GRADING: frozenset[JobKind] = frozenset({"exam_grade"})
 
-GRADING_409 = "a grade job is queued or running on the course (`job_running`)"
-TAKE_CONFLICT: dict[int | str, dict[str, Any]] = {409: {"description": GRADING_409.capitalize()}}
-STEP_CONFLICT: dict[int | str, dict[str, Any]] = {
-    409: {"description": f"No unfinished attempt (`no_open_attempt`), or {GRADING_409}"}
-}
+TAKE_CONFLICT = conflicts(GRADE_JOB)
+STEP_CONFLICT = conflicts(NO_OPEN_ATTEMPT, GRADE_JOB)
 
 
 @router.get("/courses/{course}/exams")
@@ -85,11 +90,12 @@ def get_exam(course: CourseDep, exam_id: str, cfg: ConfigDep) -> ExamOut:
     return ExamOut.from_core(exam_id, load(exam_path(cfg, course, exam_id)))
 
 
-@router.post("/courses/{course}/exams")
+@router.post("/courses/{course}/exams", responses=conflicts(SESSION_OPEN, ASK_RUNNING))
 def create_exam(course: CourseDep, body: ExamCreateIn, conn: DbDep, engine: EngineDep) -> JobOut:
     """The spec is checked now (422), so a typo never waits behind a podcast. Its grounding
-    queries start fresh NotebookLM conversations (P66), so a course with an open tutor session
-    is refused, under the lock a session start takes."""
+    queries start fresh NotebookLM conversations (P66), so a course with an open tutor session,
+    or an ask still being answered (P100), is refused, under the lock a session start and an
+    ask take."""
     try:
         doc = yaml.safe_load(body.spec_yaml)
     except yaml.YAMLError as exc:
@@ -99,6 +105,7 @@ def create_exam(course: CourseDep, body: ExamCreateIn, conn: DbDep, engine: Engi
         raise SpecError(f"The spec is for {spec.course}; this is {course}")
     with engine.lock:
         guard(LearnerMemory(conn), course)
+        refuse_while_asking(engine, course)
         job = engine.jobs.submit("exam_create", course, partial(create_job, spec))
     return JobOut.from_core(job)
 
@@ -165,38 +172,22 @@ def take_exam(course: CourseDep, exam_id: str, cfg: ConfigDep, engine: EngineDep
     return TakeOut.from_core(taker.exam, taker.attempt, taker.resumed)
 
 
-@router.post(
-    "/courses/{course}/exams/{exam_id}/take/answer",
-    response_model=TakeOut,
-    responses=STEP_CONFLICT,
-)
+@router.post("/courses/{course}/exams/{exam_id}/take/answer", responses=STEP_CONFLICT)
 def answer_question(
     course: CourseDep, exam_id: str, body: AnswerIn, cfg: ConfigDep, engine: EngineDep
-) -> TakeOut | JSONResponse:
+) -> TakeOut:
     """Answer the current question; a multiple-choice reply that picks no option is a 422."""
     path = exam_path(cfg, course, exam_id)
     return step(engine, course, path, lambda taker: taker.answer(body.reply))
 
 
-@router.post(
-    "/courses/{course}/exams/{exam_id}/take/skip",
-    response_model=TakeOut,
-    responses=STEP_CONFLICT,
-)
-def skip_question(
-    course: CourseDep, exam_id: str, cfg: ConfigDep, engine: EngineDep
-) -> TakeOut | JSONResponse:
+@router.post("/courses/{course}/exams/{exam_id}/take/skip", responses=STEP_CONFLICT)
+def skip_question(course: CourseDep, exam_id: str, cfg: ConfigDep, engine: EngineDep) -> TakeOut:
     return step(engine, course, exam_path(cfg, course, exam_id), ExamTaker.skip)
 
 
-@router.post(
-    "/courses/{course}/exams/{exam_id}/take/finish",
-    response_model=TakeOut,
-    responses=STEP_CONFLICT,
-)
-def finish_attempt(
-    course: CourseDep, exam_id: str, cfg: ConfigDep, engine: EngineDep
-) -> TakeOut | JSONResponse:
+@router.post("/courses/{course}/exams/{exam_id}/take/finish", responses=STEP_CONFLICT)
+def finish_attempt(course: CourseDep, exam_id: str, cfg: ConfigDep, engine: EngineDep) -> TakeOut:
     """Hand the attempt in; questions not answered yet are graded as skipped."""
     return step(engine, course, exam_path(cfg, course, exam_id), ExamTaker.finish)
 
@@ -266,23 +257,20 @@ def refuse_while_grading(engine: Engine, course: str) -> None:
         raise JobRunning(job)
 
 
-def step(
-    engine: Engine, course: str, path: Path, act: Callable[[ExamTaker], None]
-) -> TakeOut | JSONResponse:
+def step(engine: Engine, course: str, path: Path, act: Callable[[ExamTaker], None]) -> TakeOut:
     """Answer, skip or finish, only on an unfinished attempt: ``ExamTaker`` on a finished one
     would quietly open the next attempt and record the step there."""
     with engine.lock:
         refuse_while_grading(engine, course)
         attempt = latest_attempt(load(path))
         if attempt is None or attempt.get("finished_at"):
-            return no_open_attempt(path.stem, attempt)
+            raise no_open_attempt(path.stem, attempt)
         taker = ExamTaker(path)
         act(taker)
     return TakeOut.from_core(taker.exam, taker.attempt, taker.resumed)
 
 
-def no_open_attempt(exam_id: str, attempt: dict[str, Any] | None) -> JSONResponse:
-    """A 409 with a ``code``, as every 409 this API sends carries one."""
+def no_open_attempt(exam_id: str, attempt: dict[str, Any] | None) -> Conflict:
     if attempt is None:
         detail = f"{exam_id} hasn't been started; take it first"
     else:
@@ -290,4 +278,4 @@ def no_open_attempt(exam_id: str, attempt: dict[str, Any] | None) -> JSONRespons
             f"Attempt {attempt['attempt']} of {exam_id} is finished; "
             "take the exam again to start the next attempt"
         )
-    return JSONResponse({"code": "no_open_attempt", "detail": detail}, status_code=409)
+    return Conflict("no_open_attempt", detail)

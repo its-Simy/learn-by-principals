@@ -14,8 +14,8 @@ from fastapi.responses import FileResponse
 
 from api.deps import ConfigDep, CourseDep, DbDep, EngineDep
 from api.engine import Resources
-from api.schemas.studio import EpisodeOut, PodcastIn, TextOut
-from api.schemas.system import JobOut
+from api.schemas.studio import EpisodeOut, PodcastIn
+from api.schemas.system import JobOut, TextOut
 from core.exams.spec import ExamSpec, saved_spec
 from core.memory.db import Courses
 from core.podcast.compiler import build_podcast_context

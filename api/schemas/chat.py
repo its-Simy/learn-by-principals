@@ -167,7 +167,3 @@ class SessionOut(BaseModel):
             state=state,
             live=live,
         )
-
-
-class TextOut(BaseModel):
-    text: str

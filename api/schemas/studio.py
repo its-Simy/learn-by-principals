@@ -20,14 +20,6 @@ log = logging.getLogger(__name__)
 Format = Literal["multiple_choice", "short_answer", "coding"]
 
 
-class TextIn(BaseModel):
-    text: str
-
-
-class TextOut(BaseModel):
-    text: str
-
-
 class ConceptOut(BaseModel):
     """A concept and its mastery; one with no evidence yet reads as level 0."""
 

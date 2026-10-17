@@ -13,16 +13,9 @@ from fastapi import APIRouter, HTTPException
 
 from api.deps import ConfigDep, CourseDep, DbDep, EngineDep, named_file
 from api.engine import Resources
-from api.schemas.studio import (
-    ApplyIn,
-    ApplyOut,
-    ConceptOut,
-    DraftOut,
-    EvidenceOut,
-    TextIn,
-    TextOut,
-)
-from api.schemas.system import JobOut
+from api.errors import ASK_RUNNING, SESSION_OPEN, conflicts, refuse_while_asking
+from api.schemas.studio import ApplyIn, ApplyOut, ConceptOut, DraftOut, EvidenceOut
+from api.schemas.system import JobOut, TextIn, TextOut
 from core.config import Config
 from core.memory.learner import LearnerMemory
 from core.memory.seeding import (
@@ -62,12 +55,14 @@ def list_evidence(course: CourseDep, conn: DbDep, concept_id: str) -> list[Evide
     return [EvidenceOut.from_core(e) for e in learner.evidence(concept_id)]
 
 
-@router.post("/courses/{course}/concepts/seed")
+@router.post("/courses/{course}/concepts/seed", responses=conflicts(SESSION_OPEN, ASK_RUNNING))
 def seed_concepts(course: CourseDep, conn: DbDep, engine: EngineDep) -> JobOut:
     """The seed query starts a fresh NotebookLM conversation, which would end a live tutor's
-    (P66): refuse now, under the lock a session start takes, so neither slips past the other."""
+    (P66) or an ask's still being answered (P100): refuse now, under the lock a session start
+    and an ask take, so neither slips past the other."""
     with engine.lock:
         guard(LearnerMemory(conn), course)
+        refuse_while_asking(engine, course)
         job = engine.jobs.submit("seed", course, partial(seed_job, course))
     return JobOut.from_core(job)
 

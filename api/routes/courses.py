@@ -6,6 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from api.deps import ConfigDep, DbDep, EngineDep
+from api.errors import DUPLICATE_COURSE, conflicts
 from api.schemas.courses import CourseIn, CourseOut
 from core.memory.db import Courses, Manifest
 from core.memory.learner import LearnerMemory
@@ -28,7 +29,7 @@ def list_courses(conn: DbDep, engine: EngineDep) -> list[CourseOut]:
     ]
 
 
-@router.post("/courses", status_code=201)
+@router.post("/courses", status_code=201, responses=conflicts(DUPLICATE_COURSE))
 def create_course(body: CourseIn, conn: DbDep, cfg: ConfigDep) -> CourseOut:
     """A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a
     422, both raised by ``Courses.add``."""

@@ -358,6 +358,10 @@ class Engine:
         # guard and submit (P66), and an exam's take step against a grade job's submit (P101).
         # Never held while waiting on a worker: a callable on that worker may need it.
         self.lock = threading.Lock()
+        # Courses whose no-session ask is between its checks and the end of its fresh NotebookLM
+        # query. Seed and exam create refuse while their course is here (P100), as the ask
+        # refuses while they are queued or running. Touched only under ``lock``.
+        self.asking: set[str] = set()
 
     def start(self) -> None:
         """Start each worker and wait for it to open its resources, so a bad ``[routing]`` or an

@@ -23,6 +23,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.engine import Engine, JobRunning
+from api.errors import Conflict
 from api.routes import chat, concepts, courses, exams, podcasts, sources, system
 from api.static import mount_web
 from core.config import Config, load_config
@@ -130,8 +131,9 @@ class SameOriginWrites:
 
 
 def register_errors(app: FastAPI) -> None:
-    """Core's exceptions as HTTP answers the web app can act on. Every 409 carries a ``code``
-    so the UI can offer the way out in place (close the stale session, wait for the job)."""
+    """Core's exceptions, and the routes' own ``Conflict``, as HTTP answers the web app can act
+    on. Every 409 carries a ``code`` so the UI can offer the way out in place (close the stale
+    session, wait for the job)."""
 
     async def duplicate_course(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"code": "duplicate_course", "detail": str(exc)}, status_code=409)
@@ -155,6 +157,10 @@ def register_errors(app: FastAPI) -> None:
             "kind": exc.job.kind,
         }
         return JSONResponse(body, status_code=409)
+
+    async def conflict(request: Request, exc: Exception) -> JSONResponse:
+        assert isinstance(exc, Conflict)
+        return JSONResponse(exc.body(), status_code=409)
 
     async def unprocessable(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=422)
@@ -182,6 +188,7 @@ def register_errors(app: FastAPI) -> None:
     app.add_exception_handler(DuplicateCourse, duplicate_course)
     app.add_exception_handler(SessionOpen, session_open)
     app.add_exception_handler(JobRunning, job_running)
+    app.add_exception_handler(Conflict, conflict)
     for cls in UNPROCESSABLE:
         app.add_exception_handler(cls, unprocessable)
     app.add_exception_handler(KnowledgeError, upstream)

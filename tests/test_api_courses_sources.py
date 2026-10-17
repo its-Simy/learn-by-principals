@@ -194,6 +194,95 @@ def test_an_upload_refuses_while_a_link_job_runs(api, config):
         assert upload(client, "CSE220", "lec4.pdf").status_code == 200
 
 
+@contextmanager
+def held(engine: Engine) -> Iterator[None]:
+    """The jobs worker busy with a job that isn't the course's, so the next one stays queued."""
+    with parked(engine, "podcast", "CSE214"):
+        yield
+
+
+def test_an_upload_refuses_while_a_link_job_is_only_queued(api, config):
+    client, _, _, engine = api
+    add_course(client)
+    with held(engine):
+        queued = client.post("/api/courses/CSE220/sources/link").json()
+        assert engine.jobs.get(queued["id"]).status == "queued"
+
+        response = upload(client, "CSE220", "lec3.pdf")
+
+        assert response.status_code == 409
+        assert (response.json()["code"], response.json()["job_id"]) == ("job_running", queued["id"])
+        assert client.get("/api/courses/CSE220/sources").json() == []
+        assert staged(config) == []
+
+
+def test_retry_returns_the_link_job_already_queued_or_running(api):
+    client, _, _, engine = api
+    add_course(client)
+    with held(engine):
+        first = client.post("/api/courses/CSE220/sources/link")
+        again = client.post("/api/courses/CSE220/sources/link")
+        assert first.status_code == again.status_code == 200
+        assert again.json() == first.json() and first.json()["status"] == "queued"
+    assert [j.kind for j in engine.jobs.all("CSE220")] == ["link"]
+
+    with parked(engine, "link") as running:
+        response = client.post("/api/courses/CSE220/sources/link")
+        assert response.json()["id"] == running.id and response.json()["status"] == "running"
+    after = client.post("/api/courses/CSE220/sources/link")  # none active: a new one
+    assert after.json()["id"] not in {first.json()["id"], running.id}
+    engine.drain()
+
+
+def test_a_name_too_long_to_store_is_422(api, config):
+    client, _, _, engine = api
+    add_course(client)
+    long_name = "é" * 126 + ".pdf"  # 256 bytes of UTF-8, 130 characters
+
+    response = upload(client, "CSE220", long_name)
+
+    assert response.status_code == 422 and "too long" in response.json()["detail"]
+    assert client.get("/api/courses/CSE220/sources").json() == []
+    assert staged(config) == [] and engine.jobs.all() == []
+    assert upload(client, "CSE220", "é" * 125 + ".pdf").status_code == 200  # 254 bytes
+    engine.drain()
+
+
+def test_a_failure_mid_list_keeps_the_files_before_it(api, config):
+    client, kp, _, engine = api
+    add_course(client)
+
+    response = upload(client, "CSE220", "lec3.pdf", "x" * 252 + ".pdf", "lec4.pdf")
+
+    assert response.status_code == 422
+    (stored,) = client.get("/api/courses/CSE220/sources").json()
+    assert (stored["filename"], stored["linked"]) == ("lec3.pdf", False)
+    assert staged(config) == []
+    assert engine.jobs.all() == []  # no link job; the retry picks the stored file up
+    client.post("/api/courses/CSE220/sources/link")
+    engine.drain()
+    assert [s["linked"] for s in client.get("/api/courses/CSE220/sources").json()] == [True]
+
+
+def test_a_new_version_whose_kept_copy_would_be_too_long_is_422(api, config):
+    """Within the limit, but its ``_versions`` copy (name plus nine bytes) would not be."""
+    client, _, _, engine = api
+    add_course(client)
+    name = "x" * 246 + ".pdf"  # 250 bytes
+    assert upload(client, "CSE220", name).status_code == 200
+    engine.drain()
+
+    files = [("files", (name, b"a corrected lecture", "application/pdf"))]
+    response = client.post("/api/courses/CSE220/sources/upload", files=files)
+
+    assert response.status_code == 422 and "too long" in response.json()["detail"]
+    (stored,) = config.storage_root.glob("Fall-2026/CSE220/*/x*.pdf")
+    assert stored.read_bytes() == f"{name} text about pointers".encode()  # the old one, intact
+    (row,) = client.get("/api/courses/CSE220/sources").json()
+    assert (row["sync_state"], row["linked"]) == ("synced", True)
+    assert staged(config) == []
+
+
 def test_retrying_the_link_job_links_what_failed(api, monkeypatch):
     client, kp, _, engine = api
     add_course(client)

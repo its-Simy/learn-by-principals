@@ -9,9 +9,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from api.app import protect, register_errors
+from api.app import create_app, protect, register_errors
 from api.deps import course_code
 from api.engine import Job, JobRunning
+from api.errors import Conflict
 from api.static import NOT_BUILT, mount_web
 from cli.app import app as cli
 from core import personas
@@ -192,6 +193,7 @@ def raising() -> TestClient:
         "session": SessionOpen(session, stale=True),
         "job": JobRunning(job),
         "duplicate": DuplicateCourse("course CSE220 already exists"),
+        "conflict": Conflict("session_live", "Session s1 is live", session_id="s1"),
         "value": ValueError("unknown bucket 'misc'"),
         "spec": personas.PersonaError("No persona 'x'"),
         "limited": ModelRateLimited("claude: usage limit", UsageHint(resets_at="3pm")),
@@ -220,6 +222,11 @@ def raising() -> TestClient:
         ("session", 409, {"code": "session_open", "session_id": "s1", "stale": True}),
         ("job", 409, {"code": "job_running", "job_id": "j1", "kind": "seed"}),
         ("duplicate", 409, {"code": "duplicate_course"}),
+        (
+            "conflict",
+            409,
+            {"code": "session_live", "detail": "Session s1 is live", "session_id": "s1"},
+        ),
         ("value", 422, {"detail": "unknown bucket 'misc'"}),
         ("spec", 422, {"detail": "No persona 'x'"}),
         ("limited", 502, {"provider": "claude", "resets_at": "3pm"}),
@@ -238,6 +245,12 @@ def test_errors_map_to_statuses(raising, name, status, body):
 def test_session_open_says_why(raising):
     detail = raising.get("/raise/session").json()["detail"]
     assert "s1" in detail and "stale" in detail
+
+
+def test_one_text_model_for_every_router(config):
+    """Chat and the Studio both send and take plain text; the web types should have one shape."""
+    schemas = create_app(config).openapi()["components"]["schemas"]
+    assert [name for name in schemas if "Text" in name] == ["TextIn", "TextOut"]
 
 
 def test_course_code_upper_cases_and_404s(config):
