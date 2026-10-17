@@ -252,13 +252,10 @@ def test_remove_source_knows_the_notebook_from_add_file(provider, android):
 def test_remove_source_falls_back_to_the_manifest(provider, conn, android):
     Manifest(conn).upsert(
         ResourceRow(
+            resource_id="r1",
             course="CSE220",
-            org_unit_id=1,
-            topic_id=1,
-            module_path="",
             title="",
-            type_identifier="File",
-            last_seen="",
+            added_at="",
             notebook_id="nb-3",
             notebook_source_id="old-src",
         )

@@ -17,7 +17,6 @@ def config(tmp_path: Path) -> Config:
     home = tmp_path / "home"
     return Config(
         home=home,
-        brightspace_base_url="https://mycourses.example.edu",
         term="Fall-2026",
         storage_root=home / "courses",
         tmp_dir=tmp_path / "tmp",

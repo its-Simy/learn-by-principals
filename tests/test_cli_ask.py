@@ -20,19 +20,16 @@ def setup(tmp_path, monkeypatch):
     conn = connect(config.db_path)
     db = Manifest(conn)
     notebook_id = kp.ensure_notebook("CSE220")
-    for topic_id, bucket, name in [(1, "syllabus", "syllabus.pdf"), (2, "lectures", "lec3.pdf")]:
+    for n, bucket, name in [(1, "syllabus", "syllabus.pdf"), (2, "lectures", "lec3.pdf")]:
         path = tmp_path / name
         path.write_text(f"{name} text about pointers")
         source_id = kp.add_file(notebook_id, path)
         db.upsert(
             ResourceRow(
+                resource_id=f"r{n}",
                 course="CSE220",
-                org_unit_id=1,
-                topic_id=topic_id,
-                module_path="",
                 title=name,
-                type_identifier="File",
-                last_seen="",
+                added_at="",
                 filename=name,
                 bucket=bucket,
                 local_path=str(path),

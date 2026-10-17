@@ -1,12 +1,11 @@
 [project]
 name = "brightlearn"
 version = "0.1.0"
-description = "Personal learning platform: Brightspace -> local files -> NotebookLM -> learner memory."
+description = "Personal learning platform: course files -> NotebookLM -> learner memory."
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.12",
     "rich>=13",
-    "playwright>=1.45",
     "pyyaml>=6",
 ]
 

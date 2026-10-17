@@ -1,20 +1,27 @@
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from core.memory.db import Manifest, ResourceRow, SchemaError, connect, schema_version
+from core.memory.db import (
+    CourseError,
+    Courses,
+    DuplicateCourse,
+    Manifest,
+    ResourceRow,
+    SchemaError,
+    connect,
+    schema_version,
+)
 from core.memory.schema import SCHEMA_VERSION
 
 
 def row(**overrides) -> ResourceRow:
     base = dict(
+        resource_id="r10",
         course="CSE220",
-        org_unit_id=1,
-        topic_id=10,
-        module_path="Week 1",
         title="Lecture 1",
-        type_identifier="File",
-        last_seen="2026-09-23T12:00:00+00:00",
+        added_at="2026-09-23T12:00:00+00:00",
     )
     return ResourceRow(**{**base, **overrides})
 
@@ -26,17 +33,20 @@ def test_upsert_round_trips_and_updates(tmp_path):
         row(sync_state="synced", local_path="/x/lec1.pdf", filename="lec1.pdf", bucket="lectures")
     )
 
-    got = manifest.get(10)
+    got = manifest.get("r10")
     assert got.sync_state == "synced"
     assert got.local_path == "/x/lec1.pdf"
-    assert manifest.name_owner("CSE220", "lectures", "lec1.pdf") == 10
+    assert manifest.find("CSE220", "lectures", "lec1.pdf") == got
+    assert manifest.find("CSE220", "readings", "lec1.pdf") is None
+    assert manifest.find("AMS161", "lectures", "lec1.pdf") is None
     assert len(manifest.all()) == 1
 
 
-def test_sync_state_is_constrained():
+@pytest.mark.parametrize("state", ["deleted", "pending"])
+def test_sync_state_is_constrained(state):
     manifest = Manifest(connect(":memory:"))
     with pytest.raises(sqlite3.IntegrityError):
-        manifest.upsert(row(sync_state="deleted"))
+        manifest.upsert(row(sync_state=state))
 
 
 def test_model_runs_table_exists():
@@ -47,11 +57,74 @@ def test_model_runs_table_exists():
 
 def test_all_filters_by_course_and_state():
     manifest = Manifest(connect(":memory:"))
-    manifest.upsert(row(topic_id=1, sync_state="synced"))
-    manifest.upsert(row(topic_id=2, sync_state="stale"))
-    manifest.upsert(row(topic_id=3, course="AMS161", sync_state="synced"))
-    assert [r.topic_id for r in manifest.all("CSE220", states=["synced", "stale"])] == [1, 2]
-    assert [r.topic_id for r in manifest.all(states=["synced"])] == [1, 3]
+    manifest.upsert(row(resource_id="b", sync_state="synced"))
+    manifest.upsert(row(resource_id="a", sync_state="stale"))
+    manifest.upsert(row(resource_id="c", course="AMS161", sync_state="synced"))
+    manifest.upsert(row(resource_id="0", added_at="2026-09-24T09:00:00+00:00"))
+    # oldest first, then by id
+    assert [r.resource_id for r in manifest.all("CSE220", states=["synced", "stale"])] == [
+        "a",
+        "b",
+        "0",
+    ]
+    assert [r.resource_id for r in manifest.all(states=["synced"])] == ["b", "c", "0"]
+
+
+def test_courses_add_get_all():
+    courses = Courses(connect(":memory:"), now=lambda: "2026-10-17T12:00:00+00:00")
+    cse = courses.add("CSE220", "Systems Fundamentals", "Fall-2026")
+    courses.add("AMS161", "Applied Calculus II", "Fall-2026")
+
+    assert courses.get("CSE220") == cse
+    assert cse.created_at == "2026-10-17T12:00:00+00:00"
+    assert courses.get("CSE999") is None
+    assert [c.course for c in courses.all()] == ["AMS161", "CSE220"]
+    assert cse.root(Path("/data/courses")) == Path("/data/courses/Fall-2026/CSE220")
+
+
+def test_courses_refuse_a_duplicate():
+    courses = Courses(connect(":memory:"))
+    courses.add("CSE220", "Systems Fundamentals", "Fall-2026")
+    with pytest.raises(DuplicateCourse):
+        courses.add("CSE220", "Again", "Spring-2027")
+    assert courses.get("CSE220").term == "Fall-2026"
+
+
+def test_a_duplicate_that_slips_past_the_check_is_still_a_duplicate(monkeypatch):
+    """Another writer can add the course between ``get`` and the INSERT."""
+    courses = Courses(connect(":memory:"))
+    courses.add("CSE220", "Systems Fundamentals", "Fall-2026")
+    monkeypatch.setattr(courses, "get", lambda course: None)
+    with pytest.raises(DuplicateCourse) as raised:
+        courses.add("CSE220", "Again", "Spring-2027")
+    assert isinstance(raised.value.__cause__, sqlite3.IntegrityError)
+    assert [(c.name, c.term) for c in courses.all()] == [("Systems Fundamentals", "Fall-2026")]
+
+
+def test_find_is_deterministic_with_a_duplicate_name():
+    """Rows from before v13 could share a name in a bucket; the oldest one wins."""
+    manifest = Manifest(connect(":memory:"))
+    for rid, added in [("b", "2026-09-02"), ("a", "2026-09-03"), ("c", "2026-09-01")]:
+        manifest.upsert(row(resource_id=rid, added_at=added, bucket="lectures", filename="x.pdf"))
+    assert manifest.find("CSE220", "lectures", "x.pdf").resource_id == "c"
+
+
+@pytest.mark.parametrize(
+    ("code", "term"),
+    [
+        ("", "Fall-2026"),
+        ("CSE 220", "Fall-2026"),
+        ("../x", "Fall-2026"),
+        ("X" * 33, "Fall-2026"),
+        ("CSE220", "../up"),
+        ("CSE220", "Fall/2026"),
+    ],
+)
+def test_courses_refuse_codes_and_terms_that_are_not_folder_names(code, term):
+    courses = Courses(connect(":memory:"))
+    with pytest.raises(CourseError):
+        courses.add(code, "Name", term)
+    assert courses.all() == []
 
 
 LEGACY = """CREATE TABLE resources (course TEXT, org_unit_id INTEGER, topic_id INTEGER PRIMARY KEY,

@@ -8,7 +8,6 @@ import pytest
 
 from core.ledger.ledger import Ledger
 from core.memory.db import connect
-from core.providers.lms.base import Resource
 from core.providers.models.base import ModelError, ProviderState, TaskPackage
 from core.providers.models.ollama import OllamaProvider
 from core.router.router import NoProvider, Router
@@ -163,41 +162,35 @@ def test_ollama_is_first_for_classify_and_last_for_other_housekeeping(server):
 # -- the classifier's fallback ----------------------------------------------------------------
 
 
-def res(title, module="Week 1"):
-    return Resource(1, 1, module, title, "File", None, None)
-
-
 def classifier(provider):
     return ModelClassifier(Router({"ollama": provider}, Ledger(connect(":memory:"))))
 
 
 def test_ambiguous_title_goes_to_ollama_when_available(server):
     FakeOllama.reply = "Labs."
-    assert classify(res("dweight2"), "dweight2", classifier(OllamaProvider(server))) == "labs"
+    assert classify("dweight2", "dweight2", classifier(OllamaProvider(server))) == "labs"
     (_, path, body) = FakeOllama.requests[-1]
     assert path == "/api/generate" and "dweight2" in body["prompt"]
 
 
 def test_clear_titles_never_ask(server):
-    assert classify(res("Lecture 3"), "lec3.pdf", classifier(OllamaProvider(server))) == "lectures"
+    assert classify("Lecture 3", "lec3.pdf", classifier(OllamaProvider(server))) == "lectures"
     assert FakeOllama.requests == []
 
 
 def test_unavailable_ollama_is_not_asked(server):
     FakeOllama.models = []  # running, model not pulled: DISABLED
-    assert classify(res("dweight2"), "dweight2", classifier(OllamaProvider(server))) == "other"
+    assert classify("dweight2", "dweight2", classifier(OllamaProvider(server))) == "other"
     assert [r[1] for r in FakeOllama.requests] == ["/api/tags"]
     assert (
-        classify(
-            res("dweight2"), "dweight2", classifier(OllamaProvider(closed_port(), timeout_s=2))
-        )
+        classify("dweight2", "dweight2", classifier(OllamaProvider(closed_port(), timeout_s=2)))
         == "other"
     )
 
 
 def test_an_answer_that_is_not_a_bucket_is_ignored(server):
     FakeOllama.reply = "I think this is a spreadsheet"
-    assert classify(res("dweight2"), "dweight2", classifier(OllamaProvider(server))) == "other"
+    assert classify("dweight2", "dweight2", classifier(OllamaProvider(server))) == "other"
 
 
 def test_doctor_reports_ollama_as_optional(server):

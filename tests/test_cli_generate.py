@@ -6,6 +6,8 @@ from typer.testing import CliRunner
 
 from cli import common
 from cli.app import app
+from core.config import load_config
+from core.memory.db import Courses, connect
 from tests.fakes.fake_knowledge import FakeKnowledge
 
 runner = CliRunner()
@@ -14,7 +16,10 @@ runner = CliRunner()
 @pytest.fixture
 def kp(tmp_path, monkeypatch):
     monkeypatch.setenv("BRIGHTLEARN_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("BRIGHTLEARN_TERM", "Fall-2026")
+    monkeypatch.setenv("BRIGHTLEARN_TERM", "Spring-2027")  # the course row's term wins
+    conn = connect(load_config().db_path)
+    Courses(conn).add("CSE220", "Systems Fundamentals", "Fall-2026")
+    conn.close()
     kp = FakeKnowledge(out_dir=tmp_path / "downloads")
 
     @contextmanager
@@ -89,3 +94,8 @@ def test_out_overrides_destination(kp, tmp_path):
 
 def test_unknown_kind_is_rejected(kp):
     assert runner.invoke(app, ["generate", "podcast", "--course", "CSE220"]).exit_code == 2
+
+
+def test_unknown_course_is_rejected_before_notebooklm(kp):
+    assert runner.invoke(app, ["generate", "quiz", "--course", "CSE999"]).exit_code == 2
+    assert kp.calls == []

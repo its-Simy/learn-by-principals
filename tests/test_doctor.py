@@ -1,13 +1,11 @@
 import sqlite3
-from contextlib import contextmanager
 
 import pytest
 
-from cli import common, doctor
+from cli import doctor
 from cli.doctor import Status
 from core.memory.db import connect
 from core.memory.schema import SCHEMA_VERSION
-from core.providers.state import ProviderState
 
 
 def test_config_warns_when_home_is_readable_by_others(config):
@@ -55,34 +53,28 @@ def test_api_key():
     assert doctor.check_api_key({"ANTHROPIC_API_KEY": "sk-x"}).status is Status.FAIL
 
 
-@pytest.mark.parametrize(
-    ("state", "status"),
-    [
-        (ProviderState.AVAILABLE, Status.OK),
-        (ProviderState.AUTH_EXPIRED, Status.FAIL),
-        (ProviderState.BROKEN, Status.FAIL),
-    ],
-)
-def test_brightspace(config, monkeypatch, state, status):
-    class Lms:
-        def health(self):
-            return state
-
-    @contextmanager
-    def fake_open_lms(config):
-        yield Lms()
-
-    monkeypatch.setattr(common, "open_lms", fake_open_lms)
-    assert doctor.check_brightspace(config).status is status
-
-
 def test_run_checks_reports_a_crashing_check_as_failed(config, monkeypatch):
     def boom():
         raise RuntimeError("no driver")
 
-    monkeypatch.setattr(doctor, "checks", lambda config: [("Chromium", boom)])
+    monkeypatch.setattr(doctor, "checks", lambda config: [("NotebookLM", boom)])
     assert doctor.run_checks(config) == [
-        doctor.Check("Chromium", Status.FAIL, "RuntimeError: no driver")
+        doctor.Check("NotebookLM", Status.FAIL, "RuntimeError: no driver")
+    ]
+
+
+def test_checks_cover_only_local_state_and_the_providers(config):
+    """Files are uploaded by hand: no browser or course-site login to check (BL-042)."""
+    assert [name for name, _ in doctor.checks(config)] == [
+        "Config",
+        "DB schema",
+        "Storage root",
+        "Temp dir",
+        "ANTHROPIC_API_KEY",
+        "NotebookLM",
+        "Claude Code",
+        "Codex",
+        "Ollama",
     ]
 
 

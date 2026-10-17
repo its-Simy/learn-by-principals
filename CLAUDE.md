@@ -1,11 +1,11 @@
 # BrightLearn — CLAUDE.md
 
-Personal learning platform: Brightspace course files → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. V1 is a one-student prototype with zero metered LLM API spend. Tickets: `TICKETS-2.md`.
+Personal learning platform: course files uploaded by hand → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. V1 is a one-student prototype with zero metered LLM API spend. Tickets: `TICKETS-4.md`.
 
 ## Principles (every change must respect these)
 
-1. **No dependency that charges per request.** Free official APIs and session-cookie endpoints (Brightspace) are fine. Claude, Codex, NotebookLM run on subscription quota.
-2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `playwright` or `notebooklm`, or makes subprocess calls to `claude` or `codex`.
+1. **No dependency that charges per request.** Free official APIs are fine. Claude, Codex, NotebookLM run on subscription quota.
+2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `notebooklm`, or makes subprocess calls to `claude` or `codex`.
 3. **Don't delete anything; retrieve selectively.** Archive everything; send models a compiled package of a few thousand tokens.
 4. **Mastery needs evidence.** No score without the `evidence` rows that justify it.
 5. **Infer learning from normal interaction.** No forced quizzes.
@@ -23,12 +23,11 @@ brightlearn/
 ├── core/
 │   ├── config.py
 │   ├── providers/
-│   │   ├── lms/          # base.py, session.py, brightspace.py
 │   │   ├── storage/      # base.py, local.py
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
 │   │   └── models/       # base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
 │   ├── memory/           # schema.py, db.py, learner.py, vault.py, migrations/vNNN_*.py
-│   ├── sync/             # classify.py, engine.py, link.py
+│   ├── sync/             # classify.py, importer.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
 │   ├── tutor.py          # tutoring session (BL-026)
 │   ├── analysis/         # Analyzer (BL-027), Challenger loop (BL-030)
@@ -39,31 +38,24 @@ brightlearn/
 │   ├── maintenance.py    # retention decay + session archive, auto-run daily (BL-038)
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
-├── cli/                  # app.py (typer root), sync.py, exam.py, tutor.py, sessions.py, dev.py
+├── cli/                  # app.py (typer root), sync.py, courses.py, exam.py, tutor.py, sessions.py, dev.py
 ├── dashboard/            # data.py (queries), render.py (self-contained HTML, inline SVG)
 ├── scripts/              # throwaway spikes
-└── tests/                # fixtures/, fakes/
+└── tests/                # fakes/
 ```
 
 Nothing personal lives in the repo. The vault (transcripts, concept notes, drafts) is at `~/.brightlearn/vault/`; `personas/` stays in the repo because it is code.
 
-Secrets live under `~/.brightlearn/` only: browser profile, `storage_state.json` (Brightspace), and notebooklm-py's `master_token.json` + `storage_state.json` under `~/.brightlearn/notebooklm/` (set `NOTEBOOKLM_HOME` there when running `notebooklm login`). All gitignored. Never write them into the repo, tests, or logs.
+Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` + `storage_state.json` under `~/.brightlearn/notebooklm/` (set `NOTEBOOKLM_HOME` there when running `notebooklm login`). All gitignored. Never write them into the repo, tests, or logs.
 
 ## Config
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| Sept 24, 2026 | Migrations are sequential integers, one file each under `core/memory/migrations/`, never renumbered or edited once committed. A test checksums each one and applies them all from v0 on an empty database. | BL-040 (P70). A committed migration may already have run on a real database, so changing it would split the history. |
-| Sept 24, 2026 | A tutor session with no turn for 2 hours is stale: `ask` and the other guarded commands say so and offer `sessions close`. `maintain` closes sessions idle more than 24 hours, without running the Analyzer. Sessions record `last_turn_at` (v12). | BL-040 (P67). A crashed session shouldn't block a course for long. |
-| Sept 24, 2026 | One fallback per task, recorded in `fallback_from`; a preferred provider skipped as unusable counts as that fallback. The Critic and the exam grader never run on a provider that wrote the questions. With only one provider, critique is skipped and the exam is marked `"review": "uncritiqued"`. | BL-040 (P79, P80, P85). |
-| Sept 24, 2026 | `concepts apply` upserts by concept id, keeping the `{course}/{slug(name)}` format. Concepts missing from the reviewed draft get `status = retired` (v11), never deleted, with mastery and evidence untouched. An optional `aliases: [...]` maps a renamed concept to its existing row. `apply` prints added / updated / retired counts. | BL-040. Requested under "P74", but this is P46 (concept ids); Simon chose to keep today's id format. P74 (weeks) is unchanged. |
-| Sept 24, 2026 | A Challenger probe on an Analyzer-proposed jump, resolved in the learner's favour (its grade proposes the challenged level or more), sets mastery to the Analyzer's full proposed level, citing the original evidence plus the exchange, `changed_by = "challenger"` (v9, v10). A failed probe writes its evidence only, resolves the challenge and changes no level. A probe raised by a tutor-estimate disagreement never changes a level. Never an average. | BL-040 (P72). Simon's decisions. |
-| Sept 23, 2026 | Router v1 replaces v0: the `[routing]` order per task type, minus unusable providers, re-ordered by the `benchmarks` composite once every candidate has 10+ measured runs. It falls back on any model error, not only rate limits. Principle 8's exception now covers only the config order used before there's data. | BL-035. The benchmarks are measured, not decreed, and the config order is only the cold start. |
 | `home` | `~/.brightlearn` | Secrets directory, mode 700 |
-| `brightspace_base_url` | `https://mycourses.stonybrook.edu` | |
-| `term` | from the date | Overridable per run |
+| `term` | from the date | Default term for new courses; `courses add --term` overrides |
 | `storage_root` | `~/.brightlearn/courses` | Canonical course files |
-| `tmp_dir` | `/tmp/brightlearn` | Download staging; always emptied |
+| `tmp_dir` | `/tmp/brightlearn` | Upload staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
 | `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
 | `retention_half_life_days` | `21` | `BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS` |
@@ -75,12 +67,6 @@ Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlea
 ## Provider interfaces
 
 ```python
-class LMSProvider(ABC):
-    def ensure_session(self) -> None                 # headless if valid; headed login + Duo pause if not
-    def list_courses(self) -> list[Course]
-    def list_resources(self, org_unit_id: int) -> list[Resource]
-    def download(self, resource: Resource, dest: Path) -> DownloadResult   # filename from Content-Disposition
-
 class StorageBackend(ABC):
     def ensure_folder(self, path: str) -> Path                            # absolute path of storage_root/path
     def store(self, src: Path, rel_dir: str, name: str) -> StoreResult    # StoreResult(path, sha256, size); hash computed on write;
@@ -110,29 +96,19 @@ class ModelProvider(ABC):
 
 Provider states: `AVAILABLE → LIMITED → RATE_LIMITED → AUTH_EXPIRED → BROKEN → DISABLED`.
 
-Implementations (V1): `BrightspaceSessionProvider` (Playwright session + `/d2l/api` calls; DOM scraping only as fallback) · `LocalStorageBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`, `OllamaProvider` (housekeeping tasks only).
-
-## Brightspace facts (verified Sept 23, 2026 on mycourses.stonybrook.edu)
-
-- Session cookies authenticate `/d2l/api/...` calls directly. No OAuth app needed.
-- `GET /d2l/api/lp/1.0/users/whoami` → 200 when logged in.
-- `GET /d2l/api/versions/` → pick `ProductCode == "le"`, `LatestVersion` (currently `1.97`). Never hardcode the version.
-- `GET /d2l/api/lp/1.0/enrollments/myenrollments/` → courses.
-- `GET /d2l/api/le/{ver}/{orgUnitId}/content/toc` → nested `Modules[]` each with `Topics[]` (`TopicId`, `TypeIdentifier`, `Title`, `Url`, `LastModifiedDate`) and nested `Modules[]`.
-- `GET /d2l/api/le/{ver}/{orgUnitId}/content/topics/{topicId}/file` → the file bytes (200 `application/pdf` confirmed).
-- Topic titles are not filenames; use `Content-Disposition`. `Link` topics have a URL, not a file: record, don't download.
-- Duo gates login only. Persistent browser profile + headed login pause when `whoami` fails.
+Implementations (V1): `LocalStorageBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`, `OllamaProvider` (housekeeping tasks only).
 
 ## Data model (SQLite)
 
 Migrations live one per file in `core/memory/migrations/vNNN_<name>.py`, applied in order and tracked in `PRAGMA user_version` (rules under Conventions).
 
 ```
-resources:   course, org_unit_id, topic_id (PK), module_path, title, type_identifier, url,
-             filename, size, last_modified, hash, local_path, bucket,
+courses:     course (PK: the code in folder and notebook names), name, term, created_at  (BL-042)
+resources:   resource_id (PK), course, title, filename, bucket, local_path, hash, size, url,
              notebook_id, notebook_source_id, source_hash,
-             sync_state (pending|synced|stale|failed|link|deferred), last_seen
+             sync_state (synced|stale|failed|link|deferred), added_at                    (BL-042)
              -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
+             -- rows from before v13 keep their files and links, with ids `topic:{n}`
 model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
              input_tokens_est, output_tokens_est, fallback_from, error
 concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags, week,
@@ -161,13 +137,13 @@ provider_health: provider (PK), state, checked_at, cooldown_until, detail       
 maintenance_runs: id, ran_at, trigger (manual|auto), decayed, archived, closed          (BL-038)
 ```
 
-Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}` with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.
+Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term from the course's `courses` row, with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.
 
 ## Conventions
 
 - Python 3.12, `ruff`, `pytest`. Type hints everywhere. Dataclasses for models.
-- Tests use fakes in `tests/fakes/` and JSON fixtures in `tests/fixtures/`; no network in tests.
-- Temp downloads go to `config.tmp_dir/{uuid}` and are always deleted in a `finally`.
+- Tests use fakes in `tests/fakes/`; no network in tests.
+- Uploads stage in `config.tmp_dir/{uuid}`, always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.
 - Commit message format: `BL-0XX: <ticket title>`.
 - Migrations: sequential integers, one file each (`core/memory/migrations/vNNN_<name>.py`, literal SQL that never imports shared constants). Never renumber or edit a committed one; a schema change is a new file. `tests/test_migrations.py` checksums every committed migration and applies them all from v0 on an empty database.
@@ -182,6 +158,14 @@ Newest first. Add a row whenever a principle is bent or a provider choice change
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| Oct 17, 2026 | Uploads in the `other` bucket are linked to NotebookLM; only `code` is skipped. | Every file is now chosen by hand, so `other` is not junk; names without a keyword were never reaching NotebookLM. |
+| Oct 17, 2026 | Brightspace automation removed; files are uploaded by hand. `LMSProvider` is gone; the storage tree, buckets and link step are unchanged. Courses are rows of their own (`courses add`), each with its term folder; v13 keys `resources` by `resource_id` and keeps every old row as `topic:{id}`. `sync` only links stored files to NotebookLM. | BL-042. The Playwright login and `/d2l/api` downloads can't be used, so Simon adds course files himself; principles 1 and 2 no longer mention Brightspace or `playwright`. |
+| Sept 24, 2026 | Migrations are sequential integers, one file each under `core/memory/migrations/`, never renumbered or edited once committed. A test checksums each one and applies them all from v0 on an empty database. | BL-040 (P70). A committed migration may already have run on a real database, so changing it would split the history. |
+| Sept 24, 2026 | A tutor session with no turn for 2 hours is stale: `ask` and the other guarded commands say so and offer `sessions close`. `maintain` closes sessions idle more than 24 hours, without running the Analyzer. Sessions record `last_turn_at` (v12). | BL-040 (P67). A crashed session shouldn't block a course for long. |
+| Sept 24, 2026 | One fallback per task, recorded in `fallback_from`; a preferred provider skipped as unusable counts as that fallback. The Critic and the exam grader never run on a provider that wrote the questions. With only one provider, critique is skipped and the exam is marked `"review": "uncritiqued"`. | BL-040 (P79, P80, P85). |
+| Sept 24, 2026 | `concepts apply` upserts by concept id, keeping the `{course}/{slug(name)}` format. Concepts missing from the reviewed draft get `status = retired` (v11), never deleted, with mastery and evidence untouched. An optional `aliases: [...]` maps a renamed concept to its existing row. `apply` prints added / updated / retired counts. | BL-040. Requested under "P74", but this is P46 (concept ids); Simon chose to keep today's id format. P74 (weeks) is unchanged. |
+| Sept 24, 2026 | A Challenger probe on an Analyzer-proposed jump, resolved in the learner's favour (its grade proposes the challenged level or more), sets mastery to the Analyzer's full proposed level, citing the original evidence plus the exchange, `changed_by = "challenger"` (v9, v10). A failed probe writes its evidence only, resolves the challenge and changes no level. A probe raised by a tutor-estimate disagreement never changes a level. Never an average. | BL-040 (P72). Simon's decisions. |
+| Sept 23, 2026 | Router v1 replaces v0: the `[routing]` order per task type, minus unusable providers, re-ordered by the `benchmarks` composite once every candidate has 10+ measured runs. It falls back on any model error, not only rate limits. Principle 8's exception now covers only the config order used before there's data. | BL-035. The benchmarks are measured, not decreed, and the config order is only the cold start. |
 | Sept 23, 2026 | While a course has an open tutor session, nothing else starts a NotebookLM conversation on it: `ask`, `concepts seed` and a second `tutor` refuse; `/ask` inside the session uses its conversation. `brightlearn sessions close` ends a stuck one. | A fresh conversation deletes the latest one, which is the live tutor's (P66). |
 | Sept 23, 2026 | Model routing v0 is a fixed order per purpose, read from `[routing]` in `~/.brightlearn/config.toml` (teaching `claude, codex`; analysis `codex, claude`). A temporary exception to principle 8 until the benchmarks table exists (Phase 10). | The ticket asked for v0; keeping the order in config makes it data, not code. |
 | Sept 23, 2026 | The vault moves out of the repo to `~/.brightlearn/vault/`; it is no longer git-versioned. | Transcripts and mastery are personal; nothing personal should be committable. |

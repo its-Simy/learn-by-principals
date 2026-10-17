@@ -1,4 +1,4 @@
-"""``brightlearn doctor``: every check is read-only and never opens a login window."""
+"""``brightlearn doctor``: every check is read-only."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ from cli import common
 from core.config import Config, load_config
 from core.memory.schema import SCHEMA_VERSION
 from core.providers.knowledge import gemini_notebook
-from core.providers.lms.session import chromium_executable
 from core.providers.models.cli_base import CLIModelProvider
 from core.providers.state import ProviderState
 from core.providers.storage.local import LocalStorageBackend
@@ -54,7 +53,9 @@ def check_config(config: Config) -> Check:
 
 def check_db(config: Config) -> Check:
     if not config.db_path.exists():
-        return Check("DB schema", Status.WARN, "no database yet; `brightlearn sync` creates it")
+        return Check(
+            "DB schema", Status.WARN, "no database yet; `brightlearn courses add` creates it"
+        )
     conn = sqlite3.connect(f"file:{config.db_path}?mode=ro", uri=True)
     try:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
@@ -79,6 +80,7 @@ def check_storage(config: Config) -> Check:
 
 
 def check_tmp(config: Config) -> Check:
+    """Upload staging is emptied after every import, so a leftover means one crashed."""
     leftovers = list(config.tmp_dir.iterdir()) if config.tmp_dir.is_dir() else []
     if leftovers:
         return Check(
@@ -91,23 +93,6 @@ def check_api_key(env: Mapping[str, str]) -> Check:
     if env.get("ANTHROPIC_API_KEY"):
         return Check("ANTHROPIC_API_KEY", Status.FAIL, "set: Claude Code would bill the API")
     return Check("ANTHROPIC_API_KEY", Status.OK, "unset")
-
-
-def check_chromium() -> Check:
-    path = chromium_executable()
-    if path is None:
-        return Check("Chromium", Status.FAIL, "run `playwright install chromium`")
-    return Check("Chromium", Status.OK, str(path))
-
-
-def check_brightspace(config: Config) -> Check:
-    with common.open_lms(config) as lms:
-        state = lms.health()
-    if state is ProviderState.AVAILABLE:
-        return Check("Brightspace", Status.OK, "whoami 200")
-    if state is ProviderState.AUTH_EXPIRED:
-        return Check("Brightspace", Status.FAIL, "session expired; `brightlearn sync` logs in")
-    return Check("Brightspace", Status.FAIL, f"{state}; see log")
 
 
 def check_notebooklm(config: Config) -> Check:
@@ -144,8 +129,6 @@ def checks(config: Config) -> list[tuple[str, Callable[[], Check]]]:
         ("Storage root", lambda: check_storage(config)),
         ("Temp dir", lambda: check_tmp(config)),
         ("ANTHROPIC_API_KEY", lambda: check_api_key(os.environ)),
-        ("Chromium", check_chromium),
-        ("Brightspace", lambda: check_brightspace(config)),
         ("NotebookLM", lambda: check_notebooklm(config)),
         (
             "Claude Code",
@@ -168,7 +151,7 @@ def run_checks(config: Config) -> list[Check]:
 
 
 def doctor() -> None:
-    """Report every provider's health. Never opens a login window."""
+    """Report every provider's health. Every check is read-only."""
     results = run_checks(load_config())
     table = Table("Check", "Status", "Detail")
     for c in results:

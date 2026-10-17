@@ -25,9 +25,7 @@ Problems that the tickets don't settle. Each one says what I did (usually the mo
 | # | Why it can wait |
 | --- | --- |
 | P3, P4 | Harmless. `config.toml` now exists, but only for `[routing]`. |
-| P10 | Real runs re-log in inside the provider. The engine's retry is only exercised by the fakes. |
-| P12 | `--force` recovers a deleted local file. |
-| P15 | Misfiles past terms. **Use `--course`, not `--all`, until the term is read from the course name.** |
+| ~~P10, P12, P15~~ | Moot since BL-042 (TICKETS-4): there is no Brightspace sync any more. |
 | P23, P24 | Revisit after the spike. Duplicate NotebookLM sources are possible but rare, and don't touch BrightLearn's own data. |
 | P26, P31, P32, P33 | Single user. Failures are loud but lose nothing. |
 | P35, P38, P41, P44, P46, P47 | Nothing is lost: misconceptions are evidence rows, and `week` stays in the draft YAML. Tunable or re-derivable later. |
@@ -38,7 +36,7 @@ Problems that the tickets don't settle. Each one says what I did (usually the mo
 P1, P2 (decided as done) · P6 (historical) · P7 (your cleanup, whenever) · P8, P9, P11, P13, P14, P17, P27, P28, P29, P39, P42, P43, P45, P56, P63 · P19, P21, P36 (accepted) · P30 (superseded by P20).
 
 ### Waiting on you or on data
-P16, P18, P22, P34, P49, P50, P52, P61. For P50 and P52, send the three CLI outputs.
+P18, P22, P34, P49, P50, P52, P61. For P50 and P52, send the three CLI outputs. (P16 is moot since BL-042.)
 
 ## Setup
 
@@ -535,3 +533,33 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 - **Fallback:** at most two attempts per task (the best, then one more). If the preferred provider was skipped as unusable, only one attempt is made.
 - **Uncritiqued** means no valid critique: no other provider, or an unreadable critic answer. The exam JSON says `"review": "uncritiqued"`, and so do the `.md` and the CLI.
 - **Idle sessions:** each turn (`ask`, `/ask`, challenge answer) updates `last_turn_at` (v12). Auto-closing doesn't run the Analyzer, like `sessions close`. A closed session older than 30 days is then archived as usual.
+
+## BL-042
+
+### P93. Problems the Brightspace removal makes moot
+- **P10** (the engine's `SessionExpired` retry never fired in real runs): the LMS provider and the sync engine are gone, so there is no session to expire.
+- **P15** (`--all` filed past courses under the current term): each course is now a `courses` row with its own term, and files are stored under that term. `sync --all` only links stored files to NotebookLM, so it can't misfile anything.
+- **P16** (manual acceptance of `sync --course CSE220` twice): `sync` no longer downloads. The import path is covered by `tests/test_importer.py`, and the manual check moves to the rewritten validation log (BL-050).
+- **P17** ("all green" needs one sync first; Chromium and Brightspace `whoami` rows): doctor has no Chromium or Brightspace row now. `DB schema` warns until any command creates the database; the hint now names `brightlearn courses add`.
+- **P12, P13** (`--force`) are moot too: the option is gone.
+
+### P94. Where I followed the plan's intent rather than its letter
+- **`classify(name, fallback)`** would pass the fallback as the filename and lose the code-extension rule. The importer calls `classify(stem, name, fallback)`: the stem is the title, the full name is the filename.
+- **The manifest lookup runs after `store`**, by the stored file's name. Storage sanitizes the name before writing it, so looking up the raw name could miss the existing row and add a second row for the same file.
+- **"Stale when a linked file changed"** is implemented as "linked, and NotebookLM's copy (`source_hash`) differs from the stored file". So uploading the same corrected bytes twice before `sync` stays `stale`, and putting the original bytes back makes it `synced` again. An unlinked file is `synced` whether it changed or not; the link step adds it either way.
+- **A re-upload keeps the row's `resource_id`, `title` and `added_at`**, so a corrected lecture keeps its place and its NotebookLM link (the link step replaces the source).
+- **`Courses.add` also checks the term** with the same `[A-Za-z0-9_-]{1,32}` pattern as the code, because both become folder names (`CourseRow.root` is built without the storage backend's path guard). A duplicate raises `DuplicateCourse`, also when the INSERT itself hits the primary key (another writer got there first), and a bad code or term raises `CourseError`, a `ValueError` that `DuplicateCourse` subclasses, so BL-045 can map them to 409 and 422.
+- **Course codes:** `courses add` upper-cases the code, as every other command does with `--course`. `Courses` stores what it's given; BL-045 should upper-case too.
+- **An explicit bucket outside the eight** is refused with `UnknownBucket` (BL-045's "unknown bucket 422"). `UnknownCourse` and `UnknownBucket` both subclass `ImportRefused`, a `ValueError` (422 later); nothing is stored and the caller still owns `src`.
+- **`generate` and `podcast` refuse an unknown course** (exit 2) before any NotebookLM call, because `_generated` now needs the course row's term.
+- **`sync` drops `--no-link` too**, because a link-only sync has nothing else to do. With no courses it prints a hint and exits 0.
+- **The dashboard's `pending` column is gone**, because v13 refuses that state. The other five states keep their colours (slots are positional).
+- **Doctor tests:** the crash test uses a NotebookLM row name, and a new test pins the exact list of checks, so a Chromium or Brightspace row can't come back unnoticed.
+
+### P95. Migration v13 details
+- **Term backfill:** the path segment before `/{course}/` in `local_path`, taking the max over the course's rows. A course whose rows have no parseable path (only links, `pending` rows with no file, or a file stored outside `/{course}/`) gets `unknown`, and new uploads to it would go under `unknown/`. No real database has rows today, so I added no command to change a course's term. If one is ever needed: `UPDATE courses SET term = 'Fall-2026' WHERE course = '…'` before uploading.
+- **Only `resources` is backfilled.** A course known only from `concepts`, `sessions` or `notebooks` gets no row. None exist today (seeding needs linked files).
+- **Link order within a bucket** is upload order (`added_at`, then `resource_id`), not the plan's `resource_id` alone, which is random hex for new rows (review fix). `Manifest.find` uses the same order with `LIMIT 1`, so a pre-v13 duplicate name in a bucket always resolves to its oldest row.
+
+### P96. The `other` bucket is linked to NotebookLM; only `code` is skipped
+Decided in review. `other` meant "no keyword matched", which with Brightspace downloads was often junk, so it was skipped unless `--include-code`. Every upload is now picked by hand, and files whose names carry no keyword (a policy PDF, `dweight2.csv`) were never reaching NotebookLM. `CODE_BUCKETS` is just `code`, and under the source cap `other` ranks after the six named buckets and before included code. `ModelClassifier` (Ollama for ambiguous names) stays available through `Importer(classify_fallback=...)` but nothing wires it in yet; it waits for a ticket that needs it.

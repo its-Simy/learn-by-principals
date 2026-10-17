@@ -40,12 +40,12 @@ def podcast(
     spec = _find_spec(config, course, exam) if exam else None
     conn = connect(config.db_path)
     try:
+        folder = generated_dir(config, conn, course)
         context = build_podcast_context(course, spec, LearnerMemory(conn), Vault(config.vault_root))
         with common.open_knowledge(config, conn) as knowledge:
             notebook_id = knowledge.ensure_notebook(course)
             audio = knowledge.generate_audio(notebook_id, context.text, format, length)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        folder = generated_dir(config, course)
         folder.mkdir(parents=True, exist_ok=True)
         instructions = folder / f"{stamp}-podcast.md"
         instructions.write_text(context.text)

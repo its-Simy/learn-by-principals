@@ -15,7 +15,7 @@ __all__ = [
     "SYNC_STATES",
 ]
 
-SYNC_STATES = ("pending", "synced", "stale", "failed", "link", "deferred")
+SYNC_STATES = ("synced", "stale", "failed", "link", "deferred")  # "pending" gone since v13 (BL-042)
 EVIDENCE_TYPES = ("explained", "applied", "transferred", "failed", "misconception")
 EVIDENCE_STRENGTHS = ("weak", "moderate", "strong")
 MASTERY_CHANGERS = ("analyzer", "manual", "challenger")  # "challenger" since v9 (BL-040)

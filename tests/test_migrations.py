@@ -24,6 +24,7 @@ COMMITTED = {
     10: "f15ac3cb3e86efc32786f7e26bcf39ca01738bf6924e8d503230b2f105b321fb",
     11: "d9c5501ff50e36201d5e1e5be745a2562f7bb1d2291d6b3fa08c9cce3b6d8969",
     12: "cb5392875ae6b17001bbacb6db5e7ae2c7781782aad0d00d9564e17abd87f724",
+    13: "ebfb92c00beba20ec4413441b4d9ccd701610e3d3fb11c7b0c68a921c08c00a6",
 }
 FOLDER = Path(__file__).parent.parent / "core" / "memory" / "migrations"
 TABLES = {
@@ -40,6 +41,7 @@ TABLES = {
     "benchmark_samples",
     "provider_health",
     "maintenance_runs",
+    "courses",
 }
 
 
@@ -115,3 +117,138 @@ def test_v9_keeps_every_history_row_and_the_append_only_guard(tmp_path):
     with pytest.raises(sqlite3.IntegrityError, match="append-only"):
         conn.execute("DELETE FROM mastery_history")
     assert conn.execute("SELECT status FROM concepts").fetchone()[0] == "active"
+
+
+def test_v13_keys_resources_by_id_and_backfills_courses(tmp_path):
+    path = tmp_path / "v12.db"
+    raw = sqlite3.connect(path)
+    for number in range(1, 13):
+        with raw:
+            for statement in MIGRATIONS[number]:
+                raw.execute(statement)
+            raw.execute(f"PRAGMA user_version = {number}")
+    root = "/home/s/.brightlearn/courses/Fall-2026/CSE220"
+    rows = [
+        # topic_id, course, title, type, url, filename, local_path, hash, source id, state, seen
+        (
+            5001,
+            "CSE220",
+            "Syllabus",
+            "File",
+            None,
+            "syl.pdf",
+            f"{root}/syllabus/syl.pdf",
+            "h1",
+            "src1",
+            "synced",
+            "2026-09-23T12:00:00+00:00",
+        ),
+        (
+            5002,
+            "CSE220",
+            "Lecture 1",
+            "File",
+            None,
+            "lec1.pdf",
+            f"{root}/lectures/lec1.pdf",
+            "h2",
+            None,
+            "stale",
+            "2026-09-22T12:00:00+00:00",
+        ),
+        (
+            5004,
+            "CSE220",
+            "Zoom",
+            "Link",
+            "https://zoom.example/rec",
+            None,
+            None,
+            None,
+            None,
+            "link",
+            "2026-09-24T12:00:00+00:00",
+        ),
+        (
+            6001,
+            "AMS161",
+            "Lecture 1",
+            "File",
+            None,
+            None,
+            None,
+            None,
+            None,
+            "pending",
+            "2026-09-25T12:00:00+00:00",
+        ),
+        (  # a stored file whose path has no "/MAT125/" segment: the term can't be read
+            7001,
+            "MAT125",
+            "Notes",
+            "File",
+            None,
+            "notes.pdf",
+            "/elsewhere/notes.pdf",
+            "h3",
+            None,
+            "synced",
+            "2026-09-26T12:00:00+00:00",
+        ),
+    ]
+    with raw:
+        raw.executemany(
+            "INSERT INTO resources (topic_id, course, org_unit_id, module_path, title,"
+            " type_identifier, url, filename, local_path, hash, notebook_source_id, sync_state,"
+            " last_seen) VALUES (?, ?, 1, 'Week 1', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [(r[0], r[1], *r[2:]) for r in rows],
+        )
+    raw.close()
+
+    conn = connect(path)  # v12 -> current
+
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(resources)")]
+    assert cols[0] == "resource_id" and "added_at" in cols
+    assert not {
+        "topic_id",
+        "org_unit_id",
+        "module_path",
+        "type_identifier",
+        "last_modified",
+        "last_seen",
+    } & set(cols)
+    got = {
+        r["resource_id"]: dict(r)
+        for r in conn.execute("SELECT * FROM resources ORDER BY resource_id")
+    }
+    assert list(got) == ["topic:5001", "topic:5002", "topic:5004", "topic:6001", "topic:7001"]
+    syllabus = got["topic:5001"]
+    assert (syllabus["local_path"], syllabus["hash"], syllabus["notebook_source_id"]) == (
+        f"{root}/syllabus/syl.pdf",
+        "h1",
+        "src1",
+    )
+    assert syllabus["added_at"] == "2026-09-23T12:00:00+00:00"
+    assert got["topic:5002"]["sync_state"] == "stale"
+    link = got["topic:5004"]
+    assert (link["sync_state"], link["url"], link["local_path"]) == (
+        "link",
+        "https://zoom.example/rec",
+        None,
+    )
+    assert got["topic:6001"]["sync_state"] == "failed"  # pending had no file
+
+    courses = [tuple(r) for r in conn.execute("SELECT * FROM courses ORDER BY course")]
+    assert courses == [
+        ("AMS161", "AMS161", "unknown", "2026-09-25T12:00:00+00:00"),
+        ("CSE220", "CSE220", "Fall-2026", "2026-09-22T12:00:00+00:00"),
+        ("MAT125", "MAT125", "unknown", "2026-09-26T12:00:00+00:00"),
+    ]
+    assert got["topic:7001"]["local_path"] == "/elsewhere/notes.pdf"  # the file is kept
+    indexes = {r[1] for r in conn.execute("PRAGMA index_list(resources)")}
+    assert "resources_course" in indexes
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO resources (resource_id, course, title, added_at, sync_state)"
+            " VALUES ('x', 'CSE220', 'x', 't', 'pending')"
+        )

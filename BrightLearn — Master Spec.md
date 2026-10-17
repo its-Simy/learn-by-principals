@@ -351,6 +351,7 @@ Newest first. Add a row whenever a principle is bent or a provider choice change
 
 | Date | Decision | Why | Alternatives rejected |
 | --- | --- | --- | --- |
+| Oct 17, 2026 | Brightspace automation removed: course files are uploaded by hand, stored under `{term}/{course}/{bucket}/` and linked to NotebookLM by the existing link step. The rows below about Brightspace ingestion and Duo are history (BL-042) | The Playwright login and `/d2l/api` downloads can't be used, so Simon adds course files himself | Keeping the Brightspace code dormant; a CLI `import` command or a drop-folder watcher (files come in through the web UI) |
 | Sept 23, 2026 | Brightspace ingestion uses session-cookie `/d2l/api` calls inside a Playwright session; DOM scraping is fallback only | Spike A: `whoami`, TOC and file endpoints all returned 200 to a student session | Official OAuth app (SBU offers no student registration); pure DOM scraping (brittle, slower) |
 | Sept 23, 2026 | Duo handled by persistent browser profile + headed login pause | Duo gates login only; sessions persist; the tool never handles codes | Storing credentials; exporting cookies from another browser |
 | Sept 23, 2026 | "No APIs" defined as no metered LLM APIs; free official APIs allowed | Drive API is free at our scale and the only clean way to get file IDs for NotebookLM import | Drive for Desktop sync folder (no file IDs, no upload verification) |

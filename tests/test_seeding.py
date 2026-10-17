@@ -58,18 +58,15 @@ def kp():
 def db():
     conn = connect(":memory:")
     db = Manifest(conn)
-    for topic_id, bucket, title in [(1, "syllabus", "Syllabus"), (2, "lectures", "Lecture 3")]:
+    for n, bucket, title in [(1, "syllabus", "Syllabus"), (2, "lectures", "Lecture 3")]:
         db.upsert(
             ResourceRow(
+                resource_id=f"r{n}",
                 course="CSE220",
-                org_unit_id=1,
-                topic_id=topic_id,
-                module_path="",
                 title=title,
-                type_identifier="File",
-                last_seen="",
+                added_at="",
                 bucket=bucket,
-                notebook_source_id=f"src{topic_id}",
+                notebook_source_id=f"src{n}",
             )
         )
     return db

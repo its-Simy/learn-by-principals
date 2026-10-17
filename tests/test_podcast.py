@@ -10,7 +10,7 @@ from cli import common
 from cli.app import app
 from core.config import load_config
 from core.exams.spec import parse_spec
-from core.memory.db import connect
+from core.memory.db import Courses, connect
 from core.memory.learner import Concept, LearnerMemory
 from core.memory.vault import Vault
 from core.podcast.compiler import WORD_CAP, build_podcast_context, compile_podcast_context, words
@@ -150,6 +150,7 @@ def cli_env(tmp_path, monkeypatch):
     monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "vault"))
     monkeypatch.setenv("BRIGHTLEARN_TERM", "Fall-2026")
     conn = connect(load_config().db_path)
+    Courses(conn).add("CSE220", "Systems Fundamentals", "Fall-2026")
     mem = LearnerMemory(conn)
     for week, name in enumerate(NAMES, start=1):
         mem.upsert_concept(Concept(cid(name), "CSE220", name, week=week))

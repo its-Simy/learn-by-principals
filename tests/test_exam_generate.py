@@ -45,18 +45,15 @@ def env(tmp_path):
     kp = FakeKnowledge(answer_text="Pointers hold addresses.")
     nb = kp.ensure_notebook("CSE220")
     manifest = Manifest(conn)
-    for topic_id, bucket in [(1, "lectures"), (2, "exams"), (3, "labs")]:
+    for n, bucket in [(1, "lectures"), (2, "exams"), (3, "labs")]:
         path = tmp_path / f"{bucket}.pdf"
         path.write_text(bucket)
         manifest.upsert(
             ResourceRow(
+                resource_id=f"r{n}",
                 course="CSE220",
-                org_unit_id=1,
-                topic_id=topic_id,
-                module_path="",
                 title=bucket,
-                type_identifier="File",
-                last_seen="",
+                added_at="",
                 bucket=bucket,
                 filename=f"{bucket}.pdf",
                 notebook_id=nb,

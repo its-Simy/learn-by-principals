@@ -1,7 +1,9 @@
-"""Synced files -> NotebookLM sources. Changed files replace their source (remove, then add).
+"""Stored files -> NotebookLM sources. Changed files replace their source (remove, then add).
 
-Sources already in the notebook keep their slot; new ones fill the remaining slots under the
-per-notebook cap in bucket priority order, and whatever doesn't fit is marked ``deferred``.
+Every bucket is linked except ``code``, which only goes with ``include_code``: uploads are picked
+by hand, so ``other`` is a real course file too. Sources already in the notebook keep their slot;
+new ones fill the remaining slots under the per-notebook cap in bucket priority order, oldest
+upload first, and whatever doesn't fit is marked ``deferred``.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from core.providers.knowledge.base import KnowledgeProvider, KnowledgeRateLimite
 log = logging.getLogger(__name__)
 
 PRIORITY = ("syllabus", "exams", "lectures", "readings", "labs", "assignments")
-CODE_BUCKETS = ("code", "other")
+CODE_BUCKETS = ("code",)
 DEFAULT_SOURCE_CAP = 50
 
 
@@ -30,10 +32,12 @@ class LinkReport:
     failures: list[str] = field(default_factory=list)
 
 
-def _rank(row: ResourceRow) -> tuple[int, int]:
-    order = (*PRIORITY, *CODE_BUCKETS)
+def _rank(row: ResourceRow) -> tuple[int, str, str]:
+    # Hand-picked `other` files come before opt-in code; within a bucket, upload order.
+    order = (*PRIORITY, "other", *CODE_BUCKETS)
     bucket = row.bucket or "other"
-    return (order.index(bucket) if bucket in order else len(order), row.topic_id)
+    index = order.index(bucket) if bucket in order else len(order)
+    return (index, row.added_at, row.resource_id)
 
 
 class LinkStep:
@@ -125,6 +129,6 @@ class LinkStep:
             report.replaced += 1
 
     def _fail(self, row: ResourceRow, report: LinkReport, exc: Exception) -> None:
-        log.exception("NotebookLM link failed for topic %s", row.topic_id)
+        log.exception("NotebookLM link failed for %s", row.resource_id)
         report.failed += 1
-        report.failures.append(f"topic {row.topic_id} {row.title!r}: {exc}")
+        report.failures.append(f"{row.resource_id} {row.title!r}: {exc}")

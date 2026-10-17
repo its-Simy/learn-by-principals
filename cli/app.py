@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 
-from cli import concepts, dev, exam, sessions
+from cli import concepts, courses, dev, exam, sessions
 from cli.ask import ask
 from cli.dashboard import dashboard
 from cli.doctor import doctor
@@ -25,6 +25,7 @@ app.command()(tutor)
 app.command()(podcast)
 app.command()(dashboard)
 app.command("maintain")(maintain_cmd)
+app.add_typer(courses.app, name="courses")
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")
 app.add_typer(sessions.app, name="sessions")

@@ -4,7 +4,7 @@ Setup (once):
     uv pip install "notebooklm-py[android,browser]"
     brightlearn dev nlm-login --account <gmail>
 
-Run (after `brightlearn sync --course CSE220`, so the syllabus is in the manifest):
+Run (after uploading the syllabus, so it is in the manifest):
     .venv/bin/python scripts/spike_c.py
 
 Like the provider, the script points NOTEBOOKLM_HOME at ~/.brightlearn/notebooklm itself.
@@ -38,12 +38,12 @@ def syllabus_from_manifest(db_path: Path, course: str) -> Path:
     conn = sqlite3.connect(db_path)
     row = conn.execute(
         "SELECT local_path FROM resources WHERE course = ? AND bucket = 'syllabus'"
-        " AND local_path IS NOT NULL ORDER BY topic_id LIMIT 1",
+        " AND local_path IS NOT NULL ORDER BY added_at LIMIT 1",
         (course,),
     ).fetchone()
     conn.close()
     if row is None:
-        raise SystemExit(f"No synced syllabus for {course} in {db_path}; run brightlearn sync")
+        raise SystemExit(f"No uploaded syllabus for {course} in {db_path}; upload it first")
     return Path(row[0])
 
 

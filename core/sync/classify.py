@@ -1,4 +1,4 @@
-"""Bucket for a resource, from keywords in its module path, title and filename.
+"""Bucket for a course file, from keywords in its title and filename.
 
 Rules are checked in order; the first match wins. Source-code extensions are checked after the
 syllabus/exam/lab/assignment keywords (starter code stays with its assignment) and before the
@@ -14,7 +14,6 @@ import re
 from collections.abc import Callable
 from pathlib import PurePath
 
-from core.providers.lms.base import Resource
 from core.providers.models.base import ModelError, TaskPackage
 from core.providers.state import ProviderState
 from core.router.router import Router
@@ -64,13 +63,11 @@ def _normalise(text: str) -> str:
     return re.sub(r"[_\-.]+", " ", text).lower()
 
 
-Fallback = Callable[[Resource, str | None], str | None]
+Fallback = Callable[[str, str | None], str | None]
 
 
-def classify(
-    resource: Resource, filename: str | None = None, fallback: Fallback | None = None
-) -> str:
-    haystack = _normalise(" ".join([resource.module_path, resource.title, filename or ""]))
+def classify(title: str, filename: str | None = None, fallback: Fallback | None = None) -> str:
+    haystack = _normalise(" ".join([title, filename or ""]))
     is_code = bool(filename) and PurePath(filename).suffix.lower() in CODE_EXTENSIONS
     for bucket, pattern in _RULES:
         if pattern is None:
@@ -79,7 +76,7 @@ def classify(
         elif pattern.search(haystack):
             return bucket
     if fallback is not None:
-        guess = fallback(resource, filename)
+        guess = fallback(title, filename)
         if guess in BUCKETS:
             return guess
     return "other"
@@ -99,21 +96,18 @@ class ModelClassifier:
         self._router = router
         self._provider = provider
 
-    def __call__(self, resource: Resource, filename: str | None) -> str | None:
+    def __call__(self, title: str, filename: str | None) -> str | None:
         if self._provider not in self._router.providers:
             return None
         if self._router.state(self._provider) is not ProviderState.AVAILABLE:
             return None
-        user = (
-            f"Module: {resource.module_path}\nTitle: {resource.title}\n"
-            f"Filename: {filename or '(none)'}"
-        )
+        user = f"Title: {title}\nFilename: {filename or '(none)'}"
         others = set(self._router.providers) - {self._provider}
         task = TaskPackage("classify", None, CLASSIFY_SYSTEM, user, 10)
         try:
             text = self._router.run(task, exclude=others).text
         except ModelError as exc:
-            log.warning("Model classification failed for %r: %s", resource.title, exc)
+            log.warning("Model classification failed for %r: %s", title, exc)
             return None
         words = re.findall(r"[a-z]+", text.lower())
         return next((w for w in words if w in BUCKETS), None)

@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-DEFAULT_BASE_URL = "https://mycourses.stonybrook.edu"
 DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
 
 # v0 routing: provider order per purpose, overridable in config.toml [routing]. Benchmarks-driven
@@ -30,10 +29,7 @@ class ConfigError(Exception):
 
 
 def default_term(today: date | None = None) -> str:
-    """Best-guess term label from the calendar, e.g. ``Fall-2026``.
-
-    Placeholder until the term can be read from Brightspace (see questions.md).
-    """
+    """The default term for new courses, guessed from the calendar, e.g. ``Fall-2026``."""
     today = today or date.today()
     if today.month <= 5:
         season = "Spring"
@@ -47,13 +43,11 @@ def default_term(today: date | None = None) -> str:
 @dataclass(frozen=True)
 class Config:
     home: Path
-    brightspace_base_url: str
     term: str
     storage_root: Path
     tmp_dir: Path
     db_path: Path
     vault_root: Path
-    login_timeout_s: int = 600
     nlm_min_interval_s: float = 1.5
     nlm_source_cap: int = 50
     nlm_artifact_timeout_s: float = 1200.0
@@ -66,14 +60,6 @@ class Config:
     @property
     def config_path(self) -> Path:
         return self.home / "config.toml"
-
-    @property
-    def browser_profile_dir(self) -> Path:
-        return self.home / "browser-profile"
-
-    @property
-    def storage_state_path(self) -> Path:
-        return self.home / "storage_state.json"
 
     @property
     def notebooklm_home(self) -> Path:
@@ -90,7 +76,6 @@ def load_config(env: Mapping[str, str] | None = None, term: str | None = None) -
     home = Path(env.get("BRIGHTLEARN_HOME", Path.home() / ".brightlearn")).expanduser()
     return Config(
         home=home,
-        brightspace_base_url=env.get("BRIGHTLEARN_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
         term=term or env.get("BRIGHTLEARN_TERM") or default_term(),
         storage_root=Path(env.get("BRIGHTLEARN_STORAGE_ROOT", home / "courses")).expanduser(),
         tmp_dir=Path(env.get("BRIGHTLEARN_TMP_DIR", DEFAULT_TMP_DIR)).expanduser(),

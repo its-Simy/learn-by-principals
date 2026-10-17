@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sqlite3
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
@@ -11,7 +12,7 @@ from rich.console import Console
 
 from cli import common
 from core.config import Config, load_config
-from core.memory.db import connect
+from core.memory.db import Courses, connect
 
 console = Console()
 
@@ -23,8 +24,12 @@ class Kind(StrEnum):
     report = "report"
 
 
-def generated_dir(config: Config, course: str) -> Path:
-    return config.storage_root / config.term / course / "_generated"
+def generated_dir(config: Config, conn: sqlite3.Connection, course: str) -> Path:
+    """Beside the course's files, under the course row's term rather than today's."""
+    row = Courses(conn).get(course)
+    if row is None:
+        raise typer.BadParameter(f"No course {course!r}; add it with `brightlearn courses add`.")
+    return row.root(config.storage_root) / "_generated"
 
 
 def generate(
@@ -45,16 +50,17 @@ def generate(
     config = load_config()
     conn = connect(config.db_path)
     try:
+        folder = generated_dir(config, conn, course)
         with common.open_knowledge(config, conn) as knowledge:
             notebook_id = knowledge.ensure_notebook(course)
             if kind is Kind.quiz:
                 spec = {"instructions": instructions} if instructions else {}
                 quiz = knowledge.generate_quiz(notebook_id, spec)
-                dest = _destination(config, course, kind, ".json", out)
+                dest = _destination(folder, kind, ".json", out)
                 dest.write_text(json.dumps(quiz, indent=2))
             elif kind is Kind.audio:
                 path = knowledge.generate_audio(notebook_id, instructions or "", format, length)
-                dest = _move(path, _destination(config, course, kind, path.suffix, out))
+                dest = _move(path, _destination(folder, kind, path.suffix, out))
             else:
                 options: dict[str, str] = {}
                 if instructions:
@@ -62,18 +68,18 @@ def generate(
                 if format:
                     options["format"] = format
                 path = knowledge.generate(notebook_id, kind.value, options)
-                dest = _move(path, _destination(config, course, kind, path.suffix, out))
+                dest = _move(path, _destination(folder, kind, path.suffix, out))
     finally:
         conn.close()
     console.print(f"[green]{kind.value}[/] -> {dest}")
 
 
-def _destination(config: Config, course: str, kind: Kind, ext: str, out: Path | None) -> Path:
+def _destination(folder: Path, kind: Kind, ext: str, out: Path | None) -> Path:
     if out is not None:
         dest = out
     else:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        dest = generated_dir(config, course) / f"{stamp}-{kind.value}{ext}"
+        dest = folder / f"{stamp}-{kind.value}{ext}"
     dest.parent.mkdir(parents=True, exist_ok=True)
     return dest
 

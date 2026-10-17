@@ -1,4 +1,4 @@
-"""Developer helpers for inspecting live Brightspace data."""
+"""Developer helpers for trying a provider by hand."""
 
 from __future__ import annotations
 
@@ -7,10 +7,9 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from cli import common
-from core.config import ensure_home, load_config
+from core.config import load_config
 from core.ledger.ledger import Ledger, ModelRun, utcnow
 from core.memory.db import Manifest, connect
 from core.providers.knowledge import gemini_notebook
@@ -22,23 +21,10 @@ app = typer.Typer(no_args_is_help=True, help="Developer helpers.")
 console = Console()
 
 
-@app.command()
-def courses() -> None:
-    """List active course offerings with the code BrightLearn derives for folders."""
-    config = load_config()
-    ensure_home(config)
-    with common.open_lms(config) as lms:
-        lms.ensure_session()
-        table = Table("Org unit", "Code (folder)", "Name")
-        for c in lms.list_courses():
-            table.add_row(str(c.org_unit_id), c.code, c.name)
-    console.print(table)
-
-
 @app.command("nlm-test")
 def nlm_test(
     file: Path | None = typer.Option(None, help="File to upload. Default: the course syllabus."),
-    course: str = typer.Option("CSE220", help="Course whose synced syllabus to use."),
+    course: str = typer.Option("CSE220", help="Course whose uploaded syllabus to use."),
 ) -> None:
     """Create/find the spike notebook, add a file, query it, then remove the source."""
     config = load_config()
@@ -46,7 +32,7 @@ def nlm_test(
     if file is None:
         rows = [r for r in Manifest(conn).all(course) if r.bucket == "syllabus" and r.local_path]
         if not rows:
-            raise typer.BadParameter(f"No synced syllabus for {course}; pass --file")
+            raise typer.BadParameter(f"No uploaded syllabus for {course}; pass --file")
         file = Path(rows[0].local_path)
     try:
         with common.open_knowledge(config, conn) as kp:

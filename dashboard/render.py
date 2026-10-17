@@ -9,7 +9,7 @@ from core.providers.state import ProviderState
 from dashboard.data import DashboardData, ProviderRuns
 
 # Categorical slots in fixed order (validated palette: adjacent CVD ΔE >= 8.4 in both modes).
-SYNC_ORDER = ("synced", "stale", "deferred", "link", "failed", "pending")
+SYNC_ORDER = ("synced", "stale", "deferred", "link", "failed")
 # Health state -> status role; the CSS pairs each role's color with an icon, beside the label.
 STATUS = {
     ProviderState.AVAILABLE: "good",
