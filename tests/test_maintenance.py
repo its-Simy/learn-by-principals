@@ -147,6 +147,13 @@ def test_other_commands_run_it_first_once_a_day(monkeypatch):
     assert _runs() == [("auto", 1)]  # doctor stays read-only
 
 
+def test_dev_commands_never_open_the_database():
+    """`dev openapi` runs from scripts; auto-maintenance must not create or migrate the real DB."""
+    result = CliRunner().invoke(app, ["dev", "openapi"])
+    assert result.exit_code == 0, result.output
+    assert not load_config().db_path.exists()
+
+
 def test_no_database_means_no_auto_run():
     assert CliRunner().invoke(app, ["sessions", "list"]).exit_code == 0
     assert load_config().db_path.exists()  # created by `sessions list`, not by maintenance
