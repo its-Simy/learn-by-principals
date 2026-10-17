@@ -28,15 +28,20 @@ export function Pending({ label, since, detail, className }: PendingProps) {
   const [mountedAt] = useState(Date.now)
   const now = useNow(1000)
   const elapsed = formatElapsed(secondsSince(since ?? mountedAt, now))
+  // The text flows as one line beside the spinner, so a long label in a narrow rail wraps under
+  // itself instead of pushing the spinner, the label and the time onto lines of their own.
   return (
-    <div role="status" aria-live="polite" className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 text-sm", className)}>
-      <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin text-pending" />
-      <span>{label}</span>
-      {/* The ticking time is hidden from screen readers so the live region announces the label once, not every second. */}
-      <span aria-hidden="true" className="tabular-nums">
-        · {elapsed}
-      </span>
-      {detail && <span>({detail})</span>}
+    <div role="status" aria-live="polite" className={cn("flex items-start gap-2 text-sm", className)}>
+      <LoaderCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 animate-spin text-pending" />
+      <p className="min-w-0">
+        <span>{label}</span>
+        {/* The ticking time is hidden from screen readers so the live region announces the label once, not every second. */}
+        <span aria-hidden="true" className="tabular-nums">
+          {" "}
+          · {elapsed}
+        </span>
+        {detail && <span> ({detail})</span>}
+      </p>
     </div>
   )
 }

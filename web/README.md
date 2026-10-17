@@ -12,6 +12,22 @@ Run everything from the repo root with `pnpm --dir web <script>`, or from `web/`
 
 Run `typecheck` and `build` before committing a web change.
 
+## Developing without NotebookLM or the model CLIs
+
+`scripts/dev_server.py` serves the same API on the test fakes (`tests/fakes/`), against a scratch home of its own, so every pane works with no accounts and no quota:
+
+```sh
+.venv/bin/python scripts/dev_server.py --home /tmp/brightlearn-dev --port 8801
+VITE_API_PORT=8801 pnpm --dir web dev
+```
+
+- `--home` (required) holds the database, course files, vault and temp dir; nothing under `~/.brightlearn` is read or written, and a home inside it is refused. Delete the folder to start over.
+- The first start seeds CSE220 with three linked files (syllabus, a lecture, a homework), five concepts at mastery levels 0–4 and one pending Challenger probe on Pointers, plus provider health and a few ledger rows for `/system`. Later starts keep whatever the home holds.
+- NotebookLM is an in-memory fake that links every upload, answers in Markdown citing up to two sources, and returns a concept list to a seed. Both models are fakes: a Markdown tutor answer, a Challenger probe, exam questions, an empty critique, grading, and an Analyzer that quotes the learner and proposes a two-level jump on the weakest concept, so every session that had a tutoring turn queues a probe for the next one (answering it upholds the jump; `/skip` defers it).
+- `--delay` (seconds, default 1) slows every fake call, so pending rows and elapsed times can be seen.
+- The fake refuses to link a file whose name contains `fail`, so a link job's failure, its warning and Retry can be seen.
+- `VITE_API_PORT` points the Vite proxy at the server's port; without it the proxy uses 8765, `brightlearn web`'s port.
+
 ## Conventions
 
 - **API calls:** go through `api` in `src/api/client.ts`, typed by path and method from the generated `paths`. Wrap a call in `unwrap(...)` inside a `queryFn` or `mutationFn`: it returns the data or throws an `ApiError` with the `status` and the parsed `body`. Every 409 body carries a `code` (`session_open`, `job_running`, ...) to act on in place.

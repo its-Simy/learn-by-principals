@@ -1,16 +1,20 @@
 // One dot per model or knowledge provider in the top bar; state, detail and reset time show on hover and on click.
+import type { components } from "@/api/types"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatClock, humanize } from "@/lib/format"
 import { stateTone, TONE_DOT } from "@/lib/state"
 import { cn } from "@/lib/utils"
 
-export type ProviderHealth = {
-  provider: string
-  state: string
-  detail?: string | null
-  /** When a rate limit lifts, if the provider said. */
-  cooldown_until?: string | null
+/** From the contract, so a renamed field fails typecheck instead of dropping the reset time. */
+export type ProviderHealth = Pick<
+  components["schemas"]["ProviderHealthOut"],
+  "provider" | "state" | "detail" | "cooldown_until"
+>
+
+/** A rate limit's reset time while it is still ahead; one already past is history. */
+function resetsAt(h: ProviderHealth): string | null {
+  return h.cooldown_until && Date.parse(h.cooldown_until) > Date.now() ? formatClock(h.cooldown_until) : null
 }
 
 function HealthText({ h }: { h: ProviderHealth }) {
@@ -20,7 +24,7 @@ function HealthText({ h }: { h: ProviderHealth }) {
         {h.provider}: {humanize(h.state)}
       </p>
       {h.detail && <p>{h.detail}</p>}
-      {h.cooldown_until && <p>resets at {formatClock(h.cooldown_until)}</p>}
+      {resetsAt(h) && <p>resets at {resetsAt(h)}</p>}
     </>
   )
 }

@@ -24,6 +24,10 @@ export const keys = {
   podcasts: (course: string) => ["podcasts", course] as const,
   jobs: (course?: string) => (course === undefined ? (["jobs"] as const) : (["jobs", course] as const)),
   job: (id: string) => ["job", id] as const,
+  // Not course-scoped, so no job refreshes them: they refetch when their page mounts.
+  courses: () => ["courses"] as const,
+  dashboard: () => ["dashboard"] as const,
+  doctor: () => ["doctor"] as const,
 }
 
 /** What each kind's job writes, refreshed for the job's course when it finishes. */
@@ -91,11 +95,11 @@ export function jobSummary(job: Job): string {
   }
 }
 
-function fetchJobs(): Promise<Job[]> {
+export function fetchJobs(): Promise<Job[]> {
   return unwrap(api.GET("/api/jobs"))
 }
 
-function fetchJob(id: string): Promise<Job> {
+export function fetchJob(id: string): Promise<Job> {
   return unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: id } } }))
 }
 

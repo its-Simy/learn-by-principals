@@ -3,13 +3,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter, Link, Outlet, Route, Routes, useMatch } from "react-router"
 
 import { useJobsWatcher } from "@/api/jobs"
+import { useCourse } from "@/api/queries.courses"
+import { HEALTH_POLL_MS, useDashboard } from "@/api/queries.system"
 import { EmptyState } from "@/components/EmptyState"
-import { HealthDots } from "@/components/HealthDots"
+import { HealthDots, type ProviderHealth } from "@/components/HealthDots"
 import { JobsIndicator } from "@/components/JobsIndicator"
 import { TopBar } from "@/components/TopBar"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { useNoStrayDrops } from "@/features/sources/UploadDropzone"
 import { ThemeProvider } from "@/lib/theme"
 import { CoursePage } from "@/pages/CoursePage"
 import { HomePage } from "@/pages/HomePage"
@@ -20,15 +23,20 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })
 
+const NO_HEALTH: ProviderHealth[] = []
+
 function Layout() {
-  const course = useMatch("/courses/:course/*")?.params.course
+  const course = useMatch("/courses/:course/*")?.params.course?.toUpperCase()
+  const name = useCourse(course)?.name
   // Watches every job from here, above the panes, so a collapsed rail never loses a finished job.
   const jobs = useJobsWatcher()
+  useNoStrayDrops() // a file dropped anywhere but the Sources pane never replaces the app
+  // The dashboard carries each provider's health; polled so a rate limit's reset shows on every page.
+  const health = useDashboard({ refetchInterval: HEALTH_POLL_MS }).data?.health ?? NO_HEALTH
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      <TopBar courseTitle={course}>
-        {/* TODO(BL-047 part 2): health from /api/dashboard. */}
-        <HealthDots health={[]} />
+      <TopBar courseTitle={course && (name ? `${course} · ${name}` : course)}>
+        <HealthDots health={health} />
         <JobsIndicator jobs={jobs} />
       </TopBar>
       <main className="min-h-0 flex-1">
