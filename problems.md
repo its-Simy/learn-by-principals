@@ -664,3 +664,8 @@ The CLI's root callback runs auto-maintenance before every command except `maint
 - **Closing the Studio sheet on navigation.** At phone width Studio is a sheet over the chat area, so Take used to open the take view underneath it; a `Rail` now closes its sheet when the path changes.
 - **Health dots refresh on a provider failure.** A turn with `error`, or a 502 from ask, a turn or an end, invalidates the dashboard query, so the top bar shows the rate limit at once rather than at its next one-minute poll.
 - **The dev server can force a rate limit:** a tutor question that says "rate limit" is refused by both fake models with a limit that resets 20 s later, so the error bubble, its reset time and the "no provider left" turn that follows can be seen in the browser.
+
+## Validation run (Oct 17, 2026)
+
+### P105. `nlm-login` needed Playwright's Chromium
+The first real `brightlearn dev nlm-login` stopped with "Playwright's bundled Chromium is not installed": `notebooklm-py[browser]` installs the Playwright package but not a browser, and the library's own help says its Chromium crashes on macOS 15+ and recommends `--browser chrome`. **Fixed:** `nlm-login` takes `--browser` and defaults to `chrome`; `chromium` still works after `python -m playwright install chromium`.

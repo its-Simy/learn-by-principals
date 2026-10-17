@@ -558,3 +558,5 @@ def test_login_runs_the_library_cli_with_brightlearn_home(config, monkeypatch):
     assert gn.login(config, "me@example.com") == 0
     assert seen["cmd"][-4:] == ["login", "--master-token", "--account", "me@example.com"]
     assert seen["home"] == str(config.home / "notebooklm")
+    assert gn.login(config, "me@example.com", "chrome") == 0
+    assert seen["cmd"][-2:] == ["--browser", "chrome"]

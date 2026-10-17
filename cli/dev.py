@@ -92,12 +92,17 @@ def model_test(
 @app.command("nlm-login")
 def nlm_login(
     account: str = typer.Option(..., help="The Google account for the notebooks."),
+    browser: str = typer.Option(
+        "chrome",
+        help="Browser for the Google login: chrome, msedge, or chromium (Playwright's own, which "
+        "needs `python -m playwright install chromium` first).",
+    ),
 ) -> None:
     """`notebooklm login --master-token` into ~/.brightlearn/notebooklm (opens a browser)."""
     config = load_config()
     if not gemini_notebook.library_installed():
         raise typer.BadParameter(f"notebooklm-py is not installed: {gemini_notebook.INSTALL_HINT}")
-    code = gemini_notebook.login(config, account)
+    code = gemini_notebook.login(config, account, browser)
     if code:
         raise typer.Exit(code)
     console.print(f"Saved under {config.notebooklm_home}. Check with `brightlearn doctor`.")

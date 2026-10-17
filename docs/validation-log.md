@@ -42,7 +42,7 @@ Copy this block for any step not listed below.
   brightlearn dev nlm-login --account <gmail>
   brightlearn doctor
   ```
-  `nlm-login` opens a browser for the Google login. Doctor never does: every check is read-only and spends no quota. Before the install, doctor's NotebookLM row suggests a bare `uv pip install`; use the line above instead, or it lands in the conda base env (P103).
+  `nlm-login` opens your installed Chrome for the Google login (`--browser chromium` uses Playwright's own, which the install doesn't download and which the library says crashes on macOS 15+; P105). Doctor never does: every check is read-only and spends no quota. Before the install, doctor's NotebookLM row suggests a bare `uv pip install`; use the line above instead, or it lands in the conda base env (P103).
 - **Expected:**
   - Credentials land in `~/.brightlearn/notebooklm/`, not `~/.notebooklm/` (P20).
   - Doctor has nine rows: Config, DB schema, Storage root, Temp dir, `ANTHROPIC_API_KEY`, NotebookLM, Claude Code, Codex and Ollama.

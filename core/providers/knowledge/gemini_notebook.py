@@ -555,11 +555,15 @@ def library_installed() -> bool:
     return importlib.util.find_spec("notebooklm") is not None
 
 
-def login(config: Config, account: str) -> int:
+def login(config: Config, account: str, browser: str | None = None) -> int:
     """``notebooklm login --master-token --account <account>`` into BrightLearn's profile.
-    Interactive: the library opens a browser. Returns the exit code."""
+    Interactive: the library opens a browser. ``browser`` picks an installed one (``chrome``,
+    ``msedge``): Playwright's bundled Chromium isn't downloaded by the install, and the library
+    says it crashes on macOS 15+ anyway. Returns the exit code."""
     config.notebooklm_home.mkdir(mode=0o700, parents=True, exist_ok=True)
     cmd = [sys.executable, "-m", "notebooklm", "login", "--master-token", "--account", account]
+    if browser:
+        cmd += ["--browser", browser]
     return subprocess.run(cmd, env=notebooklm_env(config)).returncode
 
 
