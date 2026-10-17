@@ -202,3 +202,20 @@ def test_guard_raises_session_open_and_says_when_it_is_stale():
     with pytest.raises(SessionOpen, match=f"{row.session_id} is open on CSE220") as idle:
         guard(learner, "CSE220", now=start + timedelta(hours=3))
     assert idle.value.stale
+
+
+# -- BL-045: one stale rule ---------------------------------------------------------------------
+
+
+def test_state_is_open_then_stale_then_ended():
+    from datetime import UTC, datetime, timedelta
+
+    from core.sessions import state
+
+    start = datetime(2026, 9, 24, 10, tzinfo=UTC)
+    learner = LearnerMemory(connect(":memory:"), now=lambda: start.isoformat())
+    row = learner.start_session("CSE220")
+    assert state(row, start + timedelta(hours=2)) == "open"  # stale only past two hours
+    assert state(row, start + timedelta(hours=2, seconds=1)) == "stale"
+    ended = learner.close_session(row.session_id)
+    assert state(ended, start + timedelta(hours=3)) == "ended"

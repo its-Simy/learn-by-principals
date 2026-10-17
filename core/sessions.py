@@ -9,9 +9,12 @@ user.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from core.maintenance import STALE_AFTER
 from core.memory.learner import LearnerMemory, SessionRow, idle_for
+
+SessionState = Literal["open", "stale", "ended"]
 
 
 class SessionOpen(Exception):
@@ -30,11 +33,21 @@ class SessionOpen(Exception):
         super().__init__(message)
 
 
+def state(session: SessionRow, now: datetime | None = None) -> SessionState:
+    """``stale`` is an open session with no turn for ``STALE_AFTER``: probably finished or
+    crashed, so worth offering to close. It is still open, and still blocks its course. The one
+    place the rule lives, for the guard, ``sessions list`` and the API alike."""
+    if session.ended_at is not None:
+        return "ended"
+    if idle_for(session, now or datetime.now(UTC)) > STALE_AFTER:
+        return "stale"
+    return "open"
+
+
 def guard(learner: LearnerMemory, course: str, now: datetime | None = None) -> None:
     """Raise ``SessionOpen`` when ``course`` has an open tutor session; return otherwise."""
     open_rows = learner.open_sessions(course)
     if not open_rows:
         return
     session = open_rows[0]
-    idle = idle_for(session, now or datetime.now(UTC))
-    raise SessionOpen(session, idle > STALE_AFTER)
+    raise SessionOpen(session, state(session, now) == "stale")

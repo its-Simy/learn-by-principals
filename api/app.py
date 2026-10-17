@@ -23,7 +23,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.engine import Engine, JobRunning
-from api.routes import system
+from api.routes import chat, courses, sources, system
 from api.static import mount_web
 from core.config import Config, load_config
 from core.exams.grade import GradeError
@@ -38,7 +38,7 @@ from core.providers.models.base import ModelError, ModelRateLimited
 from core.providers.storage.base import StorageError
 from core.sessions import SessionOpen
 
-ROUTERS = (system.router,)
+ROUTERS = (system.router, courses.router, sources.router, chat.router)
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})

@@ -353,6 +353,10 @@ class Engine:
         self.jobs = Jobs(Worker("jobs", config, open_resources))
         # Touched only on the interactive worker; other threads read copies (live_sessions).
         self.tutors: dict[str, Tutor] = {}
+        # Held over "check, then register" (a session start, a no-session ask, a conversation
+        # job's submit, an upload's import), so one side can't slip past the other's check (P66).
+        # Never held while waiting on a worker: a callable on that worker may need it.
+        self.lock = threading.Lock()
 
     def start(self) -> None:
         """Start each worker and wait for it to open its resources, so a bad ``[routing]`` or an

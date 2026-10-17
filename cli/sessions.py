@@ -14,15 +14,15 @@ from rich.console import Console
 from rich.table import Column, Table
 
 from core.config import load_config
-from core.maintenance import STALE_AFTER
 from core.memory.db import connect
 from core.memory.learner import LearnerError, LearnerMemory, idle_for
-from core.sessions import SessionOpen, guard
+from core.sessions import SessionOpen, guard, state
 
 app = typer.Typer(no_args_is_help=True, help="Tutor sessions.")
 console = Console()
 
 ASK_HINT = "Ask inside that session with [bold]/ask <question>[/]"
+OPEN_LABELS = {"open": "[yellow]open[/]", "stale": "[yellow]open, stale[/]"}
 
 
 def refuse_if_session_open(conn: sqlite3.Connection, course: str, hint: str | None = None) -> None:
@@ -76,12 +76,8 @@ def list_cmd(
     )
     now = datetime.now(UTC)
     for r in rows:
-        if r.ended_at:
-            ended = r.ended_at[:16]
-        elif idle_for(r, now) > STALE_AFTER:
-            ended = "[yellow]open, stale[/]"
-        else:
-            ended = "[yellow]open[/]"
+        status = state(r, now)
+        ended = (r.ended_at or "")[:16] if status == "ended" else OPEN_LABELS[status]
         table.add_row(
             r.session_id,
             r.course,
