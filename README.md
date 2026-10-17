@@ -32,6 +32,7 @@ Everything personal is under `~/.brightlearn/` (`BRIGHTLEARN_HOME` moves it). No
 - `notebooklm/`: the NotebookLM login. It's a secret: never copy it into the repo.
 - `config.toml`: optional, the `[routing]` order of model providers.
 - `dashboard.html`: what `brightlearn dashboard` writes.
+- `scratch/claude/`, `scratch/codex/`: the model CLIs' working directories, so a run never sees the repo.
 
 ## Commands
 

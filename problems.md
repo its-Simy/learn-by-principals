@@ -651,6 +651,7 @@ The CLI's root callback runs auto-maintenance before every command except `maint
 ### P103. Where the docs work around the code
 - **Evidence excerpts aren't readable in the app or the vault.** The Mastery card's evidence dialog shows each row's type, strength, time, provider and session, but not `excerpt_ref`, though `GET …/concepts/evidence` returns it. Nothing writes the vault's concept notes either: `Vault.write_concept_note` has no caller outside the tests, so the podcast brief's misconceptions come from evidence only. The validation log's "do the excerpts quote your own words?" check reads them with `sqlite3` instead.
 - **Doctor and the spike suggest a bare `uv pip install`.** `gemini_notebook.INSTALL_HINT` (doctor's NotebookLM row, `dev nlm-login`) and `scripts/spike_c.py`'s docstring say `uv pip install 'notebooklm-py[android,browser]'`, which lands in the conda base env while `CONDA_PREFIX` is set. The README and the log give the `env -u CONDA_PREFIX … --python .venv/bin/python` line; the hint should too.
+
 ## Web integration (BL-047/048/049)
 
 ### P104. Where the integration needed a detail the brief didn't give

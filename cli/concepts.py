@@ -85,6 +85,8 @@ def apply_cmd(
         result = apply(path, LearnerMemory(conn))
     except SeedingError as exc:
         console.print(f"[red]{exc}[/]")
+        if isinstance(exc, DraftNotReviewed):
+            console.print(f"Edit {path} and set `reviewed: true`.")
         if isinstance(exc, DraftNotReviewed) and draft is None:
             older = [p.name for p in list_drafts(config.vault_root, course) if p != path]
             if older:

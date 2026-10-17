@@ -67,7 +67,7 @@ Copy this block for any step not listed below.
   ```
   It serves `http://127.0.0.1:8765/` and opens it. In the browser:
   1. **New course:** Course code `CSE220`, Name `Systems Fundamentals I`, Term left at `Fall-2026`. **Create course.**
-  2. Open the CSE220 card. With **Auto bucket** selected, drop the syllabus and two lectures on the Sources pane (or use **Upload**).
+  2. **Create course** opens CSE220's page. With **Auto bucket** selected, drop the syllabus and two lectures on the Sources pane (or use **Upload**).
   3. Upload one of the lectures again, unchanged.
 
   Then, in a second terminal:
@@ -77,7 +77,7 @@ Copy this block for any step not listed below.
   ```
   The CLI equivalent of the first click is `brightlearn courses add CSE220 --name "Systems Fundamentals I"`; files come in through the web app only.
 - **Expected:**
-  - **Before uploading:** the home grid shows a CSE220 card, "CSE220 · Fall-2026", "0 sources · 0 linked · 0 concepts". The Sources pane says "Upload the syllabus to start." and the chat "Upload course files to ask about them."
+  - **Before uploading:** the Sources pane says "Upload the syllabus to start." and the chat "Upload course files to ask about them." Back on Home, the grid shows a CSE220 card, "CSE220 · Fall-2026", "0 sources · 0 linked · 0 concepts".
   - **Upload:** each file shows a pending row until it's stored, then a source row with its bucket badge: `syllabus`, `lectures`, `lectures`. The link bar shows "Linking to NotebookLM" with the elapsed time ("typically a few seconds a file") while the badges read "linking". It ends "Sources: 3 linked", with three "linked" badges. Nothing is "deferred": that only happens past the 50-source cap.
   - **The unchanged re-upload:** no new row, the badge stays "linked", and its link job ends "Sources already up to date". This is the old "second run skips everything" check (P16, P93).
   - **On disk:** the files are in `~/.brightlearn/courses/Fall-2026/CSE220/syllabus/` and `~/.brightlearn/courses/Fall-2026/CSE220/lectures/`. `courses list` shows CSE220, term `Fall-2026`, 3 files, and that folder.
@@ -192,7 +192,7 @@ Copy this block for any step not listed below.
 - **Expected:**
   - **The ask before the session:** the answer is captioned "Sources · 1 selected source", with citation chips such as `[1] <syllabus file>`. A chip opens its excerpt on click, and on Tab then Enter.
   - **Start:** the note "Tutoring session started with the simplifier persona." and a "live session" badge with the persona and start time. A waiting probe shows "Challenger question on <concept>. Your next message is your answer." with **Skip**. None waits on the first session: the Analyzer queues them when a session ends.
-  - **Each turn:** a pending bubble with the step and elapsed time ("Simplifier is answering · 14 s"), the composer disabled, then a Markdown answer grounded in the course sources and routed to Claude (or Codex on fallback). The page doesn't name the provider during the session; History does once it has ended.
+  - **Each turn:** a pending bubble with the step and elapsed time ("Simplifier is answering · 14 s" on the first turn, "Claude is answering" once a provider has answered), the composer disabled, then a Markdown answer captioned "Simplifier · Claude" (Codex on fallback). A failed turn shows an error bubble naming the provider and, for a usage limit, "Resets at …".
   - **Rate:** the buttons give way to "Rated the last answer 4/5." (your number).
   - **Sources only:** the answer is captioned "Sources · every source", with chips and the note that scoping is off during a session: it was asked in the session's own NotebookLM conversation (P66).
   - **Seed while live:** refused with a note, "Tutor session … is open on CSE220 …; NotebookLM keeps one live conversation per course." Nothing is queued.

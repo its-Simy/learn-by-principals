@@ -45,10 +45,10 @@ brightlearn/
 │   ├── app.py            # create_app, lifespan, the Host/Origin guard, register_errors (core error → status)
 │   ├── engine.py         # Resources, the interactive + jobs worker threads, Jobs, Engine (lock, tutors, asking)
 │   ├── deps.py           # config, engine, per-request db, course_code, named_file
-│   ├── errors.py         # Conflict (a 409 {code, detail}) and the 409s each route declares
+│   ├── errors.py         # Conflict (409 {code, detail}), Refused (422 {code, detail}), the 502 body with provider and resets_at
 │   ├── static.py         # serves web/dist with SPA fallback
 │   ├── routes/           # system, courses, sources, chat, concepts, exams, podcasts
-│   └── schemas/          # pydantic models with from_core, one module per router; the only pydantic
+│   └── schemas/          # pydantic models with from_core (system, courses, sources, chat, studio); the only pydantic
 ├── cli/                  # app.py (typer root); courses.py, sync.py, ask.py, tutor.py, sessions.py, concepts.py,
 │                         # exam.py, podcast.py, generate.py, web.py (`brightlearn web`), dev.py, …
 ├── web/                  # Vite + React + shadcn SPA: src/api (generated types, hooks), src/features/{sources,chat,studio,exams}, src/components
