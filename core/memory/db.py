@@ -17,10 +17,12 @@ class SchemaError(Exception):
     pass
 
 
-def connect(path: Path | str) -> sqlite3.Connection:
+def connect(path: Path | str, *, check_same_thread: bool = True) -> sqlite3.Connection:
+    """``check_same_thread=False`` is for the API's per-request connection, which FastAPI opens,
+    uses and closes on different threadpool threads, one request at a time."""
     if str(path) != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     migrate(conn)
     return conn

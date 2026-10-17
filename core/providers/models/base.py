@@ -53,7 +53,7 @@ class ModelResult:
 
 
 class ModelError(Exception):
-    pass
+    provider: str | None = None  # the provider that raised it; the router sets it on a failed run
 
 
 class ModelRateLimited(ModelError):

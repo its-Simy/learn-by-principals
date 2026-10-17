@@ -293,3 +293,12 @@ def test_a_skipped_preferred_provider_is_the_one_fallback(conn):
     with pytest.raises(ModelError):
         Router(models, Ledger(conn), ["claude", "codex", "ollama"]).run(task())
     assert models["ollama"].tasks == []
+
+
+def test_the_error_raised_names_the_provider_that_raised_it(conn, models):
+    """So the API can say which provider failed (BL-044's 502 body)."""
+    models["claude"].limited = True
+    models["codex"].limited = True
+    with pytest.raises(ModelRateLimited) as caught:
+        Router(models, Ledger(conn), ["claude", "codex"]).run(task())
+    assert caught.value.provider == "codex"  # the last one tried

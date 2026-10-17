@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -100,3 +101,11 @@ def nlm_login(
     if code:
         raise typer.Exit(code)
     console.print(f"Saved under {config.notebooklm_home}. Check with `brightlearn doctor`.")
+
+
+@app.command("openapi")
+def openapi() -> None:
+    """Print the API's OpenAPI document, which the web app's TypeScript types are built from."""
+    from api.app import create_app  # here, so the other commands don't import the web stack
+
+    typer.echo(json.dumps(create_app(load_config()).openapi(), indent=1))

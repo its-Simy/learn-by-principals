@@ -15,6 +15,7 @@ from cli.maintain import auto_maintain, maintain_cmd
 from cli.podcast import podcast
 from cli.sync import sync
 from cli.tutor import tutor
+from cli.web import web
 
 app = typer.Typer(no_args_is_help=True, help="BrightLearn personal learning platform.")
 app.command()(sync)
@@ -25,6 +26,7 @@ app.command()(tutor)
 app.command()(podcast)
 app.command()(dashboard)
 app.command("maintain")(maintain_cmd)
+app.command()(web)
 app.add_typer(courses.app, name="courses")
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")

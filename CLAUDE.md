@@ -41,7 +41,14 @@ brightlearn/
 │   ├── doctor.py         # the read-only checks behind `brightlearn doctor`
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
-├── cli/                  # app.py (typer root), sync.py, courses.py, exam.py, tutor.py, sessions.py, dev.py
+├── api/                  # FastAPI behind `brightlearn web`, localhost only, no auth (BL-044)
+│   ├── app.py            # create_app, lifespan, Host/Origin guard, error → status mapping
+│   ├── engine.py         # Resources, the interactive + jobs worker threads, Jobs, Engine
+│   ├── deps.py           # config, engine, per-request db, course_code
+│   ├── static.py         # serves web/dist with SPA fallback
+│   ├── routes/           # one module per router (system.py, …)
+│   └── schemas/          # pydantic models with from_core, one module per router
+├── cli/                  # app.py (typer root), sync.py, courses.py, exam.py, tutor.py, sessions.py, web.py, dev.py
 ├── dashboard/            # data.py (queries), render.py (self-contained HTML, inline SVG)
 ├── scripts/              # throwaway spikes
 └── tests/                # fakes/
@@ -146,6 +153,7 @@ Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term 
 
 - Python 3.12, `ruff`, `pytest`. Type hints everywhere. Dataclasses for models.
 - Tests use fakes in `tests/fakes/`; no network in tests.
+- `api/` never imports `cli/`; both sit on `core/` (`tests/test_principles.py` checks it).
 - Uploads stage in `config.tmp_dir/{uuid}`, always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.
 - Commit message format: `BL-0XX: <ticket title>`.

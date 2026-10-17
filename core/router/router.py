@@ -203,6 +203,7 @@ class Router:
             try:
                 result = provider.run(task)
             except ModelRateLimited as exc:
+                exc.provider = name
                 self._ledger.record(
                     ModelRun.from_error(task, name, exc, started, _ms(t0), fallback_from)
                 )
@@ -210,6 +211,7 @@ class Router:
                 last_error, fallback_from = exc, fallback_from or name
                 continue
             except ModelError as exc:
+                exc.provider = name
                 self._ledger.record(
                     ModelRun.from_error(task, name, exc, started, _ms(t0), fallback_from)
                 )
