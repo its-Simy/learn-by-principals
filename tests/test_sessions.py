@@ -5,8 +5,8 @@ from contextlib import contextmanager
 import pytest
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.config import load_config
 from core.context.compiler import ContextCompiler
 from core.ledger.ledger import Ledger
@@ -31,7 +31,7 @@ def env(tmp_path, monkeypatch):
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
     return kp
 
 
@@ -73,7 +73,7 @@ def test_ask_works_again_once_the_session_is_closed(env):
 
 def test_tutor_refuses_a_second_session_on_the_same_course(env, monkeypatch):
     open_session()
-    monkeypatch.setattr(common, "open_model", lambda name, config: FakeModel(name))
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: FakeModel(name))
     result = runner.invoke(app, ["tutor", "--course", "CSE220"], input="/end\n")
     assert result.exit_code == 1
     assert "is open on CSE220" in result.output
@@ -179,3 +179,26 @@ def test_every_turn_moves_last_turn_at(tmp_path):
     tutor.handle("/ask where?")
     after_ask = learner.get_session(row.session_id).last_turn_at
     assert started < after_turn < after_ask
+
+
+# -- BL-043: the guard without the CLI ---------------------------------------------------------
+
+
+def test_guard_raises_session_open_and_says_when_it_is_stale():
+    from datetime import UTC, datetime, timedelta
+
+    from core.sessions import SessionOpen, guard
+
+    start = datetime(2026, 9, 24, 10, tzinfo=UTC)
+    learner = LearnerMemory(connect(":memory:"), now=lambda: start.isoformat())
+    guard(learner, "CSE220")  # nothing open
+    row = learner.start_session("CSE220")
+    guard(learner, "CSE214")  # another course is free
+
+    with pytest.raises(SessionOpen) as recent:
+        guard(learner, "CSE220", now=start + timedelta(hours=1))
+    assert recent.value.session.session_id == row.session_id
+    assert not recent.value.stale
+    with pytest.raises(SessionOpen, match=f"{row.session_id} is open on CSE220") as idle:
+        guard(learner, "CSE220", now=start + timedelta(hours=3))
+    assert idle.value.stale

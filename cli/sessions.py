@@ -1,8 +1,7 @@
-"""``brightlearn sessions list|close``, and the one-live-conversation-per-course guard (P66).
+"""``brightlearn sessions list|close``, and how a command refuses while a session is open (P66).
 
-A tutor session owns its course's live NotebookLM conversation until it ends. Anything else that
-would start a fresh conversation on that course (which deletes the latest one) refuses while a
-session is open, and says so when that session has been idle over two hours (BL-040).
+``core.sessions.guard`` holds the rule; this module words the refusal for the terminal, saying
+so when the session has been idle over two hours (BL-040).
 """
 
 from __future__ import annotations
@@ -18,6 +17,7 @@ from core.config import load_config
 from core.maintenance import STALE_AFTER
 from core.memory.db import connect
 from core.memory.learner import LearnerError, LearnerMemory, idle_for
+from core.sessions import SessionOpen, guard
 
 app = typer.Typer(no_args_is_help=True, help="Tutor sessions.")
 console = Console()
@@ -27,28 +27,28 @@ ASK_HINT = "Ask inside that session with [bold]/ask <question>[/]"
 
 def refuse_if_session_open(conn: sqlite3.Connection, course: str, hint: str | None = None) -> None:
     """Exit 1 when ``course`` has an open tutor session; ``hint`` says what to do instead."""
-    open_rows = LearnerMemory(conn).open_sessions(course)
-    if not open_rows:
-        return
-    session = open_rows[0]
-    idle = idle_for(session, datetime.now(UTC))
-    lines = [
-        f"[red]Tutor session {session.session_id} is open on {course}[/] (started "
-        f"{session.started_at}); NotebookLM keeps one live conversation per course.",
-    ]
-    if idle > STALE_AFTER:
-        hours = idle.total_seconds() / 3600
-        lines.append(
-            f"[yellow]It looks stale: no turn for {hours:.0f} hours.[/] If it's finished or "
-            "crashed, close it."
-        )
-    if hint:
-        lines.append(f"{hint}, or end it first:")
-    else:
-        lines.append("End it first:")
-    lines.append(f"  brightlearn sessions close --id {session.session_id}")
-    console.print("\n".join(lines))
-    raise typer.Exit(1)
+    now = datetime.now(UTC)
+    try:
+        guard(LearnerMemory(conn), course, now)
+    except SessionOpen as exc:
+        session = exc.session
+        lines = [
+            f"[red]Tutor session {session.session_id} is open on {course}[/] (started "
+            f"{session.started_at}); NotebookLM keeps one live conversation per course.",
+        ]
+        if exc.stale:
+            hours = idle_for(session, now).total_seconds() / 3600
+            lines.append(
+                f"[yellow]It looks stale: no turn for {hours:.0f} hours.[/] If it's finished or "
+                "crashed, close it."
+            )
+        if hint:
+            lines.append(f"{hint}, or end it first:")
+        else:
+            lines.append("End it first:")
+        lines.append(f"  brightlearn sessions close --id {session.session_id}")
+        console.print("\n".join(lines))
+        raise typer.Exit(1) from exc
 
 
 @app.command("list")

@@ -7,8 +7,8 @@ from contextlib import contextmanager
 import pytest
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.analysis.analyzer import AnalysisReport, Analyzer, LevelChange
 from core.analysis.challenge import (
     ChallengeRunner,
@@ -278,8 +278,8 @@ def test_end_of_session_estimate_disagreement_queues_a_challenge(tmp_path, monke
     def fake_open_knowledge(config, conn):
         yield FakeKnowledge()
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
-    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
 
     result = CliRunner().invoke(
         app, ["tutor", "--course", "CSE220"], input="What is a pointer?\n/end\n"

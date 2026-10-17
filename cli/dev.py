@@ -8,7 +8,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from cli import common
+from core import wiring
 from core.config import load_config
 from core.ledger.ledger import Ledger, ModelRun, utcnow
 from core.memory.db import Manifest, connect
@@ -35,7 +35,7 @@ def nlm_test(
             raise typer.BadParameter(f"No uploaded syllabus for {course}; pass --file")
         file = Path(rows[0].local_path)
     try:
-        with common.open_knowledge(config, conn) as kp:
+        with wiring.open_knowledge(config, conn) as kp:
 
             def step(name, fn):
                 t0 = time.monotonic()
@@ -65,7 +65,7 @@ def model_test(
     """Send one prompt through a model provider and print the reply (logged to the ledger)."""
     config = load_config()
     try:
-        model = common.open_model(provider, config)
+        model = wiring.open_model(provider, config)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     task = TaskPackage("model_test", None, "", prompt, 256)

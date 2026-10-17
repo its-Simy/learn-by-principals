@@ -3,8 +3,8 @@ from __future__ import annotations
 import typer
 from rich.console import Console
 
-from cli import common
 from cli.sessions import ASK_HINT, refuse_if_session_open
+from core import wiring
 from core.config import load_config
 from core.memory.db import Manifest, connect
 from core.sync.classify import BUCKETS
@@ -43,7 +43,7 @@ def ask(
             source_ids = [r.notebook_source_id for r in rows if r.bucket in buckets]
             if not source_ids:
                 raise typer.BadParameter(f"No {course} sources in NotebookLM for {sources}.")
-        with common.open_knowledge(config, conn) as knowledge:
+        with wiring.open_knowledge(config, conn) as knowledge:
             notebook_id = knowledge.ensure_notebook(course.upper())
             answer = knowledge.query(notebook_id, question, source_ids)
     finally:

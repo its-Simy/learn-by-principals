@@ -6,8 +6,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.config import load_config
 from core.memory.db import Manifest, ResourceRow, connect
 from core.memory.learner import LearnerMemory
@@ -143,7 +143,7 @@ def test_cli_seed_then_apply(kp, tmp_path, monkeypatch):
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
 
     seeded = runner.invoke(app, ["concepts", "seed", "--course", "cse220"])
     assert seeded.exit_code == 0, seeded.output
@@ -211,7 +211,7 @@ def test_cli_seed_prints_a_diff_against_the_newest_draft(kp, tmp_path, monkeypat
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
     assert runner.invoke(app, ["concepts", "seed", "--course", "CSE220"]).exit_code == 0
     first = latest_draft(tmp_path / "memory", "CSE220")
     mark_reviewed(first)
@@ -249,7 +249,7 @@ def test_cli_seed_refuses_while_a_tutor_session_is_open(kp, tmp_path, monkeypatc
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
     result = runner.invoke(app, ["concepts", "seed", "--course", "CSE220"])
     assert result.exit_code == 1
     assert "is open on CSE220" in result.output

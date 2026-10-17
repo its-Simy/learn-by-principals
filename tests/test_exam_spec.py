@@ -3,7 +3,7 @@
 import pytest
 
 from core.exams.coverage import PlanError, plan
-from core.exams.spec import SpecError, apportion, load_spec, parse_spec
+from core.exams.spec import SpecError, apportion, find_spec, load_spec, parse_spec
 from core.memory.learner import Concept, Mastery
 
 SPEC = {
@@ -239,3 +239,8 @@ def test_include_by_concept_id_and_no_weeks_means_every_week():
 def test_more_concepts_than_questions_drops_the_lightest():
     p = plan(spec(formats={"coding": 2}, difficulty={"hard": 100}, include=[]), CONCEPTS, {})
     assert p.total == 2 and len(p.rows) == 2
+
+
+def test_find_spec_with_no_file_or_created_exam_is_a_spec_error(tmp_path):
+    with pytest.raises(SpecError, match="no created CSE220 exam named 'final'"):
+        find_spec(tmp_path, "CSE220", "final")

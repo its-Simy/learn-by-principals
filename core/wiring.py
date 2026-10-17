@@ -1,9 +1,14 @@
-"""Provider factories shared by the CLI commands. Tests replace these with fakes."""
+"""The real provider objects behind every command, built in one place.
+
+The CLI and the API both run on these, and the API must not import ``cli/``, so the factories
+live in ``core``. Tests swap in fakes by patching this module's attributes: callers look them up
+as ``wiring.open_model`` and so on, so one patch here reaches every caller.
+"""
 
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
 from core.analysis.analyzer import AnalysisError, Analyzer
@@ -11,8 +16,10 @@ from core.analysis.challenge import ChallengeRunner, ChallengeStore, queue_chall
 from core.config import Config
 from core.context.compiler import ContextCompiler
 from core.ledger.ledger import Ledger
+from core.memory.db import Manifest
 from core.memory.learner import LearnerMemory
 from core.memory.vault import Vault
+from core.providers.knowledge.base import KnowledgeProvider
 from core.providers.knowledge.gemini_notebook import GeminiNotebookProvider
 from core.providers.models.base import ModelProvider
 from core.providers.models.claude_code import ClaudeCodeProvider
@@ -24,9 +31,15 @@ from core.tutor import Tutor
 MODEL_PROVIDERS = {"claude": ClaudeCodeProvider, "codex": CodexProvider, "ollama": OllamaProvider}
 
 
+def knowledge(config: Config, conn: sqlite3.Connection) -> GeminiNotebookProvider:
+    """A provider the caller must ``close()``: a long-lived owner (the API's worker thread) holds
+    one open, where a single command uses ``open_knowledge``."""
+    return GeminiNotebookProvider.from_config(config, conn)
+
+
 @contextmanager
 def open_knowledge(config: Config, conn: sqlite3.Connection) -> Iterator[GeminiNotebookProvider]:
-    provider = GeminiNotebookProvider.from_config(config, conn)
+    provider = knowledge(config, conn)
     try:
         yield provider
     finally:
@@ -50,7 +63,9 @@ def router(config: Config, conn: sqlite3.Connection, providers: dict[str, ModelP
     return Router(providers, Ledger(conn), config.routing)
 
 
-def session_end_hook(config: Config, conn: sqlite3.Connection, providers: dict[str, ModelProvider]):
+def session_end_hook(
+    config: Config, conn: sqlite3.Connection, providers: dict[str, ModelProvider]
+) -> Callable[[Tutor], str | None]:
     """On /end: the tutor's own estimate, then the Analyzer on a provider other than the tutor's
     (BL-027, ``[routing] analysis`` order), then a challenge for every disagreement (BL-030)."""
     analysis = router(config, conn, providers)
@@ -85,4 +100,29 @@ def challenge_runner(
     shared = router(config, conn, providers)
     return ChallengeRunner(
         ChallengeStore(conn), learner, shared, Analyzer(shared, learner), compiler
+    )
+
+
+def tutor(
+    config: Config,
+    conn: sqlite3.Connection,
+    knowledge: KnowledgeProvider,
+    providers: dict[str, ModelProvider],
+    course: str,
+    persona: str,
+) -> Tutor:
+    """A tutor with its end-of-session Analyzer and its Challenger, assembled the same way for
+    the CLI and the API. An unknown persona raises ``PersonaError``; the caller calls ``start()``.
+    """
+    learner = LearnerMemory(conn)
+    compiler = ContextCompiler(knowledge, learner, Manifest(conn))
+    return Tutor(
+        course,
+        persona,
+        compiler,
+        router(config, conn, providers),
+        learner,
+        Vault(config.vault_root),
+        on_end=session_end_hook(config, conn, providers),
+        challenges=challenge_runner(config, conn, providers, compiler),
     )

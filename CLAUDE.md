@@ -36,6 +36,9 @@ brightlearn/
 │   ├── personas.py       # load / list / render persona files
 │   ├── router/           # router.py (v1: config order, health, benchmarks), benchmarks.py, health.py
 │   ├── maintenance.py    # retention decay + session archive, auto-run daily (BL-038)
+│   ├── wiring.py         # real provider factories and the tutor's assembly; tests patch it (BL-043)
+│   ├── sessions.py       # guard(): one live NotebookLM conversation per course (P66)
+│   ├── doctor.py         # the read-only checks behind `brightlearn doctor`
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
 ├── cli/                  # app.py (typer root), sync.py, courses.py, exam.py, tutor.py, sessions.py, dev.py

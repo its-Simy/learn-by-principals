@@ -2,8 +2,8 @@ import sqlite3
 
 import pytest
 
-from cli import doctor
-from cli.doctor import Status
+from core import doctor
+from core.doctor import Status
 from core.memory.db import connect
 from core.memory.schema import SCHEMA_VERSION
 

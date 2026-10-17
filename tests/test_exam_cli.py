@@ -7,8 +7,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.analysis.challenge import ChallengeStore
 from core.config import load_config
 from core.exams.paper import LETTERS
@@ -48,8 +48,8 @@ def env(tmp_path, monkeypatch):
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
-    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
     spec = tmp_path / "cse220-midterm1.yaml"
     spec.write_text(yaml.safe_dump(SPEC))
     return spec, models, tmp_path
@@ -263,7 +263,7 @@ def test_invalid_spec_is_a_usage_error(env, tmp_path):
 def test_a_single_provider_makes_an_uncritiqued_exam(env, monkeypatch):
     spec, models, _ = env
     monkeypatch.setattr(
-        common, "model_providers", lambda config, purposes: {"claude": models["claude"]}
+        wiring, "model_providers", lambda config, purposes: {"claude": models["claude"]}
     )
 
     path, result = create(spec)

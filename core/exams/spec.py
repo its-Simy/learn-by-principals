@@ -18,7 +18,9 @@ to the number of questions.
 
 from __future__ import annotations
 
+import json
 import math
+import re
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -76,6 +78,34 @@ def load_spec(path: Path) -> ExamSpec:
         return parse_spec(doc)
     except SpecError as exc:
         raise SpecError(f"{path}: {exc}") from exc
+
+
+def find_spec(vault_root: Path, course: str, name: str) -> ExamSpec:
+    """A spec file path, or the spec saved in the newest created exam with that name, so a
+    podcast can be framed for an exam without keeping its YAML around."""
+    # paper imports coverage, which imports this module: importing paper at the top is a cycle.
+    from core.exams.paper import exams_dir
+
+    path = Path(name).expanduser()
+    if path.is_file():
+        return load_spec(path)
+    wanted = _key(name)
+    for exam_file in sorted(exams_dir(vault_root, course).glob("*.json"), reverse=True):
+        try:
+            saved = json.loads(exam_file.read_text()).get("spec") or {}
+        except (OSError, json.JSONDecodeError):
+            continue
+        if _key(str(saved.get("exam", ""))) == wanted:
+            fields = {k: v for k, v in saved.items() if v not in (None, [], ())}
+            return parse_spec(fields)
+    raise SpecError(
+        f"No spec file {name!r} and no created {course} exam named {name!r}; "
+        "pass a spec YAML path or run `brightlearn exam create` first."
+    )
+
+
+def _key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
 def parse_spec(doc: Any) -> ExamSpec:

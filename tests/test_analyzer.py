@@ -4,8 +4,8 @@ from contextlib import contextmanager
 import pytest
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.analysis.analyzer import AnalysisError, Analyzer
 from core.config import load_config
 from core.ledger.ledger import Ledger
@@ -157,8 +157,8 @@ def test_tutor_end_runs_the_analyzer(tmp_path, monkeypatch):
     def fake_open_knowledge(config, conn):
         yield FakeKnowledge()
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
-    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
 
     result = CliRunner().invoke(
         app, ["tutor", "--course", "CSE220"], input="What is a pointer?\n/end\n"
@@ -206,8 +206,8 @@ def test_routing_order_comes_from_config_toml(tmp_path, monkeypatch):
     def fake_open_knowledge(config, conn):
         yield FakeKnowledge()
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
-    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
 
     result = CliRunner().invoke(app, ["tutor", "--course", "CSE220"], input="Hi?\n/end\n")
 

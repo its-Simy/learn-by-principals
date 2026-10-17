@@ -3,8 +3,8 @@ from contextlib import contextmanager
 import pytest
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.config import load_config
 from core.context.compiler import ContextCompiler
 from core.ledger.ledger import Ledger
@@ -146,8 +146,8 @@ def test_cli_repl(tmp_path, monkeypatch, models):
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
-    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
 
     result = runner.invoke(
         app,
@@ -170,8 +170,8 @@ def test_cli_rejects_unknown_persona(tmp_path, monkeypatch, models):
     def fake_open_knowledge(config, conn):
         yield FakeKnowledge()
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
-    monkeypatch.setattr(common, "open_model", lambda name, config: models[name])
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
     result = runner.invoke(app, ["tutor", "--course", "CSE220", "--persona", "comedian"])
     assert result.exit_code == 2
 

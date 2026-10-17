@@ -194,7 +194,7 @@ def test_an_answer_that_is_not_a_bucket_is_ignored(server):
 
 
 def test_doctor_reports_ollama_as_optional(server):
-    from cli import doctor
+    from core import doctor
 
     assert doctor.check_ollama(OllamaProvider(server)).status is doctor.Status.OK
     missing = doctor.check_ollama(OllamaProvider(closed_port(), timeout_s=2))

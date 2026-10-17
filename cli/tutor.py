@@ -4,15 +4,12 @@ import typer
 from rich.console import Console
 from rich.markdown import Markdown
 
-from cli import common
 from cli.sessions import refuse_if_session_open
+from core import wiring
 from core.config import load_config
-from core.context.compiler import ContextCompiler
-from core.memory.db import Manifest, connect
-from core.memory.learner import LearnerMemory
-from core.memory.vault import Vault
+from core.memory.db import connect
 from core.personas import PersonaError
-from core.tutor import HELP, Tutor
+from core.tutor import HELP
 
 console = Console()
 
@@ -25,29 +22,16 @@ def tutor(
     course = course.upper()
     config = load_config()
     conn = connect(config.db_path)
-    learner = LearnerMemory(conn)
     try:
         # A second session's first query would delete this course's live conversation (P66).
         refuse_if_session_open(conn, course)
         try:
-            providers = common.model_providers(config, ("teaching", "analysis"))
+            providers = wiring.model_providers(config, ("teaching", "analysis"))
         except (KeyError, ValueError) as exc:
             raise typer.BadParameter(f"[routing] in {config.config_path}: {exc}") from exc
-        # The order per task type comes from config.toml [routing] (BL-035).
-        router = common.router(config, conn, providers)
-        with common.open_knowledge(config, conn) as knowledge:
-            compiler = ContextCompiler(knowledge, learner, Manifest(conn))
+        with wiring.open_knowledge(config, conn) as knowledge:
             try:
-                session = Tutor(
-                    course,
-                    persona,
-                    compiler,
-                    router,
-                    learner,
-                    Vault(config.vault_root),
-                    on_end=common.session_end_hook(config, conn, providers),
-                    challenges=common.challenge_runner(config, conn, providers, compiler),
-                )
+                session = wiring.tutor(config, conn, knowledge, providers, course, persona)
             except PersonaError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             row = session.start()

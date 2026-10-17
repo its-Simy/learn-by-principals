@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cli import common
+from core import wiring
 from core.config import ensure_home, load_config
 from core.memory.db import Courses, Manifest, connect
 from core.sync.link import LinkReport, LinkStep
@@ -35,7 +35,7 @@ def sync(
                     f"No course {course!r}; add it with `brightlearn courses add`."
                 )
         if courses:
-            with common.open_knowledge(config, conn) as knowledge:
+            with wiring.open_knowledge(config, conn) as knowledge:
                 step = LinkStep(knowledge, Manifest(conn), config.nlm_source_cap, include_code)
                 links = [step.run(c.course) for c in courses]
     finally:

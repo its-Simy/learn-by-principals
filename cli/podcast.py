@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-import json
-import re
 import shutil
 from datetime import datetime
-from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.markup import escape
 
-from cli import common
 from cli.generate import generated_dir
-from core.config import Config, load_config
-from core.exams.paper import exams_dir
-from core.exams.spec import ExamSpec, SpecError, load_spec, parse_spec
+from core import wiring
+from core.config import load_config
+from core.exams.spec import SpecError, find_spec
 from core.memory.db import connect
 from core.memory.learner import LearnerMemory
 from core.memory.vault import Vault
@@ -37,12 +33,15 @@ def podcast(
     """Compile the learner's state into instructions and generate an Audio Overview."""
     course = course.upper()
     config = load_config()
-    spec = _find_spec(config, course, exam) if exam else None
+    try:
+        spec = find_spec(config.vault_root, course, exam) if exam else None
+    except SpecError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     conn = connect(config.db_path)
     try:
         folder = generated_dir(config, conn, course)
         context = build_podcast_context(course, spec, LearnerMemory(conn), Vault(config.vault_root))
-        with common.open_knowledge(config, conn) as knowledge:
+        with wiring.open_knowledge(config, conn) as knowledge:
             notebook_id = knowledge.ensure_notebook(course)
             audio = knowledge.generate_audio(notebook_id, context.text, format, length)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -61,30 +60,3 @@ def podcast(
             f"[dim]Skipped as mastered: {escape(', '.join(c.name for c in context.skip))}[/]"
         )
     console.print(f"[green]podcast[/] -> {dest}\n[dim]instructions -> {instructions}[/]")
-
-
-def _find_spec(config: Config, course: str, name: str) -> ExamSpec:
-    """A spec file path, or the spec saved in the newest created exam with that name."""
-    path = Path(name).expanduser()
-    if path.is_file():
-        try:
-            return load_spec(path)
-        except SpecError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-    wanted = _key(name)
-    for exam_file in sorted(exams_dir(config.vault_root, course).glob("*.json"), reverse=True):
-        try:
-            saved = json.loads(exam_file.read_text()).get("spec") or {}
-        except (OSError, json.JSONDecodeError):
-            continue
-        if _key(str(saved.get("exam", ""))) == wanted:
-            fields = {k: v for k, v in saved.items() if v not in (None, [], ())}
-            return parse_spec(fields)
-    raise typer.BadParameter(
-        f"No spec file {name!r} and no created {course} exam named {name!r}; "
-        "pass a spec YAML path or run `brightlearn exam create` first."
-    )
-
-
-def _key(name: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", name.lower())

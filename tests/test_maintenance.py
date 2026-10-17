@@ -130,7 +130,7 @@ def _runs():
 
 
 def test_other_commands_run_it_first_once_a_day(monkeypatch):
-    from cli import doctor
+    from core import doctor
 
     monkeypatch.setattr(doctor, "checks", lambda config: [])  # no real provider checks
     conn = connect(load_config().db_path)  # a database with something to maintain

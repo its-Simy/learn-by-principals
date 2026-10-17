@@ -8,8 +8,8 @@ import typer
 from rich.console import Console
 from rich.syntax import Syntax
 
-from cli import common
 from cli.sessions import refuse_if_session_open
+from core import wiring
 from core.config import load_config
 from core.memory.db import Manifest, connect
 from core.memory.learner import LearnerMemory
@@ -38,7 +38,7 @@ def seed_cmd(course: str = typer.Option(..., help="Course code, e.g. CSE220.")) 
     try:
         # The seed query starts a fresh conversation, which would end a live tutor's (P66).
         refuse_if_session_open(conn, course)
-        with common.open_knowledge(config, conn) as knowledge:
+        with wiring.open_knowledge(config, conn) as knowledge:
             path, concepts = seed(knowledge, Manifest(conn), course, config.vault_root)
     except SeedingError as exc:
         raise typer.BadParameter(str(exc)) from exc

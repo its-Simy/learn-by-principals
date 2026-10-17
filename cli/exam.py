@@ -10,8 +10,8 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from cli import common
 from cli.sessions import refuse_if_session_open
+from core import wiring
 from core.analysis.challenge import ChallengeStore
 from core.config import load_config
 from core.context.compiler import ContextCompiler
@@ -58,10 +58,10 @@ def create(
             console.print(f"[red]{escape(str(exc))}[/]")
             raise typer.Exit(1) from exc
         _print_plan_notes(coverage)
-        providers = common.model_providers(config, ("teaching", "analysis"))
-        router = common.router(config, conn, providers)
+        providers = wiring.model_providers(config, ("teaching", "analysis"))
+        router = wiring.router(config, conn, providers)
         manifest = Manifest(conn)
-        with common.open_knowledge(config, conn) as knowledge:
+        with wiring.open_knowledge(config, conn) as knowledge:
             generator = QuestionGenerator(
                 router, router, ContextCompiler(knowledge, learner, manifest), manifest
             )
@@ -169,9 +169,9 @@ def grade(
     config = load_config()
     conn = connect(config.db_path)
     try:
-        providers = common.model_providers(config, ("analysis",))
+        providers = wiring.model_providers(config, ("analysis",))
         grader = ExamGrader(
-            LearnerMemory(conn), common.router(config, conn, providers), ChallengeStore(conn)
+            LearnerMemory(conn), wiring.router(config, conn, providers), ChallengeStore(conn)
         )
         try:
             report = grader.grade(file)

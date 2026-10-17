@@ -10,7 +10,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from cli import common
+from core import wiring
 from core.config import Config, load_config
 from core.memory.db import Courses, connect
 
@@ -51,7 +51,7 @@ def generate(
     conn = connect(config.db_path)
     try:
         folder = generated_dir(config, conn, course)
-        with common.open_knowledge(config, conn) as knowledge:
+        with wiring.open_knowledge(config, conn) as knowledge:
             notebook_id = knowledge.ensure_notebook(course)
             if kind is Kind.quiz:
                 spec = {"instructions": instructions} if instructions else {}

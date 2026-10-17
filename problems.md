@@ -563,3 +563,14 @@ The benchmarks row has one `sample_count`, but accuracy, groundedness and rating
 
 ### P96. The `other` bucket is linked to NotebookLM; only `code` is skipped
 Decided in review. `other` meant "no keyword matched", which with Brightspace downloads was often junk, so it was skipped unless `--include-code`. Every upload is now picked by hand, and files whose names carry no keyword (a policy PDF, `dweight2.csv`) were never reaching NotebookLM. `CODE_BUCKETS` is just `code`, and under the source cap `other` ranks after the six named buckets and before included code. `ModelClassifier` (Ollama for ambiguous names) stays available through `Importer(classify_fallback=...)` but nothing wires it in yet; it waits for a ticket that needs it.
+
+## BL-043
+
+### P97. Where the move needed a detail the plan didn't give
+- **`find_spec` imports `exams_dir` inside the function.** `core.exams.paper` imports `coverage`, which imports `spec`, so a top-level import of `paper` from `spec` is a cycle. The path stays defined once, in `paper.exams_dir`.
+- **`SessionOpen` carries `session` and `stale`, as planned, and no idle time.** `refuse_if_session_open` passes its own `now` to `guard` and recomputes the hours from the same instant, so the stale line reads exactly as before. The exception's message is plain text (no Rich markup), so a failed API job can show it as is.
+- **Doctor tests moved with the checks.** `run_checks` looks `checks` up in its own module, the same reason the wiring tests can't patch a shim, so `test_maintenance` patches `core.doctor.checks`, and `test_doctor` / `test_ollama` import `core.doctor`. `cli/doctor.py` keeps only `doctor()` and `COLOURS`.
+- **`wiring.tutor` builds its own `Router` and `LearnerMemory`.** The CLI used to build the router before opening NotebookLM; it is now built inside the `with`, which changes nothing (constructing a `Router` touches no provider).
+- **Ten test files patch `core.wiring`, not eleven:** the plan counted `test_doctor.py`, whose `common` patch went with the Brightspace check in BL-042.
+- **Two small tests** pin the new core contracts without the CLI: `guard` raises `SessionOpen` with `stale` set after two idle hours and passes for another course; `find_spec` raises `SpecError` (not a typer error) when nothing matches.
+- **Left for BL-046:** `cli.generate.generated_dir` stays in `cli/` (it raises `typer.BadParameter`). The podcast route can use `CourseRow.root(storage_root) / "_generated"` directly, as the plan says.

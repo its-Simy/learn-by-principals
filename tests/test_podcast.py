@@ -6,8 +6,8 @@ from contextlib import contextmanager
 import pytest
 from typer.testing import CliRunner
 
-from cli import common
 from cli.app import app
+from core import wiring
 from core.config import load_config
 from core.exams.spec import parse_spec
 from core.memory.db import Courses, connect
@@ -161,7 +161,7 @@ def cli_env(tmp_path, monkeypatch):
     def fake_open_knowledge(config, conn):
         yield kp
 
-    monkeypatch.setattr(common, "open_knowledge", fake_open_knowledge)
+    monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
     return kp, tmp_path
 
 
