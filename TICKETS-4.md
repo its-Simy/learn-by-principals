@@ -1,0 +1,64 @@
+# BrightLearn — Build Backlog 4
+
+Brightspace automation is out: Simon adds course files himself. This backlog removes the Brightspace code, replaces the sync engine with a manual import, and adds a local web app that replicates NotebookLM's three-pane layout (Sources | Chat | Studio) over a FastAPI layer. Everything builds against fakes and needs no accounts. Read `CLAUDE.md`, `problems.md`, then this file; `docs/web-plan.md` holds the full design each ticket summarises.
+
+Branch: `tickets-3` (continues from BL-041). Tickets run in waves; a ticket starts only when the tickets it depends on are merged.
+
+## Hand-off prompt for Opus
+
+```
+You are working on BrightLearn. Read CLAUDE.md, problems.md, TICKETS-4.md, then the matching
+section of docs/web-plan.md. Work ONLY on ticket BL-0XX. Do not start the next ticket.
+Rules: providers stay in core/providers/; api/ never imports cli/; no network in tests; secrets
+never enter the repo; dataclasses and type hints in core; docstrings say why, not what;
+logging not print. Run .venv/bin/pytest -q and .venv/bin/ruff check . (and, for web tickets,
+pnpm --dir web typecheck && pnpm --dir web build) before committing.
+Commit as "BL-0XX: <title>" and stop. Conflicts with CLAUDE.md → CLAUDE.md wins; say so and stop.
+Log anything unresolved in problems.md under a "## BL-0XX" heading instead of guessing.
+```
+
+---
+
+### BL-042 Manual import replaces Brightspace sync
+**Delete:** `core/providers/lms/`, `core/sync/engine.py`, `tests/test_brightspace.py`, `tests/test_engine.py`, `tests/fakes/session.py`, `tests/fakes/lms.py`, `tests/fixtures/*.json`, `cli/dev.py courses`, `cli/common.open_lms`, doctor's Chromium and Brightspace checks, the Brightspace config fields, the `playwright` dependency, the headless-Chromium dashboard test, and every comment or docstring that mentions Brightspace downloads.
+**Build:** migration v13 (`courses` table; `resources` rebuilt with `resource_id TEXT PRIMARY KEY`, Brightspace columns dropped, old rows copied as `topic:{id}`, `pending` → `failed`, a course backfilled per distinct course with the term parsed from `local_path`); `ResourceRow`/`Manifest` on `resource_id` with `find(course, bucket, filename)`; `CourseRow`/`Courses` in `core/memory/db.py`; `core/sync/importer.py` `Importer.import_file(src, course, name, bucket=None) -> ImportResult(row, outcome)` storing under `{term}/{course}/{bucket}/` and marking a changed linked file `stale`; `classify(title, filename, fallback)`; `link.py` on `resource_id`; `brightlearn sync` link-only (`--course | --all`, `--include-code`); `brightlearn courses list | add CODE --name --term`; `_generated` under `CourseRow.root(storage_root)`. CLAUDE.md, the master spec's decision log and `problems.md` updated in the same commit (see the plan).
+**Acceptance:** suite green with no `playwright` installed; `tests/test_importer.py` covers bucket tree, unchanged re-import, changed → `stale` + `_versions`, explicit bucket, unknown course, store failure; `tests/test_migrations.py` covers a v12 database with file and link rows; `doctor` has no Chromium/Brightspace row; `grep -rni brightspace core cli dashboard tests scripts pyproject.toml` is empty.
+
+### BL-043 Core wiring and the session guard
+**Build:** `core/wiring.py` replaces `cli/common.py` (straight move of `MODEL_PROVIDERS`, `open_model`, `model_providers`, `knowledge`, `open_knowledge`, `router`, `session_end_hook`, `challenge_runner`, plus `tutor(config, conn, knowledge, providers, course, persona) -> Tutor` lifted from `cli/tutor.py`); tests patch `core.wiring`. `core/sessions.py`: `SessionOpen` and `guard(learner, course, now=None)`; `cli/sessions.refuse_if_session_open` wraps it with the same Rich output. `core/doctor.py` takes `Status`, `Check`, `check_*`, `checks`, `run_checks`; `cli/doctor.py` keeps `doctor()`. `core/exams/spec.find_spec(vault_root, course, name)` from `cli/podcast._find_spec`.
+**Acceptance:** no `cli/common.py`; `grep -rn "from cli" core` is empty; suite green.
+
+### BL-044 API skeleton, system routes and `brightlearn web`
+**Build:** package `api/` (hatch `packages`); deps `fastapi`, `uvicorn`, `python-multipart`, dev `httpx`. `api/engine.py`: `Resources` (config, conn, knowledge, providers, router; what one worker thread owns), `Worker` (daemon thread + queue; `submit`, `call`, `close`), `Job`/`Jobs` (in-memory registry: `submit(kind, course, fn)`, `get`, `all`, `running(course, kinds)`), `CONVERSATION_JOBS = {"exam_create", "seed"}`, `JobRunning`, `Engine(config, open_resources)` with `interactive` and `jobs` workers, `tutors: dict[str, Tutor]`, `start`, `close`, `live_sessions`, `drain`. Routes are plain `def`; list/get routes use a per-request connection (`api/deps.db`). `api/app.py create_app(config=None, engine=None)` with lifespan, `/api` prefix, `register_errors` (`SessionOpen`/`JobRunning` → 409 with a `code`; domain errors → 422; `KnowledgeError`/`ModelError` → 502 with `provider` and `resets_at`; `FileNotFoundError` → 404), `mount_web` last. `api/schemas/` one module per router, pydantic with `from_core`. `api/static.py` serves `web/dist` with SPA fallback and a one-line "not built" message. `api/routes/system.py`: health, personas, dashboard, doctor, jobs. `cli/web.py`: `web --port 8765 --open/--no-open` (uvicorn on 127.0.0.1). `cli/dev.py openapi`.
+**Acceptance:** `tests/conftest.py` `api` fixture (Engine with fake resources, `TestClient`); `tests/test_api_engine.py` (one thread per worker, failed job carries its error, `drain`, idempotent `close`); `tests/test_api_system.py` (health, personas, dashboard, doctor, static mount with and without a tmp dist); `test_principles` scans `api/`; `brightlearn web --no-open` serves `/api/health` and the not-built line at `/`.
+
+### BL-045 Courses, sources and chat routes
+**Build:** `api/routes/courses.py` (list with counts and live session, create with 409 on duplicate), `api/routes/sources.py` (list; multipart upload staged under `tmp_dir/{uuid}`, imported with `Importer`, then a `link` job; retry link), `api/routes/chat.py` (session start/get/turn/end on the interactive worker; `ask` through the live tutor's `ground` or a fresh `knowledge.query` behind `guard`; sessions list with `open|stale|ended`; transcript; close with 409 when live). P66 holds both ways: a start refuses while a conversation job runs, and conversation jobs refuse while a session is open. Schemas per the plan's route table.
+**Acceptance:** `tests/test_api_courses_sources.py` and `tests/test_api_chat.py` as listed in the plan, including both 409 cases and the in-session `ground` conversation check; an uploaded file lands under `storage_root/{term}/{course}/{bucket}/` and is linked by the job.
+
+### BL-046 Studio routes
+**Build:** `api/routes/concepts.py` (list with mastery, evidence, seed job, drafts list/get/put, apply), `api/routes/exams.py` (list/get, create job from `spec_yaml`, markdown, take/answer/skip/finish on the file with a 409 once the attempt is finished and a `QuestionOut` built from an explicit key list so `answer`/`rubric` never leak, grade job), `api/routes/podcasts.py` (generate job, list, audio `FileResponse`, brief). Ids and draft names validated against `[A-Za-z0-9._-]+`.
+**Acceptance:** `tests/test_api_studio.py` as listed in the plan; `take` has no `answer`/`rubric` keys; `..` ids → 404.
+
+### BL-047 Web scaffold, shell and Sources pane
+Two commits: `BL-047: Web scaffold and shell`, then `BL-047: Sources pane`.
+**Build (shell):** `web/` with Vite + React 19 + TS strict + Tailwind v4 + shadcn/ui (`button, card, badge, checkbox, input, textarea, select, dialog, sheet, popover, scroll-area, tooltip, skeleton, sonner`), `react-router`, `@tanstack/react-query`, `openapi-fetch` client over generated `src/api/types.ts`, `react-markdown` + `remark-gfm`, `lucide-react`. Semantic tokens `--success`, `--warning`, `--pending` for both themes. Shared components `TopBar`, `ThemeToggle`, `HealthDots`, `JobsIndicator`, `Markdown`, `LevelBar`, `StateBadge`, `Pending`, `EmptyState`, `JobRow`, `Rail`. `HomePage` course grid with `NewCourseDialog`; `CoursePage` chat-first shell with collapsible rails (sheets below `lg`) and placeholder panes; `SystemPage` doctor table and dashboard sections. Vite proxies `/api` to 8765. `web/openapi.json` and `tests/test_api_openapi.py` land here.
+**Build (sources):** `SourcesPane`, `SourceRow` (whole-row toggle, ≥ 40 px, bucket badge, `StateBadge` with explanatory tooltip), `UploadDropzone` (drag-drop plus button and file input, accepted types listed, optional bucket, per-file `Pending`), `LinkJobBar` with retry; `useJob` polling with the per-kind invalidation map.
+**Acceptance:** `pnpm --dir web typecheck && pnpm --dir web build`; `brightlearn web` serves the app; courses listed in light and dark; rails collapse and open as sheets at phone width; two dropped PDFs show pending then linked; a new course shows the empty states.
+
+### BL-048 Chat pane
+**Build:** one message stream driven by session state: `SessionBanner` (start with persona, live state with End and a History popover with Close for stale and a Transcript dialog), `ProbeBanner` with Skip, `MessageList` with `PendingMessage` (step and elapsed time), `ErrorMessage` (provider, reason, reset time), `CitationChips` as popover buttons, `RateButtons`, `Composer` (Enter sends, Shift+Enter newline, disabled in flight, "sources only" toggle mapping to `/ask` while a session is live). 409 `session_open` offers close-stale in place. Empty state when nothing is linked.
+**Acceptance:** start → turn → rate → probe → skip → end completes against the fakes-backed dev server; the pending bubble shows elapsed time; a forced provider error shows the reset time; chips open by click and keyboard.
+
+### BL-049 Studio pane
+**Build:** `StudioPane` with four cards in this order: `MasteryCard` (weakest five, `LevelBar`, counts per level), `PracticeExamCard` (new exam from a YAML editor view with inline 422 errors; rows; Take → `ExamTakeView` at `/courses/:course/exams/:id/take` with one question at a time, radio buttons, textareas, monospace for coding, Skip/Finish, resume; Grade → `JobRow`; Paper dialog), `AudioOverviewCard` (format/length/exam, Generate → `JobRow`, `<audio controls>`, Brief dialog), `ConceptsCard` (Seed → `JobRow`, drafts → `DraftEditor` view with the seed diff, Save with inline YAML errors, Apply with counts). Every card has an empty state.
+**Acceptance:** seed → edit → apply, create → take → grade, and podcast generate → play each complete from the browser with inline job rows; empty states on a fresh course; the take view resumes after a reload.
+
+### BL-050 Docs and validation for the new workflow
+**Build:** `CLAUDE.md` (layout adds `api/` and `web/`; conventions add the contract step and the web checks; decision-log row for the web architecture), `docs/validation-log.md` rewritten for the manual flow (NotebookLM login + doctor; `brightlearn web`, create CSE220, upload; spike C + `nlm-test`; capture CLI outputs; model-test; concepts; tutor session; exam; podcast), `README.md` (what, setup, where data lives).
+**Acceptance:** every command named in the log exists; `/code-review` on the docs diff is clean.
+
+---
+
+## Still not ticketed
+Zoom `Link` topics · concept extraction with a model instead of keywords · export of an exam to PDF · `PRAGMA journal_mode=WAL` if "database is locked" ever appears · a second long-job worker · CLI `import` for batch uploads · API-key `ModelProvider` for a future multi-user build.
