@@ -1,0 +1,4045 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "BrightLearn",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/health": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Health",
+    "description": "Answers once the database opens, which is what every other route needs too.",
+    "operationId": "health_api_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/personas": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "List Personas",
+    "operationId": "list_personas_api_personas_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PersonaOut"
+         },
+         "type": "array",
+         "title": "Response List Personas Api Personas Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/dashboard": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Dashboard",
+    "operationId": "dashboard_api_dashboard_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DashboardOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/doctor": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Run Doctor",
+    "description": "Read-only, like ``brightlearn doctor``: no check spends quota or changes anything.",
+    "operationId": "run_doctor_api_doctor_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/CheckOut"
+         },
+         "type": "array",
+         "title": "Response Run Doctor Api Doctor Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/jobs": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "List Jobs",
+    "operationId": "list_jobs_api_jobs_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/JobOut"
+         },
+         "title": "Response List Jobs Api Jobs Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/jobs/{job_id}": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Get Job",
+    "operationId": "get_job_api_jobs__job_id__get",
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Job Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JobOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses": {
+   "get": {
+    "tags": [
+     "courses"
+    ],
+    "summary": "List Courses",
+    "operationId": "list_courses_api_courses_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/CourseOut"
+         },
+         "type": "array",
+         "title": "Response List Courses Api Courses Get"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "courses"
+    ],
+    "summary": "Create Course",
+    "description": "A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a\n422, both raised by ``Courses.add``.",
+    "operationId": "create_course_api_courses_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CourseIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CourseOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The course already exists (`duplicate_course`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/sources": {
+   "get": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "List Sources",
+    "description": "Oldest upload first, the order the link step fills NotebookLM's slots in.",
+    "operationId": "list_sources_api_courses__course__sources_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/SourceOut"
+         },
+         "title": "Response List Sources Api Courses  Course  Sources Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/sources/upload": {
+   "post": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Upload",
+    "description": "Store each file in its bucket (``bucket`` for all of them, else classified by name), then\nqueue one link job. An unknown bucket is a 422 before anything is stored; a file that can't\nbe stored (a name too long, say) is a 422 with the files before it stored and no link job\nqueued, which a retry of the link picks up.",
+    "operationId": "upload_api_courses__course__sources_upload_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_upload_api_courses__course__sources_upload_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UploadOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "A link job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/sources/link": {
+   "post": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Link",
+    "description": "The retry: the link step adds every stored file NotebookLM doesn't have yet and replaces\nthe stale ones, so running it again picks up whatever failed last time. While a link job is\nalready queued or running on the course, that job is returned rather than a second queued:\nuploads are refused until it ends, so it has every stored file a second one would.",
+    "operationId": "link_api_courses__course__sources_link_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JobOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/session": {
+   "post": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "Start Session",
+    "description": "409 ``session_open`` while any session is open on the course (this server's, a CLI one,\nor a stale one to close), 409 ``job_running`` during a seed or exam-create job.",
+    "operationId": "start_session_api_courses__course__session_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/SessionStartIn"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LiveSessionOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "A tutor session is open on the course (`session_open`; `session_id`, `stale`); or a seed or exam-create job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "Get Session",
+    "description": "The live session, or null; on the interactive worker, the only thread that touches a\ntutor.",
+    "operationId": "get_session_api_courses__course__session_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/LiveSessionOut"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Get Session Api Courses  Course  Session Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/session/turn": {
+   "post": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "Turn",
+    "description": "One REPL line, exactly as ``brightlearn tutor`` reads it; ``/end`` ends the session.",
+    "operationId": "turn_api_courses__course__session_turn_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TurnIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TurnOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/session/end": {
+   "post": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "End Session",
+    "description": "Ends the session and runs the Analyzer on its transcript, which can take minutes.",
+    "operationId": "end_session_api_courses__course__session_end_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TurnOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/ask": {
+   "post": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "Ask",
+    "description": "Inside a live session, the tutor's ``/ask`` in the session's own conversation. Otherwise a\nfresh conversation, which deletes the course's latest one, so only when no session is open\nand no seed or exam job is about to start one; and none can be submitted until it returns.",
+    "operationId": "ask_api_courses__course__ask_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AskIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AskOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "A tutor session is open on the course (`session_open`; `session_id`, `stale`); or a seed or exam-create job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/sessions": {
+   "get": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "List Sessions",
+    "description": "Newest first.",
+    "operationId": "list_sessions_api_courses__course__sessions_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/SessionOut"
+         },
+         "title": "Response List Sessions Api Courses  Course  Sessions Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sessions/{session_id}/transcript": {
+   "get": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "Transcript",
+    "description": "The Markdown transcript, also after ``maintain`` has archived it. Only ids with a row are\nlooked up, so the id can't name another file.",
+    "operationId": "transcript_api_sessions__session_id__transcript_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sessions/{session_id}/close": {
+   "post": {
+    "tags": [
+     "chat"
+    ],
+    "summary": "Close Session",
+    "description": "Marks a session ended without running the Analyzer, as ``brightlearn sessions close``\ndoes: for one whose tutor is gone (a crash, a restart, a CLI session). This server's live\nsession is a 409 ``session_live``: end it instead, which runs the Analyzer. Checked and\nclosed under the lock a session start holds from writing its row to registering its tutor,\nso a session that is starting can't be closed before it shows as live.",
+    "operationId": "close_session_api_sessions__session_id__close_post",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The session is live in this server: end it instead (`session_live`; `session_id`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts": {
+   "get": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "List Concepts",
+    "description": "Active concepts unless asked: a retired one keeps its row, mastery and evidence but drops\nout of every list (BL-040).",
+    "operationId": "list_concepts_api_courses__course__concepts_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     },
+     {
+      "name": "include_retired",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Include Retired"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ConceptOut"
+         },
+         "title": "Response List Concepts Api Courses  Course  Concepts Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts/evidence": {
+   "get": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "List Evidence",
+    "operationId": "list_evidence_api_courses__course__concepts_evidence_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     },
+     {
+      "name": "concept_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Concept Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/EvidenceOut"
+         },
+         "title": "Response List Evidence Api Courses  Course  Concepts Evidence Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts/seed": {
+   "post": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "Seed Concepts",
+    "description": "The seed query starts a fresh NotebookLM conversation, which would end a live tutor's\n(P66) or an ask's still being answered (P100): refuse now, under the lock a session start\nand an ask take, so neither slips past the other.",
+    "operationId": "seed_concepts_api_courses__course__concepts_seed_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JobOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "A tutor session is open on the course (`session_open`; `session_id`, `stale`); or a question to the course's sources is being answered (`ask_running`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts/drafts": {
+   "get": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "List Course Drafts",
+    "description": "Newest first.",
+    "operationId": "list_course_drafts_api_courses__course__concepts_drafts_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DraftOut"
+         },
+         "title": "Response List Course Drafts Api Courses  Course  Concepts Drafts Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts/drafts/{name}": {
+   "get": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "Get Draft",
+    "operationId": "get_draft_api_courses__course__concepts_drafts__name__get",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Name"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "Save Draft",
+    "description": "The review step: the learner's edit replaces the draft, as saving it in an editor would.\nA draft apply couldn't load is refused (422) and the file is left as it was.",
+    "operationId": "save_draft_api_courses__course__concepts_drafts__name__put",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Name"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TextIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DraftOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts/drafts/{name}/diff": {
+   "get": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "Draft Changes",
+    "description": "A unified diff from the draft before this one (\"\" for the first), as the seed job showed\nit, so the editor can show it again after a restart. It follows any edits since.",
+    "operationId": "draft_changes_api_courses__course__concepts_drafts__name__diff_get",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Name"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/concepts/apply": {
+   "post": {
+    "tags": [
+     "concepts"
+    ],
+    "summary": "Apply Draft",
+    "description": "Load a reviewed draft (the newest unless one is named); a draft still marked\n``reviewed: false`` is a 422, like the CLI's refusal.",
+    "operationId": "apply_draft_api_courses__course__concepts_apply_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ApplyIn"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApplyOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams": {
+   "get": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "List Exams",
+    "description": "Newest first. A file that isn't an exam is skipped, not a 422 for the whole list.",
+    "operationId": "list_exams_api_courses__course__exams_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ExamOut"
+         },
+         "title": "Response List Exams Api Courses  Course  Exams Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Create Exam",
+    "description": "The spec is checked now (422), so a typo never waits behind a podcast. Its grounding\nqueries start fresh NotebookLM conversations (P66), so a course with an open tutor session,\nor an ask still being answered (P100), is refused, under the lock a session start and an\nask take.",
+    "operationId": "create_exam_api_courses__course__exams_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExamCreateIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JobOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "A tutor session is open on the course (`session_open`; `session_id`, `stale`); or a question to the course's sources is being answered (`ask_running`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/template": {
+   "get": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Exam Template",
+    "description": "A spec to start from, for the new-exam editor. Declared before ``/exams/{exam_id}``,\nwhich would otherwise take \"template\" for an exam id (no exam file is named that).",
+    "operationId": "exam_template_api_courses__course__exams_template_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}": {
+   "get": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Get Exam",
+    "operationId": "get_exam_api_courses__course__exams__exam_id__get",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExamOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/markdown": {
+   "get": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Exam Markdown",
+    "description": "The printable paper, answer key and rubrics included (after a rule).",
+    "operationId": "exam_markdown_api_courses__course__exams__exam_id__markdown_get",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/take": {
+   "get": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Attempt State",
+    "description": "The latest attempt as it stands, read only: unlike POST, it never opens an attempt, so\nthe take view can reload freely. The file is replaced whole on every write, so a read\nnever sees half of one.",
+    "operationId": "attempt_state_api_courses__course__exams__exam_id__take_get",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Take Exam",
+    "description": "Resume the unfinished attempt, or start the next one after a finished attempt.",
+    "operationId": "take_exam_api_courses__course__exams__exam_id__take_post",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "A grade job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/take/answer": {
+   "post": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Answer Question",
+    "description": "Answer the current question; a multiple-choice reply that picks no option is a 422.",
+    "operationId": "answer_question_api_courses__course__exams__exam_id__take_answer_post",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AnswerIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The exam has no unfinished attempt (`no_open_attempt`); or a grade job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/take/skip": {
+   "post": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Skip Question",
+    "operationId": "skip_question_api_courses__course__exams__exam_id__take_skip_post",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The exam has no unfinished attempt (`no_open_attempt`); or a grade job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/take/finish": {
+   "post": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Finish Attempt",
+    "description": "Hand the attempt in; questions not answered yet are graded as skipped.",
+    "operationId": "finish_attempt_api_courses__course__exams__exam_id__take_finish_post",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The exam has no unfinished attempt (`no_open_attempt`); or a grade job is queued or running on the course (`job_running`; `job_id`, `kind`)"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/grade": {
+   "post": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Grade Exam",
+    "description": "Only a handed-in attempt is queued (422 otherwise): a job the grader would refuse would\nstill hold up every take step on the course until its turn came, perhaps behind a podcast.\nChecked under the lock the take steps hold, so the attempt can't change in between.",
+    "operationId": "grade_exam_api_courses__course__exams__exam_id__grade_post",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JobOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/exams/{exam_id}/results": {
+   "get": {
+    "tags": [
+     "exams"
+    ],
+    "summary": "Exam Results",
+    "description": "The latest graded attempt, question by question with the reference answers, and per\nconcept as the file recorded it; 404 until an attempt is graded.",
+    "operationId": "exam_results_api_courses__course__exams__exam_id__results_get",
+    "parameters": [
+     {
+      "name": "exam_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Exam Id"
+      }
+     },
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResultsOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/podcast": {
+   "post": {
+    "tags": [
+     "podcasts"
+    ],
+    "summary": "Generate Podcast",
+    "description": "``exam`` names an exam already created, looked up in the vault only: unlike the CLI's\n``--exam``, never a spec file's path, since a web page has no business naming files here.\nAn unknown one is a 422 now, not a failed job twenty minutes from now. No session guard:\ngenerating audio starts no conversation, as with the CLI.",
+    "operationId": "generate_podcast_api_courses__course__podcast_post",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/PodcastIn"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JobOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/courses/{course}/podcasts": {
+   "get": {
+    "tags": [
+     "podcasts"
+    ],
+    "summary": "List Podcasts",
+    "description": "Newest first.",
+    "operationId": "list_podcasts_api_courses__course__podcasts_get",
+    "parameters": [
+     {
+      "name": "course",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Course"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/EpisodeOut"
+         },
+         "title": "Response List Podcasts Api Courses  Course  Podcasts Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/podcasts/{podcast_id}/audio": {
+   "get": {
+    "tags": [
+     "podcasts"
+    ],
+    "summary": "Podcast Audio",
+    "description": "NotebookLM's Audio Overviews are .m4a, so ``<audio>`` gets ``audio/mp4``.",
+    "operationId": "podcast_audio_api_podcasts__podcast_id__audio_get",
+    "parameters": [
+     {
+      "name": "podcast_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Podcast Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "The episode's audio",
+      "content": {
+       "audio/mp4": {}
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/podcasts/{podcast_id}/brief": {
+   "get": {
+    "tags": [
+     "podcasts"
+    ],
+    "summary": "Podcast Brief",
+    "description": "The instructions the episode was generated from.",
+    "operationId": "podcast_brief_api_podcasts__podcast_id__brief_get",
+    "parameters": [
+     {
+      "name": "podcast_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Podcast Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "AnswerIn": {
+    "properties": {
+     "reply": {
+      "type": "string",
+      "title": "Reply"
+     }
+    },
+    "type": "object",
+    "required": [
+     "reply"
+    ],
+    "title": "AnswerIn"
+   },
+   "ApplyIn": {
+    "properties": {
+     "draft": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Draft"
+     }
+    },
+    "type": "object",
+    "title": "ApplyIn"
+   },
+   "ApplyOut": {
+    "properties": {
+     "draft": {
+      "type": "string",
+      "title": "Draft"
+     },
+     "added": {
+      "type": "integer",
+      "title": "Added"
+     },
+     "updated": {
+      "type": "integer",
+      "title": "Updated"
+     },
+     "unchanged": {
+      "type": "integer",
+      "title": "Unchanged"
+     },
+     "retired": {
+      "type": "integer",
+      "title": "Retired"
+     },
+     "retired_names": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Retired Names"
+     },
+     "unknown_prerequisites": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Unknown Prerequisites"
+     }
+    },
+    "type": "object",
+    "required": [
+     "draft",
+     "added",
+     "updated",
+     "unchanged",
+     "retired",
+     "retired_names",
+     "unknown_prerequisites"
+    ],
+    "title": "ApplyOut"
+   },
+   "AskIn": {
+    "properties": {
+     "question": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Question"
+     },
+     "source_ids": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Ids"
+     }
+    },
+    "type": "object",
+    "required": [
+     "question"
+    ],
+    "title": "AskIn"
+   },
+   "AskOut": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "citations": {
+      "items": {
+       "$ref": "#/components/schemas/CitationOut"
+      },
+      "type": "array",
+      "title": "Citations"
+     },
+     "in_session": {
+      "type": "boolean",
+      "title": "In Session"
+     }
+    },
+    "type": "object",
+    "required": [
+     "text",
+     "citations",
+     "in_session"
+    ],
+    "title": "AskOut",
+    "description": "Inside a live session the answer comes from the tutor's ``ground``, which already\nwrites its citations into ``text``, so ``citations`` is empty and ``in_session`` is set."
+   },
+   "AttemptOut": {
+    "properties": {
+     "attempt": {
+      "type": "integer",
+      "title": "Attempt"
+     },
+     "started_at": {
+      "type": "string",
+      "title": "Started At"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "answered": {
+      "type": "integer",
+      "title": "Answered"
+     },
+     "skipped": {
+      "type": "integer",
+      "title": "Skipped"
+     },
+     "graded": {
+      "type": "integer",
+      "title": "Graded"
+     },
+     "correct": {
+      "type": "integer",
+      "title": "Correct"
+     }
+    },
+    "type": "object",
+    "required": [
+     "attempt",
+     "started_at",
+     "finished_at",
+     "answered",
+     "skipped",
+     "graded",
+     "correct"
+    ],
+    "title": "AttemptOut"
+   },
+   "BenchmarkOut": {
+    "properties": {
+     "provider": {
+      "type": "string",
+      "title": "Provider"
+     },
+     "task_type": {
+      "type": "string",
+      "title": "Task Type"
+     },
+     "accuracy": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Accuracy"
+     },
+     "groundedness": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Groundedness"
+     },
+     "format_compliance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Format Compliance"
+     },
+     "latency_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency Ms"
+     },
+     "learner_rating": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Learner Rating"
+     },
+     "sample_count": {
+      "type": "integer",
+      "title": "Sample Count"
+     },
+     "score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Score"
+     }
+    },
+    "type": "object",
+    "required": [
+     "provider",
+     "task_type",
+     "accuracy",
+     "groundedness",
+     "format_compliance",
+     "latency_ms",
+     "learner_rating",
+     "sample_count",
+     "score"
+    ],
+    "title": "BenchmarkOut"
+   },
+   "Body_upload_api_courses__course__sources_upload_post": {
+    "properties": {
+     "files": {
+      "items": {
+       "type": "string",
+       "contentMediaType": "application/octet-stream"
+      },
+      "type": "array",
+      "title": "Files"
+     },
+     "bucket": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bucket"
+     }
+    },
+    "type": "object",
+    "required": [
+     "files"
+    ],
+    "title": "Body_upload_api_courses__course__sources_upload_post"
+   },
+   "CheckOut": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "status": {
+      "$ref": "#/components/schemas/Status"
+     },
+     "detail": {
+      "type": "string",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "status",
+     "detail"
+    ],
+    "title": "CheckOut"
+   },
+   "CitationOut": {
+    "properties": {
+     "n": {
+      "type": "integer",
+      "title": "N"
+     },
+     "source_id": {
+      "type": "string",
+      "title": "Source Id"
+     },
+     "filename": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Filename"
+     },
+     "bucket": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bucket"
+     },
+     "excerpt": {
+      "type": "string",
+      "title": "Excerpt"
+     }
+    },
+    "type": "object",
+    "required": [
+     "n",
+     "source_id",
+     "filename",
+     "bucket",
+     "excerpt"
+    ],
+    "title": "CitationOut"
+   },
+   "ConceptOut": {
+    "properties": {
+     "concept_id": {
+      "type": "string",
+      "title": "Concept Id"
+     },
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "module": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Module"
+     },
+     "prerequisites": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Prerequisites"
+     },
+     "exam_tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Exam Tags"
+     },
+     "week": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Week"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "active",
+       "retired"
+      ],
+      "title": "Status"
+     },
+     "level": {
+      "type": "integer",
+      "title": "Level"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "evidence_count": {
+      "type": "integer",
+      "title": "Evidence Count"
+     },
+     "retention_confidence": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Retention Confidence"
+     },
+     "last_evidence_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Evidence At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "concept_id",
+     "course",
+     "name",
+     "module",
+     "prerequisites",
+     "exam_tags",
+     "week",
+     "status",
+     "level",
+     "confidence",
+     "evidence_count",
+     "retention_confidence",
+     "last_evidence_at"
+    ],
+    "title": "ConceptOut",
+    "description": "A concept and its mastery; one with no evidence yet reads as level 0."
+   },
+   "ConceptScoreOut": {
+    "properties": {
+     "concept_id": {
+      "type": "string",
+      "title": "Concept Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "correct": {
+      "type": "integer",
+      "title": "Correct"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "level_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Level Before"
+     },
+     "level_after": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Level After"
+     }
+    },
+    "type": "object",
+    "required": [
+     "concept_id",
+     "name",
+     "correct",
+     "total",
+     "level_before",
+     "level_after"
+    ],
+    "title": "ConceptScoreOut"
+   },
+   "CourseIn": {
+    "properties": {
+     "course": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Course"
+     },
+     "name": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Name"
+     },
+     "term": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Term"
+     }
+    },
+    "type": "object",
+    "required": [
+     "course",
+     "name"
+    ],
+    "title": "CourseIn"
+   },
+   "CourseOut": {
+    "properties": {
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "term": {
+      "type": "string",
+      "title": "Term"
+     },
+     "created_at": {
+      "type": "string",
+      "title": "Created At"
+     },
+     "sources": {
+      "type": "integer",
+      "title": "Sources"
+     },
+     "linked": {
+      "type": "integer",
+      "title": "Linked"
+     },
+     "concepts": {
+      "type": "integer",
+      "title": "Concepts"
+     },
+     "open_session_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Open Session Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "course",
+     "name",
+     "term",
+     "created_at",
+     "sources",
+     "linked",
+     "concepts",
+     "open_session_id"
+    ],
+    "title": "CourseOut"
+   },
+   "DashboardOut": {
+    "properties": {
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "today": {
+      "items": {
+       "$ref": "#/components/schemas/ProviderRunsOut"
+      },
+      "type": "array",
+      "title": "Today"
+     },
+     "week": {
+      "items": {
+       "$ref": "#/components/schemas/ProviderRunsOut"
+      },
+      "type": "array",
+      "title": "Week"
+     },
+     "health": {
+      "items": {
+       "$ref": "#/components/schemas/ProviderHealthOut"
+      },
+      "type": "array",
+      "title": "Health"
+     },
+     "benchmarks": {
+      "items": {
+       "$ref": "#/components/schemas/BenchmarkOut"
+      },
+      "type": "array",
+      "title": "Benchmarks"
+     },
+     "artifacts_week": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Artifacts Week"
+     },
+     "artifacts_total": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Artifacts Total"
+     },
+     "podcasts": {
+      "type": "integer",
+      "title": "Podcasts"
+     },
+     "sync": {
+      "additionalProperties": {
+       "additionalProperties": {
+        "type": "integer"
+       },
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Sync"
+     },
+     "weakest": {
+      "items": {
+       "$ref": "#/components/schemas/WeakConceptOut"
+      },
+      "type": "array",
+      "title": "Weakest"
+     }
+    },
+    "type": "object",
+    "required": [
+     "generated_at",
+     "today",
+     "week",
+     "health",
+     "benchmarks",
+     "artifacts_week",
+     "artifacts_total",
+     "podcasts",
+     "sync",
+     "weakest"
+    ],
+    "title": "DashboardOut",
+    "description": "``dashboard.data.DashboardData``, field for field."
+   },
+   "DraftOut": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "reviewed": {
+      "type": "boolean",
+      "title": "Reviewed"
+     },
+     "latest": {
+      "type": "boolean",
+      "title": "Latest"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "reviewed",
+     "latest"
+    ],
+    "title": "DraftOut",
+    "description": "A concept draft in the course's vault folder; ``latest`` is what apply loads by default."
+   },
+   "EpisodeOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "concepts": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Concepts"
+     },
+     "created_at": {
+      "type": "string",
+      "title": "Created At"
+     },
+     "audio_url": {
+      "type": "string",
+      "title": "Audio Url"
+     },
+     "brief_url": {
+      "type": "string",
+      "title": "Brief Url"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "course",
+     "concepts",
+     "created_at",
+     "audio_url",
+     "brief_url"
+    ],
+    "title": "EpisodeOut"
+   },
+   "EvidenceOut": {
+    "properties": {
+     "evidence_id": {
+      "type": "string",
+      "title": "Evidence Id"
+     },
+     "concept_id": {
+      "type": "string",
+      "title": "Concept Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     },
+     "type": {
+      "type": "string",
+      "title": "Type"
+     },
+     "strength": {
+      "type": "string",
+      "title": "Strength"
+     },
+     "source_provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Provider"
+     },
+     "excerpt_ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Excerpt Ref"
+     },
+     "recorded_at": {
+      "type": "string",
+      "title": "Recorded At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "evidence_id",
+     "concept_id",
+     "session_id",
+     "type",
+     "strength",
+     "source_provider",
+     "excerpt_ref",
+     "recorded_at"
+    ],
+    "title": "EvidenceOut"
+   },
+   "ExamCreateIn": {
+    "properties": {
+     "spec_yaml": {
+      "type": "string",
+      "title": "Spec Yaml"
+     }
+    },
+    "type": "object",
+    "required": [
+     "spec_yaml"
+    ],
+    "title": "ExamCreateIn"
+   },
+   "ExamOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "exam": {
+      "type": "string",
+      "title": "Exam"
+     },
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "created_at": {
+      "type": "string",
+      "title": "Created At"
+     },
+     "mode": {
+      "type": "string",
+      "title": "Mode"
+     },
+     "questions": {
+      "type": "integer",
+      "title": "Questions"
+     },
+     "review": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Review"
+     },
+     "attempts": {
+      "items": {
+       "$ref": "#/components/schemas/AttemptOut"
+      },
+      "type": "array",
+      "title": "Attempts"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "exam",
+     "course",
+     "created_at",
+     "mode",
+     "questions",
+     "review",
+     "attempts"
+    ],
+    "title": "ExamOut",
+    "description": "An exam file's summary; no question text, so no answer can leak through it."
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "HealthOut": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "title": "Ok"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version"
+     }
+    },
+    "type": "object",
+    "required": [
+     "ok",
+     "version",
+     "schema_version"
+    ],
+    "title": "HealthOut"
+   },
+   "JobOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "link",
+       "seed",
+       "exam_create",
+       "exam_grade",
+       "podcast"
+      ],
+      "title": "Kind"
+     },
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "queued",
+       "running",
+       "done",
+       "failed"
+      ],
+      "title": "Status"
+     },
+     "created_at": {
+      "type": "string",
+      "title": "Created At"
+     },
+     "started_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started At"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "result": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Result"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "kind",
+     "course",
+     "status",
+     "created_at",
+     "started_at",
+     "finished_at",
+     "result",
+     "error"
+    ],
+    "title": "JobOut",
+    "description": "A queued or finished job; the UI polls ``/api/jobs/{id}`` until ``done`` or ``failed``."
+   },
+   "LiveSessionOut": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "title": "Session Id"
+     },
+     "persona": {
+      "type": "string",
+      "title": "Persona"
+     },
+     "started_at": {
+      "type": "string",
+      "title": "Started At"
+     },
+     "turns": {
+      "items": {
+       "$ref": "#/components/schemas/MessageOut"
+      },
+      "type": "array",
+      "title": "Turns"
+     },
+     "probe": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ProbeOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "ended": {
+      "type": "boolean",
+      "title": "Ended"
+     },
+     "ratable": {
+      "type": "boolean",
+      "title": "Ratable"
+     }
+    },
+    "type": "object",
+    "required": [
+     "session_id",
+     "persona",
+     "started_at",
+     "turns",
+     "probe",
+     "ended",
+     "ratable"
+    ],
+    "title": "LiveSessionOut",
+    "description": "The tutor this server holds for a course. ``turns`` are the tutoring exchanges the\ntutor remembers; probes, ``/ask`` answers and command replies are in the transcript."
+   },
+   "MessageOut": {
+    "properties": {
+     "role": {
+      "type": "string",
+      "enum": [
+       "learner",
+       "tutor"
+      ],
+      "title": "Role"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     }
+    },
+    "type": "object",
+    "required": [
+     "role",
+     "text"
+    ],
+    "title": "MessageOut"
+   },
+   "PersonaOut": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "group": {
+      "type": "string",
+      "title": "Group"
+     },
+     "task_types": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Task Types"
+     },
+     "min_anchor_level": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Min Anchor Level"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "group",
+     "task_types",
+     "min_anchor_level"
+    ],
+    "title": "PersonaOut"
+   },
+   "PodcastIn": {
+    "properties": {
+     "exam": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exam"
+     },
+     "format": {
+      "type": "string",
+      "enum": [
+       "brief",
+       "deep-dive",
+       "critique",
+       "debate"
+      ],
+      "title": "Format",
+      "default": "deep-dive"
+     },
+     "length": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "short",
+         "default",
+         "long"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Length"
+     }
+    },
+    "type": "object",
+    "title": "PodcastIn"
+   },
+   "ProbeOut": {
+    "properties": {
+     "challenge_id": {
+      "type": "integer",
+      "title": "Challenge Id"
+     },
+     "concept_id": {
+      "type": "string",
+      "title": "Concept Id"
+     },
+     "concept": {
+      "type": "string",
+      "title": "Concept"
+     },
+     "question": {
+      "type": "string",
+      "title": "Question"
+     }
+    },
+    "type": "object",
+    "required": [
+     "challenge_id",
+     "concept_id",
+     "concept",
+     "question"
+    ],
+    "title": "ProbeOut",
+    "description": "A Challenger question waiting for its answer: the next turn's text answers it."
+   },
+   "ProviderHealthOut": {
+    "properties": {
+     "provider": {
+      "type": "string",
+      "title": "Provider"
+     },
+     "state": {
+      "$ref": "#/components/schemas/ProviderState"
+     },
+     "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Checked At"
+     },
+     "cooldown_until": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cooldown Until"
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "required": [
+     "provider",
+     "state",
+     "checked_at",
+     "cooldown_until",
+     "detail"
+    ],
+    "title": "ProviderHealthOut",
+    "description": "What the top bar's health dots show: a cooldown says when a rate limit ends."
+   },
+   "ProviderRunsOut": {
+    "properties": {
+     "provider": {
+      "type": "string",
+      "title": "Provider"
+     },
+     "calls": {
+      "type": "integer",
+      "title": "Calls"
+     },
+     "failures": {
+      "type": "integer",
+      "title": "Failures"
+     },
+     "median_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Median Ms"
+     },
+     "fallbacks": {
+      "type": "integer",
+      "title": "Fallbacks"
+     }
+    },
+    "type": "object",
+    "required": [
+     "provider",
+     "calls",
+     "failures",
+     "median_ms",
+     "fallbacks"
+    ],
+    "title": "ProviderRunsOut"
+   },
+   "ProviderState": {
+    "type": "string",
+    "enum": [
+     "AVAILABLE",
+     "LIMITED",
+     "RATE_LIMITED",
+     "AUTH_EXPIRED",
+     "BROKEN",
+     "DISABLED"
+    ],
+    "title": "ProviderState",
+    "description": "Health states, ordered from healthy to unusable."
+   },
+   "QuestionOut": {
+    "properties": {
+     "index": {
+      "type": "integer",
+      "title": "Index"
+     },
+     "stem": {
+      "type": "string",
+      "title": "Stem"
+     },
+     "options": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Options"
+     },
+     "format": {
+      "type": "string",
+      "enum": [
+       "multiple_choice",
+       "short_answer",
+       "coding"
+      ],
+      "title": "Format"
+     },
+     "difficulty": {
+      "type": "string",
+      "enum": [
+       "easy",
+       "medium",
+       "hard"
+      ],
+      "title": "Difficulty"
+     },
+     "concept_id": {
+      "type": "string",
+      "title": "Concept Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "index",
+     "stem",
+     "options",
+     "format",
+     "difficulty",
+     "concept_id"
+    ],
+    "title": "QuestionOut"
+   },
+   "QuestionResultOut": {
+    "properties": {
+     "index": {
+      "type": "integer",
+      "title": "Index"
+     },
+     "stem": {
+      "type": "string",
+      "title": "Stem"
+     },
+     "options": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Options"
+     },
+     "format": {
+      "type": "string",
+      "enum": [
+       "multiple_choice",
+       "short_answer",
+       "coding"
+      ],
+      "title": "Format"
+     },
+     "concept_id": {
+      "type": "string",
+      "title": "Concept Id"
+     },
+     "your_answer": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Your Answer"
+     },
+     "skipped": {
+      "type": "boolean",
+      "title": "Skipped"
+     },
+     "correct": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Correct"
+     },
+     "feedback": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Feedback"
+     },
+     "reference_answer": {
+      "type": "string",
+      "title": "Reference Answer"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "index",
+     "stem",
+     "options",
+     "format",
+     "concept_id",
+     "your_answer",
+     "skipped",
+     "correct",
+     "feedback",
+     "reference_answer"
+    ],
+    "title": "QuestionResultOut"
+   },
+   "ResultsOut": {
+    "properties": {
+     "exam_id": {
+      "type": "string",
+      "title": "Exam Id"
+     },
+     "attempt": {
+      "type": "integer",
+      "title": "Attempt"
+     },
+     "finished_at": {
+      "type": "string",
+      "title": "Finished At"
+     },
+     "correct": {
+      "type": "integer",
+      "title": "Correct"
+     },
+     "graded": {
+      "type": "integer",
+      "title": "Graded"
+     },
+     "questions": {
+      "items": {
+       "$ref": "#/components/schemas/QuestionResultOut"
+      },
+      "type": "array",
+      "title": "Questions"
+     },
+     "scores": {
+      "items": {
+       "$ref": "#/components/schemas/ConceptScoreOut"
+      },
+      "type": "array",
+      "title": "Scores"
+     }
+    },
+    "type": "object",
+    "required": [
+     "exam_id",
+     "attempt",
+     "finished_at",
+     "correct",
+     "graded",
+     "questions",
+     "scores"
+    ],
+    "title": "ResultsOut",
+    "description": "The latest graded attempt, read back from the exam file."
+   },
+   "SessionOut": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "title": "Session Id"
+     },
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "started_at": {
+      "type": "string",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     },
+     "last_turn_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Turn At"
+     },
+     "tutor_provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tutor Provider"
+     },
+     "analyzer_provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Analyzer Provider"
+     },
+     "state": {
+      "type": "string",
+      "enum": [
+       "open",
+       "stale",
+       "ended"
+      ],
+      "title": "State"
+     },
+     "live": {
+      "type": "boolean",
+      "title": "Live"
+     }
+    },
+    "type": "object",
+    "required": [
+     "session_id",
+     "course",
+     "started_at",
+     "ended_at",
+     "last_turn_at",
+     "tutor_provider",
+     "analyzer_provider",
+     "state",
+     "live"
+    ],
+    "title": "SessionOut",
+    "description": "A ``sessions`` row. ``stale`` is still open (it blocks its course) but idle long enough\nto offer closing; ``live`` is set while this server holds its tutor (end it, don't close)."
+   },
+   "SessionStartIn": {
+    "properties": {
+     "persona": {
+      "type": "string",
+      "title": "Persona",
+      "default": "simplifier"
+     }
+    },
+    "type": "object",
+    "title": "SessionStartIn"
+   },
+   "SourceOut": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "title": "Resource Id"
+     },
+     "filename": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Filename"
+     },
+     "bucket": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bucket"
+     },
+     "size": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Size"
+     },
+     "sync_state": {
+      "type": "string",
+      "enum": [
+       "synced",
+       "stale",
+       "failed",
+       "link",
+       "deferred"
+      ],
+      "title": "Sync State"
+     },
+     "notebook_source_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notebook Source Id"
+     },
+     "linked": {
+      "type": "boolean",
+      "title": "Linked"
+     },
+     "added_at": {
+      "type": "string",
+      "title": "Added At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "resource_id",
+     "filename",
+     "bucket",
+     "size",
+     "sync_state",
+     "notebook_source_id",
+     "linked",
+     "added_at"
+    ],
+    "title": "SourceOut",
+    "description": "``synced`` means stored, not in NotebookLM; ``linked`` says whether NotebookLM has it."
+   },
+   "Status": {
+    "type": "string",
+    "enum": [
+     "ok",
+     "warn",
+     "fail",
+     "not configured"
+    ],
+    "title": "Status"
+   },
+   "TakeOut": {
+    "properties": {
+     "attempt": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Attempt"
+     },
+     "resumed": {
+      "type": "boolean",
+      "title": "Resumed"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "answered": {
+      "type": "integer",
+      "title": "Answered"
+     },
+     "skipped": {
+      "type": "integer",
+      "title": "Skipped"
+     },
+     "finished": {
+      "type": "boolean",
+      "title": "Finished"
+     },
+     "question": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/QuestionOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "attempt",
+     "resumed",
+     "total",
+     "answered",
+     "skipped",
+     "finished",
+     "question"
+    ],
+    "title": "TakeOut",
+    "description": "Where the latest attempt stands. ``question`` is the next one to answer: null once the\nattempt is handed in (``finished``), or when every question has an answer and it can be.\n``attempt`` is null only before the exam was ever taken."
+   },
+   "TextIn": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     }
+    },
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "TextIn",
+    "description": "A text file's new contents (a concept draft)."
+   },
+   "TextOut": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     }
+    },
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "TextOut",
+    "description": "A text file's contents: a transcript, a draft, its diff, an exam paper or a brief."
+   },
+   "TurnIn": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Text"
+     }
+    },
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "TurnIn",
+    "description": "One line of the REPL: a question, or ``/persona x``, ``/rate n``, ``/skip``, ``/ask q``,\n``/end``, ``/help``."
+   },
+   "TurnOut": {
+    "properties": {
+     "reply": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reply"
+     },
+     "ended": {
+      "type": "boolean",
+      "title": "Ended"
+     },
+     "persona": {
+      "type": "string",
+      "title": "Persona"
+     },
+     "probe": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ProbeOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "ratable": {
+      "type": "boolean",
+      "title": "Ratable"
+     }
+    },
+    "type": "object",
+    "required": [
+     "reply",
+     "ended",
+     "persona",
+     "probe",
+     "ratable"
+    ],
+    "title": "TurnOut"
+   },
+   "UploadOut": {
+    "properties": {
+     "imported": {
+      "items": {
+       "$ref": "#/components/schemas/SourceOut"
+      },
+      "type": "array",
+      "title": "Imported"
+     },
+     "job": {
+      "$ref": "#/components/schemas/JobOut"
+     }
+    },
+    "type": "object",
+    "required": [
+     "imported",
+     "job"
+    ],
+    "title": "UploadOut",
+    "description": "The stored files, and the link job that will send them to NotebookLM."
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "WeakConceptOut": {
+    "properties": {
+     "course": {
+      "type": "string",
+      "title": "Course"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "level": {
+      "type": "integer",
+      "title": "Level"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "retention": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Retention"
+     }
+    },
+    "type": "object",
+    "required": [
+     "course",
+     "name",
+     "level",
+     "confidence",
+     "retention"
+    ],
+    "title": "WeakConceptOut"
+   }
+  }
+ }
+}

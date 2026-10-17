@@ -3,21 +3,12 @@ import { useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tans
 import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 
-export type JobKind = "link" | "seed" | "exam_create" | "exam_grade" | "podcast"
-export type JobStatus = "queued" | "running" | "done" | "failed"
+import { api, unwrap } from "@/api/client"
+import type { components } from "@/api/types"
 
-// TODO(BL-047 part 2): replace with the generated JobOut schema from src/api/types.ts.
-export type Job = {
-  id: string
-  kind: JobKind
-  course: string
-  status: JobStatus
-  created_at: string
-  started_at?: string | null
-  finished_at?: string | null
-  result?: Record<string, unknown> | null
-  error?: string | null
-}
+export type Job = components["schemas"]["JobOut"]
+export type JobKind = Job["kind"]
+export type JobStatus = Job["status"]
 
 export const POLL_MS = 2000
 
@@ -56,7 +47,7 @@ export function isActive(job: Job | undefined): boolean {
   return job?.status === "queued" || job?.status === "running"
 }
 
-// Result fields are read defensively until the generated types pin them (BL-047 part 2).
+// A job's result is a free-form object in the contract (`dict[str, Any]`, one shape per kind), so its fields are read defensively.
 function count(result: Job["result"], key: string): number | null {
   const value = result?.[key]
   return typeof value === "number" ? value : null
@@ -100,14 +91,12 @@ export function jobSummary(job: Job): string {
   }
 }
 
-// TODO(BL-047 part 2): once /api/jobs and /api/jobs/{id} are in the generated types, these become
-//   api.GET("/api/jobs") and api.GET("/api/jobs/{id}", { params: { path: { id } } })
-async function fetchJobs(): Promise<Job[]> {
-  throw new Error("GET /api/jobs is not wired yet (BL-047 part 2)")
+function fetchJobs(): Promise<Job[]> {
+  return unwrap(api.GET("/api/jobs"))
 }
 
-async function fetchJob(id: string): Promise<Job> {
-  throw new Error(`GET /api/jobs/${id} is not wired yet (BL-047 part 2)`)
+function fetchJob(id: string): Promise<Job> {
+  return unwrap(api.GET("/api/jobs/{job_id}", { params: { path: { job_id: id } } }))
 }
 
 /** Call with a submit route's job so the watcher sees it queued, even if it finishes before the next poll. */
