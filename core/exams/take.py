@@ -13,6 +13,13 @@ from core.exams.paper import latest_attempt, load, mc_choice, save
 from core.ledger.ledger import utcnow
 
 
+def current_question(exam: dict[str, Any], attempt: dict[str, Any]) -> dict[str, Any] | None:
+    """The first question ``attempt`` hasn't answered or skipped. A function of the file, so the
+    attempt can be shown without an ``ExamTaker``, which opens one."""
+    answers = attempt["answers"]
+    return next((q for q in exam["questions"] if str(q["index"]) not in answers), None)
+
+
 class ExamTaker:
     def __init__(self, path: Path, now: Callable[[], str] = utcnow) -> None:
         self.path = path
@@ -37,9 +44,7 @@ class ExamTaker:
         return self.exam["questions"]
 
     def current(self) -> dict[str, Any] | None:
-        """The first question this attempt hasn't answered or skipped."""
-        answers = self.attempt["answers"]
-        return next((q for q in self.questions if str(q["index"]) not in answers), None)
+        return current_question(self.exam, self.attempt)
 
     def answer(self, reply: str) -> None:
         """Record ``reply`` for the current question. A multiple-choice reply must pick an

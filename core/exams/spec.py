@@ -83,12 +83,31 @@ def load_spec(path: Path) -> ExamSpec:
 def find_spec(vault_root: Path, course: str, name: str) -> ExamSpec:
     """A spec file path, or the spec saved in the newest created exam with that name, so a
     podcast can be framed for an exam without keeping its YAML around."""
-    # paper imports coverage, which imports this module: importing paper at the top is a cycle.
-    from core.exams.paper import exams_dir
-
     path = Path(name).expanduser()
     if path.is_file():
         return load_spec(path)
+    spec = _saved(vault_root, course, name)
+    if spec is None:
+        raise SpecError(
+            f"No spec file {name!r} and no created {course} exam named {name!r}; "
+            "pass a spec YAML path or run `brightlearn exam create` first."
+        )
+    return spec
+
+
+def saved_spec(vault_root: Path, course: str, name: str) -> ExamSpec:
+    """The spec saved in the newest created exam with that name, and never a file the caller
+    names: what the API offers, since a web page has no business naming files here."""
+    spec = _saved(vault_root, course, name)
+    if spec is None:
+        raise SpecError(f"No created {course} exam named {name!r}; create the exam first.")
+    return spec
+
+
+def _saved(vault_root: Path, course: str, name: str) -> ExamSpec | None:
+    # paper imports coverage, which imports this module: importing paper at the top is a cycle.
+    from core.exams.paper import exams_dir
+
     wanted = _key(name)
     for exam_file in sorted(exams_dir(vault_root, course).glob("*.json"), reverse=True):
         try:
@@ -98,10 +117,22 @@ def find_spec(vault_root: Path, course: str, name: str) -> ExamSpec:
         if _key(str(saved.get("exam", ""))) == wanted:
             fields = {k: v for k, v in saved.items() if v not in (None, [], ())}
             return parse_spec(fields)
-    raise SpecError(
-        f"No spec file {name!r} and no created {course} exam named {name!r}; "
-        "pass a spec YAML path or run `brightlearn exam create` first."
-    )
+    return None
+
+
+def spec_template(course: str) -> str:
+    """A starting spec for ``course`` that ``parse_spec`` accepts, each key explained, so the
+    web editor keeps no copy of the format of its own."""
+    return f"""course: {course}
+exam: Midterm 1
+weeks: [1, 2, 3, 4, 5]  # leave out for every week
+sources: [syllabus, study-guides, lectures]  # leave out for every source
+formats: {{multiple_choice: 10, short_answer: 5, coding: 3}}  # question counts
+difficulty: {{easy: 20, medium: 50, hard: 30}}  # percentages, or counts
+mode: realistic  # {" | ".join(MODES)}
+# include: [concept names]  # always covered
+# exclude: [concept names]  # never covered
+"""
 
 
 def _key(name: str) -> str:

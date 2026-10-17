@@ -46,6 +46,10 @@ class PodcastStore:
         ).fetchone()
         return Episode(**{**dict(row), "concepts": json.loads(row["concepts"])})
 
+    def get(self, episode_id: int) -> Episode | None:
+        row = self.conn.execute("SELECT * FROM podcasts WHERE id = ?", (episode_id,)).fetchone()
+        return Episode(**{**dict(row), "concepts": json.loads(row["concepts"])}) if row else None
+
     def all(self, course: str | None = None) -> list[Episode]:
         sql, args = "SELECT * FROM podcasts", []
         if course is not None:

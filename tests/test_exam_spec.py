@@ -3,7 +3,14 @@
 import pytest
 
 from core.exams.coverage import PlanError, plan
-from core.exams.spec import SpecError, apportion, find_spec, load_spec, parse_spec
+from core.exams.spec import (
+    SpecError,
+    apportion,
+    find_spec,
+    load_spec,
+    parse_spec,
+    saved_spec,
+)
 from core.memory.learner import Concept, Mastery
 
 SPEC = {
@@ -244,3 +251,20 @@ def test_more_concepts_than_questions_drops_the_lightest():
 def test_find_spec_with_no_file_or_created_exam_is_a_spec_error(tmp_path):
     with pytest.raises(SpecError, match="no created CSE220 exam named 'final'"):
         find_spec(tmp_path, "CSE220", "final")
+
+
+def test_saved_spec_reads_created_exams_and_never_a_file(tmp_path):
+    import json
+
+    import yaml
+
+    spec_file = tmp_path / "midterm.yaml"
+    spec_file.write_text(yaml.safe_dump(SPEC))
+    exams = tmp_path / "vault/courses/CSE220/exams"
+    exams.mkdir(parents=True)
+    (exams / "midterm-1-20260920-100000.json").write_text(json.dumps({"spec": SPEC}))
+
+    assert find_spec(tmp_path, "CSE220", str(spec_file)).exam == "Midterm 1"
+    with pytest.raises(SpecError, match="No created CSE220 exam"):
+        saved_spec(tmp_path / "vault", "CSE220", str(spec_file))
+    assert saved_spec(tmp_path / "vault", "CSE220", "midterm 1").weeks == (1, 2, 3, 4, 5)

@@ -7,8 +7,10 @@ as one CLI command opens one.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
@@ -57,3 +59,17 @@ def course_code(course: str, conn: DbDep) -> str:
 
 
 CourseDep = Annotated[str, Depends(course_code)]
+
+
+# Exam ids and draft names come from the URL and name files in the vault. A name of only these
+# characters can't leave its folder: it has no separator, and ".." alone names no file.
+SAFE_NAME = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def named_file(folder: Path, name: str, suffix: str = "", what: str = "file") -> Path:
+    """``folder/{name}{suffix}`` when ``name`` is a plain name and that file exists; 404
+    otherwise, so a bad name and a missing file look the same from outside."""
+    path = folder / f"{name}{suffix}"
+    if not SAFE_NAME.fullmatch(name) or not path.is_file():
+        raise HTTPException(404, f"No {what} {name!r}")
+    return path

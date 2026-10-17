@@ -353,8 +353,9 @@ class Engine:
         self.jobs = Jobs(Worker("jobs", config, open_resources))
         # Touched only on the interactive worker; other threads read copies (live_sessions).
         self.tutors: dict[str, Tutor] = {}
-        # Held over "check, then register" (a session start, a no-session ask, a conversation
-        # job's submit, an upload's import), so one side can't slip past the other's check (P66).
+        # Held over "check, then register", so neither side slips into the other's gap: a
+        # session start, a no-session ask or an upload's import against a conversation job's
+        # guard and submit (P66), and an exam's take step against a grade job's submit (P101).
         # Never held while waiting on a worker: a callable on that worker may need it.
         self.lock = threading.Lock()
 

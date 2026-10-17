@@ -116,11 +116,7 @@ class ExamGrader:
         report.analysis = AnalysisReport(session_id, LOCAL)
         grades: dict[str, Any] = attempt.setdefault("grades", {})
         answers: dict[str, Any] = attempt["answers"]
-        answered = [
-            q
-            for q in exam["questions"]
-            if not answers.get(str(q["index"]), {}).get("skipped", True)
-        ]
+        answered = answered_questions(exam, answers)
         report.unanswered = len(exam["questions"]) - len(answered)
         todo = [q for q in answered if str(q["index"]) not in grades]
         report.already_graded = len(answered) - len(todo)
@@ -309,3 +305,18 @@ class ExamGrader:
                 )
             )
         return scores
+
+
+def answered_questions(exam: dict[str, Any], answers: dict[str, Any]) -> list[dict[str, Any]]:
+    """The questions with an answer that wasn't a skip; a question never reached counts as
+    skipped, as when an attempt is finished early."""
+    return [
+        q for q in exam["questions"] if not answers.get(str(q["index"]), {}).get("skipped", True)
+    ]
+
+
+def attempt_scores(exam: dict[str, Any], attempt: dict[str, Any]) -> list[ConceptScore]:
+    """Per concept, from what the file recorded for ``attempt`` (its grades and mastery
+    changes), so a graded attempt's results can be shown again without grading it again."""
+    answered = answered_questions(exam, attempt.get("answers") or {})
+    return ExamGrader._scores(exam, attempt, answered, attempt.get("grades") or {})

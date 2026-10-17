@@ -178,6 +178,52 @@ def write_draft(path: Path, course: str, concepts: list[DraftConcept]) -> None:
         f.write(header + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
 
 
+def check_draft(text: str, course: str) -> None:
+    """Raise ``SeedingError`` for a draft ``apply`` couldn't load, so an editor can say so when
+    the draft is saved rather than at apply time. Its ``course`` must stay the folder's: apply
+    files the concepts under the course the draft names."""
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise SeedingError(f"Not valid YAML: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise SeedingError("A draft is a mapping with course, reviewed and concepts")
+    if doc.get("course") != course:
+        raise SeedingError(f"This is a {course} draft; keep `course: {course}`")
+    if not isinstance(doc.get("reviewed", False), bool):
+        raise SeedingError("reviewed must be true or false")
+    items = doc.get("concepts") or []
+    if not isinstance(items, list):
+        raise SeedingError("concepts must be a list")
+    for n, item in enumerate(items, start=1):
+        name = item.get("name") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not name.strip():
+            raise SeedingError(f"Concept {n} needs a name")
+        module = item.get("module")
+        if module is not None and not isinstance(module, str):
+            raise SeedingError(f"{name!r}: module must be a name or null")
+        for key in ("prerequisites", "exam_tags", "aliases"):
+            value = item.get(key)
+            if value is not None and not (
+                isinstance(value, list) and all(isinstance(v, str) for v in value)
+            ):
+                raise SeedingError(f"{name!r}: {key} must be a list of names")
+        # A number, as apply reads it (2.0 is week 2). Apply would turn "3" into no week and
+        # true into week 1, silently, so those are refused here.
+        week = item.get("week")
+        if week is not None and (not isinstance(week, int | float) or isinstance(week, bool)):
+            raise SeedingError(f"{name!r}: week must be a number or null")
+
+
+def is_reviewed(path: Path) -> bool:
+    """What ``apply`` checks first; a draft that doesn't parse isn't reviewed."""
+    try:
+        doc = yaml.safe_load(path.read_text())
+    except (OSError, yaml.YAMLError):
+        return False
+    return isinstance(doc, dict) and doc.get("reviewed") is True
+
+
 @dataclass(frozen=True)
 class ApplyResult:
     added: list[Concept]

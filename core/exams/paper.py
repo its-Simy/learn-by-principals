@@ -155,3 +155,12 @@ def mc_choice(question: dict[str, Any], reply: str) -> str | None:
 
 def latest_attempt(exam: dict[str, Any]) -> dict[str, Any] | None:
     return exam["attempts"][-1] if exam["attempts"] else None
+
+
+def latest_graded_attempt(exam: dict[str, Any]) -> dict[str, Any] | None:
+    """The newest attempt handed in and graded: results, answer key beside each answer, are
+    only ever shown for one of these."""
+    for attempt in reversed(exam["attempts"]):
+        if isinstance(attempt, dict) and attempt.get("finished_at") and attempt.get("grades"):
+            return attempt
+    return None
