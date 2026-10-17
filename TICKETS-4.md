@@ -12,7 +12,7 @@ section of docs/web-plan.md. Work ONLY on ticket BL-0XX. Do not start the next t
 Rules: providers stay in core/providers/; api/ never imports cli/; no network in tests; secrets
 never enter the repo; dataclasses and type hints in core; docstrings say why, not what;
 logging not print. Setup: git reset --hard to the tickets-3 tip you were given, then
-uv venv .venv && env -u CONDA_PREFIX uv pip install --python .venv/bin/python -e . pytest ruff
+uv venv .venv && env -u CONDA_PREFIX uv pip install --python .venv/bin/python -e . pytest ruff httpx
 and chflags nohidden .venv/lib/python3.12/site-packages/*.pth. Run .venv/bin/pytest -q and
 .venv/bin/ruff check . (and, for web tickets, pnpm --dir web typecheck && pnpm --dir web build)
 before committing.
@@ -64,4 +64,4 @@ Two commits: `BL-047: Web scaffold and shell`, then `BL-047: Sources pane`.
 ---
 
 ## Still not ticketed
-Zoom `Link` topics · concept extraction with a model instead of keywords · export of an exam to PDF · `PRAGMA journal_mode=WAL` if "database is locked" ever appears · a second long-job worker · CLI `import` for batch uploads · API-key `ModelProvider` for a future multi-user build.
+Zoom `Link` topics · concept extraction with a model instead of keywords · export of an exam to PDF · `PRAGMA journal_mode=WAL` if "database is locked" ever appears · a second long-job worker · a cancel route for queued jobs (today a job queued behind a podcast can only be waited out) · CLI `import` for batch uploads · `EpisodeOut.format` and `length`, which need a `podcasts` migration first (the table doesn't record them) · a per-course `CourseOut.session_state`, so the home grid stops fetching every course's sessions to show a CLI or stale one · the dev group's `httpx` → `httpx2` for Starlette's `TestClient` (P98) · the Ollama fallback for ambiguous upload names, built but not wired in (P96) · a command to change a course's term (P95) · the chat's `WORKAROUND`s in `web/src`, each waiting on an API field: `TurnOut.provider`, `TurnOut.error {provider, detail, resets_at}`, structured citations for in-session asks, and `code: "nothing_linked"` on the nothing-linked 422 · evidence excerpts in the Mastery card's evidence dialog, and a caller for `Vault.write_concept_note` (P103) · the NotebookLM install hint's bare `uv pip install` (P103) · API-key `ModelProvider` for a future multi-user build.

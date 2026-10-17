@@ -1,11 +1,11 @@
 # BrightLearn — CLAUDE.md
 
-Personal learning platform: course files uploaded by hand → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. V1 is a one-student prototype with zero metered LLM API spend. Tickets: `TICKETS-4.md`.
+Personal learning platform: course files uploaded by hand → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. You use it through a local web app (`brightlearn web`: Sources | Chat | Studio) or the CLI. V1 is a one-student prototype with zero metered LLM API spend. Tickets: `TICKETS-4.md`; the web design: `docs/web-plan.md`.
 
 ## Principles (every change must respect these)
 
 1. **No dependency that charges per request.** Free official APIs are fine. Claude, Codex, NotebookLM run on subscription quota.
-2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `notebooklm`, or makes subprocess calls to `claude` or `codex`.
+2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `notebooklm` or makes subprocess calls to `claude` or `codex`.
 3. **Don't delete anything; retrieve selectively.** Archive everything; send models a compiled package of a few thousand tokens.
 4. **Mastery needs evidence.** No score without the `evidence` rows that justify it.
 5. **Infer learning from normal interaction.** No forced quizzes.
@@ -25,8 +25,8 @@ brightlearn/
 │   ├── providers/
 │   │   ├── storage/      # base.py, local.py
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
-│   │   └── models/       # base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
-│   ├── memory/           # schema.py, db.py, learner.py, vault.py, migrations/vNNN_*.py
+│   │   └── models/       # base.py, cli_base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
+│   ├── memory/           # schema.py, db.py, learner.py, vault.py, seeding.py, migrations/vNNN_*.py
 │   ├── sync/             # classify.py, importer.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
 │   ├── tutor.py          # tutoring session (BL-026)
@@ -41,16 +41,19 @@ brightlearn/
 │   ├── doctor.py         # the read-only checks behind `brightlearn doctor`
 │   └── ledger/
 ├── personas/             # Markdown skill files, shared by Claude Code and Codex
-├── api/                  # FastAPI behind `brightlearn web`, localhost only, no auth (BL-044)
-│   ├── app.py            # create_app, lifespan, Host/Origin guard, error → status mapping
-│   ├── engine.py         # Resources, the interactive + jobs worker threads, Jobs, Engine
-│   ├── deps.py           # config, engine, per-request db, course_code
+├── api/                  # FastAPI behind `brightlearn web`: localhost only, no auth (BL-044)
+│   ├── app.py            # create_app, lifespan, the Host/Origin guard, register_errors (core error → status)
+│   ├── engine.py         # Resources, the interactive + jobs worker threads, Jobs, Engine (lock, tutors, asking)
+│   ├── deps.py           # config, engine, per-request db, course_code, named_file
+│   ├── errors.py         # Conflict (a 409 {code, detail}) and the 409s each route declares
 │   ├── static.py         # serves web/dist with SPA fallback
-│   ├── routes/           # one module per router (system.py, …)
-│   └── schemas/          # pydantic models with from_core, one module per router
-├── cli/                  # app.py (typer root), sync.py, courses.py, exam.py, tutor.py, sessions.py, web.py, dev.py
+│   ├── routes/           # system, courses, sources, chat, concepts, exams, podcasts
+│   └── schemas/          # pydantic models with from_core, one module per router; the only pydantic
+├── cli/                  # app.py (typer root); courses.py, sync.py, ask.py, tutor.py, sessions.py, concepts.py,
+│                         # exam.py, podcast.py, generate.py, web.py (`brightlearn web`), dev.py, …
+├── web/                  # Vite + React + shadcn SPA: src/api (generated types, hooks), src/features/{sources,chat,studio,exams}, src/components
 ├── dashboard/            # data.py (queries), render.py (self-contained HTML, inline SVG)
-├── scripts/              # throwaway spikes
+├── scripts/              # spike_c.py (throwaway spike), dev_server.py (the API on the test fakes, no accounts)
 └── tests/                # fakes/
 ```
 
@@ -62,8 +65,8 @@ Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` +
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `home` | `~/.brightlearn` | Secrets directory, mode 700 |
-| `term` | from the date | Default term for new courses; `courses add --term` overrides |
+| `home` | `~/.brightlearn` | Secrets directory, mode 700; `BRIGHTLEARN_HOME` overrides |
+| `term` | from the date, e.g. `Fall-2026` | Only the default for new courses (`BRIGHTLEARN_TERM`); `courses add --term` or the New course dialog overrides it. Each course keeps its own term in `courses`. |
 | `storage_root` | `~/.brightlearn/courses` | Canonical course files |
 | `tmp_dir` | `/tmp/brightlearn` | Upload staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
@@ -72,7 +75,7 @@ Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` +
 | `ollama_url` / `ollama_model` | `http://localhost:11434` / `llama3.2:3b` | `BRIGHTLEARN_OLLAMA_URL`, `BRIGHTLEARN_OLLAMA_MODEL` |
 | `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex, ollama`; classify `ollama, claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins) |
 
-Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far.
+Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far. The web app's port is not config: `brightlearn web --port` (default `8765`, always on 127.0.0.1).
 
 ## Provider interfaces
 
@@ -113,12 +116,15 @@ Implementations (V1): `LocalStorageBackend` · `GeminiNotebookProvider` (Android
 Migrations live one per file in `core/memory/migrations/vNNN_<name>.py`, applied in order and tracked in `PRAGMA user_version` (rules under Conventions).
 
 ```
-courses:     course (PK: the code in folder and notebook names), name, term, created_at  (BL-042)
+courses:     course (PK: the code in folder and notebook names), name, term, created_at  (v13, BL-042)
 resources:   resource_id (PK), course, title, filename, bucket, local_path, hash, size, url,
              notebook_id, notebook_source_id, source_hash,
-             sync_state (synced|stale|failed|link|deferred), added_at                    (BL-042)
+             sync_state (synced|stale|failed|link|deferred), added_at                    (v13, BL-042)
+             -- one row per stored course file; a re-upload of the same name in the same bucket
+             -- is a new version of that row (stale once linked, the old bytes in _versions/)
              -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
              -- rows from before v13 keep their files and links, with ids `topic:{n}`
+notebooks:   course (PK), notebook_id, created_at   -- the course's NotebookLM notebook    (BL-014)
 model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
              input_tokens_est, output_tokens_est, fallback_from, error
 concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags, week,
@@ -147,13 +153,18 @@ provider_health: provider (PK), state, checked_at, cooldown_until, detail       
 maintenance_runs: id, ran_at, trigger (manual|auto), decayed, archived, closed          (BL-038)
 ```
 
-Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term from the course's `courses` row, with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. A stored file is identified by `local_path` + `hash`.
+Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term from the course's `courses` row, with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. Every bucket but `code` is linked to NotebookLM. A stored file is identified by `local_path` + `hash`. Generated artifacts and podcasts go in the course folder's `_generated/`; exams, concept drafts and transcripts go in the vault.
 
 ## Conventions
 
 - Python 3.12, `ruff`, `pytest`. Type hints everywhere. Dataclasses for models.
-- Tests use fakes in `tests/fakes/`; no network in tests.
-- `api/` never imports `cli/`; both sit on `core/` (`tests/test_principles.py` checks it).
+- Setup, safe in any worktree: `uv venv .venv && env -u CONDA_PREFIX uv pip install --python .venv/bin/python -e . pytest ruff httpx`, then `chflags nohidden .venv/lib/python3.12/site-packages/*.pth` (macOS hides them, and Python 3.12 then skips them). Never a bare `uv pip install` or `pip install`: with `CONDA_PREFIX` set it lands in the conda base env. Then `pnpm --dir web install`.
+- Before committing: `.venv/bin/pytest -q` and `.venv/bin/ruff check .`; for a web change, `pnpm --dir web typecheck && pnpm --dir web build` too. The web app's own conventions are in `web/README.md`.
+- Tests use fakes in `tests/fakes/`; no network in tests. `scripts/dev_server.py` serves the API on the same fakes against a scratch `--home`, so the UI can be tried with no accounts.
+- `api/` never imports `cli/`; both sit on `core/` (`tests/test_principles.py` checks it). The API holds no business logic of its own: a rule it needs goes in `core/`, and a route makes the same core calls as its CLI command.
+- Routes are plain `def`, so FastAPI runs them in its threadpool and a five-minute model call never blocks the event loop. Pydantic lives only under `api/schemas/`, each model with a `from_core`; core stays dataclasses.
+- The contract step: whenever a route or schema changes, run `brightlearn dev openapi > web/openapi.json && pnpm --dir web gen` and commit both files. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
+- `dev` commands skip auto-maintenance, as `doctor` and `maintain` do, so `brightlearn dev openapi` never opens or migrates the real database (P102).
 - Uploads stage in `config.tmp_dir/{uuid}`, always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.
 - Commit message format: `BL-0XX: <ticket title>`.
@@ -162,6 +173,7 @@ Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term 
 ## Not in V1
 
 - Drive automation (can return via StorageBackend)
+- Auth or remote access for the web app: it serves 127.0.0.1 only
 
 ## Decision log
 
@@ -169,7 +181,11 @@ Newest first. Add a row whenever a principle is bent or a provider choice change
 
 | Date | Decision | Why |
 | --- | --- | --- |
-| Oct 17, 2026 | Uploads in the `other` bucket are linked to NotebookLM; only `code` is skipped. | Every file is now chosen by hand, so `other` is not junk; names without a keyword were never reaching NotebookLM. |
+| Oct 17, 2026 | The web app is chat-first, after NotebookLM's three panes: Sources and Studio are rails that collapse to an icon strip (sheets below `lg`), and one chat follows the session state, a grounded ask on the checked sources with no session and a tutor turn with one ("Sources only" sends `/ask`). Every wait shows its step and elapsed time, and every empty pane names the next action. | BL-047–049. During a session an ask already goes through the tutor's own NotebookLM conversation (P66), so one stream shows what the API does; and a tutor turn or the Analyzer can take minutes, so a wait must say what it is waiting for. |
+| Oct 17, 2026 | A no-session `ask` marks its course in `Engine.asking` until its answer returns; seed and exam create return 409 `ask_running` meanwhile. Both sides check under `Engine.lock`. | P100. Their fresh conversation on the jobs worker would delete the ask's mid-answer, and holding the lock over the query would block those submits for a NotebookLM round trip. |
+| Oct 17, 2026 | Taking and grading an exam never overlap: take steps return 409 `job_running` while an `exam_grade` job is queued or running on the course, and Grade queues only a handed-in attempt (422 otherwise). | P101. The grader rewrites the exam file from the copy it loaded, so an answer saved in between would be lost. |
+| Oct 17, 2026 | `brightlearn web` is FastAPI over the core with no business logic of its own, on 127.0.0.1 with no auth; a Host check (400) and a same-origin check on writes (403 `cross_origin`) keep other sites' pages out. Two worker threads (`interactive`: tutor and asks; `jobs`: link, seed, exams, podcast) each own a NotebookLM provider, the model providers and a connection; reads and DB-only writes use a per-request SQLite connection; and one `Engine.lock` covers each check-then-register between them. | BL-044, BL-045 (P98, P99). The provider, the router and a live tutor aren't thread-safe, so each gets one owner thread; binding localhost keeps other machines out, but not DNS rebinding or a cross-site form post. |
+| Oct 17, 2026 | Uploads in the `other` bucket are linked to NotebookLM; only `code` is skipped. | P96. Every file is now chosen by hand, so `other` is not junk; names without a keyword were never reaching NotebookLM. |
 | Oct 17, 2026 | Brightspace automation removed; files are uploaded by hand. `LMSProvider` is gone; the storage tree, buckets and link step are unchanged. Courses are rows of their own (`courses add`), each with its term folder; v13 keys `resources` by `resource_id` and keeps every old row as `topic:{id}`. `sync` only links stored files to NotebookLM. | BL-042. The Playwright login and `/d2l/api` downloads can't be used, so Simon adds course files himself; principles 1 and 2 no longer mention Brightspace or `playwright`. |
 | Sept 24, 2026 | Migrations are sequential integers, one file each under `core/memory/migrations/`, never renumbered or edited once committed. A test checksums each one and applies them all from v0 on an empty database. | BL-040 (P70). A committed migration may already have run on a real database, so changing it would split the history. |
 | Sept 24, 2026 | A tutor session with no turn for 2 hours is stale: `ask` and the other guarded commands say so and offer `sessions close`. `maintain` closes sessions idle more than 24 hours, without running the Analyzer. Sessions record `last_turn_at` (v12). | BL-040 (P67). A crashed session shouldn't block a course for long. |

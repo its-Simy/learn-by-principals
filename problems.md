@@ -645,3 +645,9 @@ What both code reviews asked for once the two branches met:
 
 ### P102. `brightlearn dev openapi` migrated the real database
 The CLI's root callback runs auto-maintenance before every command except `maintain` and `doctor`, and maintenance opens the database, which migrates it on connect. Generating the API contract therefore migrated `~/.brightlearn/brightlearn.db` from v12 to v13 during the BL-047 integration step. It held no rows, so nothing was lost, but an older checkout now refuses it. **Fixed:** `dev` is in `NO_AUTO_RUN`; a test runs `dev openapi` against a home with no database and checks none appears.
+
+## BL-050
+
+### P103. Where the docs work around the code
+- **Evidence excerpts aren't readable in the app or the vault.** The Mastery card's evidence dialog shows each row's type, strength, time, provider and session, but not `excerpt_ref`, though `GET …/concepts/evidence` returns it. Nothing writes the vault's concept notes either: `Vault.write_concept_note` has no caller outside the tests, so the podcast brief's misconceptions come from evidence only. The validation log's "do the excerpts quote your own words?" check reads them with `sqlite3` instead.
+- **Doctor and the spike suggest a bare `uv pip install`.** `gemini_notebook.INSTALL_HINT` (doctor's NotebookLM row, `dev nlm-login`) and `scripts/spike_c.py`'s docstring say `uv pip install 'notebooklm-py[android,browser]'`, which lands in the conda base env while `CONDA_PREFIX` is set. The README and the log give the `env -u CONDA_PREFIX … --python .venv/bin/python` line; the hint should too.
