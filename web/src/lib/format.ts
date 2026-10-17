@@ -21,6 +21,13 @@ export function formatClock(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
+/** A date and time in the learner's locale, e.g. "17 Oct, 15:20"; the raw text if it doesn't parse. */
+export function formatWhen(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+}
+
 /** A state string as people read it: "RATE_LIMITED" -> "rate limited". */
 export function humanize(value: string): string {
   return value.replaceAll("_", " ").toLowerCase()

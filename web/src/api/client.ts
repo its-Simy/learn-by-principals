@@ -33,6 +33,14 @@ function errorMessage(status: number, body: unknown): string {
   return `The server answered ${status}`
 }
 
+/** The `code` of a 409 body (`job_running`, `ask_running`, ...); null for any other error. */
+export function conflictCode(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null
+  const body = error.body
+  if (typeof body !== "object" || body === null || !("code" in body)) return null
+  return typeof body.code === "string" ? body.code : null
+}
+
 /** A call's data, or its ApiError thrown: what a react-query `queryFn` or `mutationFn` wants. */
 export async function unwrap<T>(call: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const { data, error, response } = await call

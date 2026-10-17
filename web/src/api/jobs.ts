@@ -28,6 +28,17 @@ export const keys = {
   courses: () => ["courses"] as const,
   dashboard: () => ["dashboard"] as const,
   doctor: () => ["doctor"] as const,
+  // Studio (BL-049). Each extends the key of what writes it, so the job that changes it refreshes it.
+  allConcepts: (course: string) => ["concepts", course, "with-retired"] as const,
+  evidence: (course: string, conceptId: string) => ["concepts", course, "evidence", conceptId] as const,
+  draft: (course: string, name: string) => ["drafts", course, name] as const,
+  diff: (course: string, name: string) => ["drafts", course, name, "diff"] as const,
+  template: (course: string) => ["exams", course, "template"] as const,
+  exam: (course: string, id: string) => ["exams", course, id] as const,
+  paper: (course: string, id: string) => ["exams", course, id, "markdown"] as const,
+  take: (course: string, id: string) => ["exams", course, id, "take"] as const,
+  results: (course: string, id: string) => ["exams", course, id, "results"] as const,
+  brief: (course: string, podcastId: number) => ["podcasts", course, podcastId, "brief"] as const,
 }
 
 /** What each kind's job writes, refreshed for the job's course when it finishes. */

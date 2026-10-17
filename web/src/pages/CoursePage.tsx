@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/EmptyState"
 import { Rail } from "@/components/Rail"
 import { useSourceSelection } from "@/features/sources/selection"
 import { SourcesPane } from "@/features/sources/SourcesPane"
+import { StudioPane } from "@/features/studio/StudioPane"
 
 export function CoursePage() {
   // Upper-cased as the API does, so query keys match the ones a finished job refreshes.
@@ -21,7 +22,7 @@ export function CoursePage() {
         <EmptyState className="flex-1" message="The chat arrives with BL-048." />
       </section>
       <Rail id="studio" title="Studio" icon={Sparkles} side="right" width={360}>
-        <EmptyState message="The Studio pane arrives with BL-049." />
+        <StudioPane course={course} />
       </Rail>
     </div>
   )

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useNoStrayDrops } from "@/features/sources/UploadDropzone"
+import { ExamTakeView } from "@/features/exams/ExamTakeView"
 import { ThemeProvider } from "@/lib/theme"
 import { CoursePage } from "@/pages/CoursePage"
 import { HomePage } from "@/pages/HomePage"
@@ -70,6 +71,7 @@ export function App() {
               <Route element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="courses/:course" element={<CoursePage />} />
+                <Route path="courses/:course/exams/:id/take" element={<ExamTakeView />} />
                 <Route path="system" element={<SystemPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
