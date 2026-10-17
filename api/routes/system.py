@@ -21,9 +21,9 @@ except PackageNotFoundError:  # running from a checkout that was never installed
 
 
 @router.get("/health")
-def health(conn: DbDep) -> HealthOut:
+def health(conn: DbDep, cfg: ConfigDep) -> HealthOut:
     """Answers once the database opens, which is what every other route needs too."""
-    return HealthOut(ok=True, version=VERSION, schema_version=schema_version(conn))
+    return HealthOut(ok=True, version=VERSION, schema_version=schema_version(conn), term=cfg.term)
 
 
 @router.get("/personas")

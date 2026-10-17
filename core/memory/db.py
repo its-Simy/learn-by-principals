@@ -146,6 +146,14 @@ class DuplicateCourse(CourseError):
     pass
 
 
+class BadFolderName(CourseError):
+    """A course code or term that can't be a folder name; ``field`` is ``course`` or ``term``."""
+
+    def __init__(self, field: str, label: str, value: str) -> None:
+        super().__init__(f"{label} {value!r} must be 1-32 letters, digits, _ or -")
+        self.field = field
+
+
 @dataclass(frozen=True)
 class CourseRow:
     course: str  # the code used in folder names and notebook titles, e.g. CSE220
@@ -167,9 +175,9 @@ class Courses:
 
     def add(self, course: str, name: str, term: str) -> CourseRow:
         # Code and term become folder names, so neither may carry a path separator or "..".
-        for label, value in (("course code", course), ("term", term)):
+        for field, label, value in (("course", "course code", course), ("term", "term", term)):
             if not FOLDER_NAME.fullmatch(value):
-                raise CourseError(f"{label} {value!r} must be 1-32 letters, digits, _ or -")
+                raise BadFolderName(field, label, value)
         if self.get(course) is not None:
             raise DuplicateCourse(f"course {course} already exists")
         row = CourseRow(course, name, term, self._now())

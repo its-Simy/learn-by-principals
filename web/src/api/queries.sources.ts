@@ -2,7 +2,7 @@
 import { hashKey, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { useCallback, useSyncExternalStore } from "react"
 
-import { api, ApiError, unwrap } from "@/api/client"
+import { api, blockingJob, unwrap } from "@/api/client"
 import { fetchJob, fetchJobs, isActive, keys, trackJob, type Job } from "@/api/jobs"
 import type { components } from "@/api/types"
 
@@ -107,13 +107,6 @@ function send(batch: UploadBatch): Promise<UploadOut> {
       },
     }),
   )
-}
-
-/** The link job a 409 `job_running` names, if that is what this error is. */
-function blockingJob(error: unknown): string | null {
-  if (!(error instanceof ApiError) || error.status !== 409) return null
-  const body = error.body as { code?: unknown; job_id?: unknown } | null
-  return body?.code === "job_running" && typeof body.job_id === "string" ? body.job_id : null
 }
 
 /**

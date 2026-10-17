@@ -255,7 +255,7 @@ def apply(path: Path, learner: LearnerMemory) -> ApplyResult:
         raise SeedingError(f"No draft at {path}; run `brightlearn concepts seed` first")
     doc = yaml.safe_load(path.read_text()) or {}
     if doc.get("reviewed") is not True:
-        raise DraftNotReviewed(f"{path} still says `reviewed: false`; review it, then flip it")
+        raise DraftNotReviewed(f"{path.name} still says `reviewed: false`; review it, then flip it")
     course = doc["course"]
     items = doc.get("concepts") or []
     existing = {c.concept_id: c for c in learner.concepts(course, include_retired=True)}

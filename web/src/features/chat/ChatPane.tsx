@@ -1,7 +1,8 @@
 // The chat (BL-048): one message stream driven by session state. With no live session every message is a
 // grounded ask scoped to the selected sources; with one, messages are tutor turns (or asks, with "Sources only").
 // The stream is client state rebuilt from the session's turns on load; asks and command replies are not kept
-// (a reload drops them), the transcript is the record, as on the CLI.
+// (a reload, or the take view replacing the chat for an exam, drops them), the transcript is the record, as on
+// the CLI.
 import { useEffect, useRef, useState } from "react"
 
 import {
@@ -18,20 +19,19 @@ import {
 } from "@/api/queries.chat"
 import { useSources } from "@/api/queries.sources"
 import { EmptyState } from "@/components/EmptyState"
+import { plural } from "@/lib/format"
 
 import { Composer } from "./Composer"
 import { MessageList } from "./MessageList"
 import {
-  capitalize,
-  groundFailure,
-  isAskLine,
+  askedQuestion,
   isRateLine,
   messagesFrom,
   newId,
   pendingLabel,
   probeMessage,
-  splitCitations,
   turnFailure,
+  tutorLabel,
   type ChatMessage,
   type ChatRequest,
   type TurnPurpose,
@@ -52,8 +52,8 @@ export function ChatPane(props: ChatPaneProps) {
   return <ChatStream key={props.course} {...props} />
 }
 
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`
+function sourcesMessage(out: AskResult, scope: string): ChatMessage {
+  return { id: newId(), kind: "sources", text: out.text, citations: out.citations, scope, inSession: out.in_session }
 }
 
 function errorMessage(failure: Failure, retry?: ChatRequest): ChatMessage {
@@ -76,6 +76,8 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
   const [inFlight, setInFlight] = useState<{ request: ChatRequest; since: number } | null>(null)
   const [persona, setPersona] = useState(DEFAULT_PERSONA)
   const [sourcesOnly, setSourcesOnly] = useState(false)
+  // The provider that wrote the last tutoring answer in this stream, for the next turn's pending label.
+  const [answeredBy, setAnsweredBy] = useState<string | null>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
 
   // Rebuild the stream once, from this mount's own fetch of the session (not a cached copy from an earlier visit).
@@ -103,8 +105,6 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
   const coversAll = selectable.length > 0 && selectable.every((id) => selectedSourceIds.includes(id))
   const scopedIds = coversAll ? [] : selectedSourceIds
   const scope = scopedIds.length === 0 ? "all sources" : plural(scopedIds.length, "selected source")
-  // Filenames (and buckets) the in-session answer's flattened citation lines can name.
-  const known = new Map(rows.flatMap((r) => (r.filename ? [[r.filename, r.bucket] as const] : [])))
 
   const append = (...added: ChatMessage[]) => setMessages((ms) => [...ms, ...added])
   const markHandled = (id: string) =>
@@ -112,21 +112,11 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
   const setRating = (id: string, text: string) =>
     setMessages((ms) => ms.map((m) => (m.id === id && m.kind === "tutor" ? { ...m, rating: text } : m)))
 
-  function sourcesMessage(out: AskResult, scope: string, retry: ChatRequest): ChatMessage {
-    if (!out.in_session) {
-      return { id: newId(), kind: "sources", text: out.text, citations: out.citations, scope, inSession: false }
-    }
-    const failure = groundFailure(out.text)
-    if (failure) return errorMessage(failure, retry)
-    const { text, citations } = splitCitations(out.text, known)
-    return { id: newId(), kind: "sources", text, citations, scope, inSession: true }
-  }
-
   /** Sends one request and returns the messages its answer adds to the stream. */
   async function perform(request: ChatRequest): Promise<ChatMessage[]> {
     switch (request.op) {
       case "ask":
-        return [sourcesMessage(await ask.mutateAsync(request), request.scope, request)]
+        return [sourcesMessage(await ask.mutateAsync(request), request.scope)]
       case "start": {
         const started = await startSession.mutateAsync(request.persona)
         setSourcesOnly(false)
@@ -146,13 +136,15 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
         const { text, purpose } = request
         const out = await turn.mutateAsync(text)
         if (out.ended) setSourcesOnly(false)
-        if (out.reply === null) return []
         const failure = turnFailure(out)
         if (failure) return [errorMessage(failure, request)]
+        if (out.reply === null) return []
+        if (out.provider) setAnsweredBy(out.provider)
         switch (purpose) {
           case "answer":
-            // WORKAROUND until `TurnOut.provider`: the caption can then name it too ("Simplifier · claude").
-            return [{ id: newId(), kind: "tutor", text: out.reply, label: capitalize(out.persona), answer: true }]
+            return [
+              { id: newId(), kind: "tutor", text: out.reply, label: tutorLabel(out.persona, out.provider), answer: true },
+            ]
           case "probe":
             return [{ id: newId(), kind: "tutor", text: out.reply, label: "Challenger", answer: false }]
           case "rate":
@@ -162,9 +154,6 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
             }
             return [{ id: newId(), kind: "note", text: out.reply }]
           case "command":
-            if (isAskLine(text)) {
-              return [sourcesMessage({ text: out.reply, citations: [], in_session: true }, "every source", request)]
-            }
             return [{ id: newId(), kind: "note", text: out.reply }]
           case "end":
             return [{ id: newId(), kind: "note", text: out.reply }]
@@ -216,13 +205,15 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
   const ratableId = session?.ratable && lastAnswer ? lastAnswer.id : null
 
   function send(text: string) {
+    const asked = askedQuestion(text)
     if (!session) {
       append({ id: newId(), kind: "learner", text, tag: scopedIds.length ? scope : undefined })
-      void run({ op: "ask", question: text, sourceIds: scopedIds, scope })
-    } else if (sourcesOnly) {
-      // The server asks every source, in the session's conversation, and refuses source ids here.
-      append({ id: newId(), kind: "learner", text, tag: "Sources only" })
-      void run({ op: "ask", question: text, scope: "every source" })
+      void run({ op: "ask", question: asked ?? text, sourceIds: scopedIds, scope })
+    } else if (sourcesOnly || asked !== null) {
+      // The server asks every source, in the session's conversation, and refuses source ids here. A typed
+      // `/ask q` is sent the same way rather than as a turn, so its citations come back as chips.
+      append({ id: newId(), kind: "learner", text, tag: sourcesOnly ? "Sources only" : undefined })
+      void run({ op: "ask", question: asked ?? text, scope: "every source" })
     } else {
       append({ id: newId(), kind: "learner", text })
       if (isRateLine(text) && ratableId) {
@@ -237,7 +228,7 @@ function ChatStream({ course, selectedSourceIds }: ChatPaneProps) {
   }
 
   const pending = inFlight
-    ? { label: pendingLabel(inFlight.request, session?.persona ?? startPersona), since: inFlight.since }
+    ? { label: pendingLabel(inFlight.request, session?.persona ?? startPersona, answeredBy), since: inFlight.since }
     : built
       ? null
       : { label: "Loading the session", since: mountedAt }

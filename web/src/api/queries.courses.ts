@@ -1,4 +1,4 @@
-// Courses: the home grid, the new-course dialog, and each card's session state.
+// Courses: the home grid and the new-course dialog. Each card's sessions come from the chat's `useSessions`.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api, unwrap } from "@/api/client"
@@ -7,7 +7,6 @@ import type { components } from "@/api/types"
 
 export type Course = components["schemas"]["CourseOut"]
 export type CourseIn = components["schemas"]["CourseIn"]
-export type Session = components["schemas"]["SessionOut"]
 
 export function useCourses() {
   return useQuery({
@@ -36,23 +35,4 @@ export function useCreateCourse() {
       void queryClient.invalidateQueries({ queryKey: keys.courses() })
     },
   })
-}
-
-/**
- * A course's sessions, newest first. CourseOut names only the session this server holds, so a
- * card reads this to also show one left open by the CLI or gone stale. Keyed under the courses so
- * it refreshes with them.
- */
-export function useCourseSessions(course: string) {
-  return useQuery({
-    queryKey: [...keys.courses(), course, "sessions"],
-    queryFn: () => unwrap(api.GET("/api/courses/{course}/sessions", { params: { path: { course } } })),
-  })
-}
-
-/** Today's term as core.config.default_term guesses it (the API doesn't expose config.term). */
-export function defaultTerm(today: Date = new Date()): string {
-  const month = today.getMonth() + 1
-  const season = month <= 5 ? "Spring" : month <= 7 ? "Summer" : "Fall"
-  return `${season}-${today.getFullYear()}`
 }

@@ -2,6 +2,7 @@
 import type { LucideIcon } from "lucide-react"
 import { PanelLeftClose, PanelRightClose } from "lucide-react"
 import { useState, useSyncExternalStore, type ReactNode } from "react"
+import { useLocation } from "react-router"
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -67,6 +68,13 @@ export function Rail({ id, title, icon: Icon, side, width, children }: RailProps
   const [wasLarge, setWasLarge] = useState(isLarge)
   if (wasLarge !== isLarge) {
     setWasLarge(isLarge)
+    setSheetOpen(false)
+  }
+  // So does following a link inside it (Studio's Take): the page it opens is in the chat area, under the sheet.
+  const { pathname } = useLocation()
+  const [shownAt, setShownAt] = useState(pathname)
+  if (shownAt !== pathname) {
+    setShownAt(pathname)
     setSheetOpen(false)
   }
   const setOpen = (next: boolean) => {

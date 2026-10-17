@@ -122,9 +122,11 @@ def test_find_is_deterministic_with_a_duplicate_name():
 )
 def test_courses_refuse_codes_and_terms_that_are_not_folder_names(code, term):
     courses = Courses(connect(":memory:"))
-    with pytest.raises(CourseError):
+    with pytest.raises(CourseError) as refused:
         courses.add(code, "Name", term)
     assert courses.all() == []
+    # Which input to fix, so the web dialog can put the message under it.
+    assert getattr(refused.value, "field", None) == ("term" if code == "CSE220" else "course")
 
 
 LEGACY = """CREATE TABLE resources (course TEXT, org_unit_id INTEGER, topic_id INTEGER PRIMARY KEY,

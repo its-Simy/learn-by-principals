@@ -23,7 +23,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.engine import Engine, JobRunning
-from api.errors import Conflict
+from api.errors import Conflict, Refused, provider_failure
 from api.routes import chat, concepts, courses, exams, podcasts, sources, system
 from api.static import mount_web
 from core.config import Config, load_config
@@ -35,7 +35,7 @@ from core.memory.learner import LearnerError
 from core.memory.seeding import SeedingError
 from core.personas import PersonaError
 from core.providers.knowledge.base import KnowledgeError
-from core.providers.models.base import ModelError, ModelRateLimited
+from core.providers.models.base import ModelError
 from core.providers.storage.base import StorageError
 from core.sessions import SessionOpen
 
@@ -131,9 +131,10 @@ class SameOriginWrites:
 
 
 def register_errors(app: FastAPI) -> None:
-    """Core's exceptions, and the routes' own ``Conflict``, as HTTP answers the web app can act
-    on. Every 409 carries a ``code`` so the UI can offer the way out in place (close the stale
-    session, wait for the job)."""
+    """Core's exceptions, and the routes' own ``Conflict`` and ``Refused``, as HTTP answers the
+    web app can act on. Every 409 carries a ``code`` so the UI can offer the way out in place
+    (close the stale session, wait for the job), and so does a ``Refused`` 422 (upload a file
+    first, fix this field)."""
 
     async def duplicate_course(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"code": "duplicate_course", "detail": str(exc)}, status_code=409)
@@ -162,23 +163,16 @@ def register_errors(app: FastAPI) -> None:
         assert isinstance(exc, Conflict)
         return JSONResponse(exc.body(), status_code=409)
 
+    async def refused(request: Request, exc: Exception) -> JSONResponse:
+        assert isinstance(exc, Refused)
+        return JSONResponse(exc.body(), status_code=422)
+
     async def unprocessable(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=422)
 
     async def upstream(request: Request, exc: Exception) -> JSONResponse:
         """A provider failed: say which one and, for a rate limit, when to retry."""
-        provider = None  # NoProvider names none: no provider was tried
-        if isinstance(exc, KnowledgeError):
-            provider = "notebooklm"
-        elif isinstance(exc, ModelError):
-            provider = exc.provider
-        hint = exc.hint if isinstance(exc, ModelRateLimited) else None
-        body = {
-            "detail": str(exc),
-            "provider": provider,
-            "resets_at": hint.resets_at if hint else None,
-        }
-        return JSONResponse(body, status_code=502)
+        return JSONResponse(provider_failure(exc), status_code=502)
 
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
@@ -189,6 +183,7 @@ def register_errors(app: FastAPI) -> None:
     app.add_exception_handler(SessionOpen, session_open)
     app.add_exception_handler(JobRunning, job_running)
     app.add_exception_handler(Conflict, conflict)
+    app.add_exception_handler(Refused, refused)
     for cls in UNPROCESSABLE:
         app.add_exception_handler(cls, unprocessable)
     app.add_exception_handler(KnowledgeError, upstream)

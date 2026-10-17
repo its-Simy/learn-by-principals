@@ -1,11 +1,10 @@
 // The sources an answer cites, as `[1] lec3.pdf` buttons; each opens its excerpt in a popover (click, Enter or Space).
 import { FileText } from "lucide-react"
 
+import type { Citation } from "@/api/queries.chat"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-import type { Chip } from "./model"
-
-export function CitationChips({ citations }: { citations: Chip[] }) {
+export function CitationChips({ citations }: { citations: Citation[] }) {
   if (citations.length === 0) return null
   return (
     <ul aria-label="Cited sources" className="flex flex-wrap gap-1.5">

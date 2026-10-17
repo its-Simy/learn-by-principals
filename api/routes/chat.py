@@ -10,7 +10,8 @@ the ask marks its course in ``engine.asking`` until its query returns, and the s
 routes refuse while it is there (P100).
 
 Only the link job creates a course's notebook, so a start or an ask on a course with no notebook
-and nothing linked is a 422 rather than a second ``ensure_notebook`` racing the first.
+and nothing linked is a 422 ``nothing_linked`` rather than a second ``ensure_notebook`` racing
+the first.
 """
 
 from __future__ import annotations
@@ -21,7 +22,14 @@ from fastapi import APIRouter, HTTPException
 
 from api.deps import ConfigDep, CourseDep, DbDep, EngineDep
 from api.engine import CONVERSATION_JOBS, Engine, JobRunning, Resources
-from api.errors import CONVERSATION_JOB, SESSION_LIVE, SESSION_OPEN, Conflict, conflicts
+from api.errors import (
+    CONVERSATION_JOB,
+    SESSION_LIVE,
+    SESSION_OPEN,
+    Conflict,
+    Refused,
+    conflicts,
+)
 from api.schemas.chat import (
     AskIn,
     AskOut,
@@ -40,10 +48,6 @@ from core.sessions import guard, state
 from core.tutor import Tutor
 
 router = APIRouter(tags=["chat"])
-
-
-class NothingLinked(ValueError):
-    """A 422 (it's a ValueError): link a file first."""
 
 
 # -- the live session (interactive worker) ----------------------------------------------------
@@ -89,16 +93,22 @@ def get_session(course: CourseDep, engine: EngineDep) -> LiveSessionOut | None:
 
 @router.post("/courses/{course}/session/turn")
 def turn(course: CourseDep, body: TurnIn, engine: EngineDep) -> TurnOut:
-    """One REPL line, exactly as ``brightlearn tutor`` reads it; ``/end`` ends the session."""
+    """One REPL line, exactly as ``brightlearn tutor`` reads it; ``/end`` ends the session.
+    A line the tutor couldn't answer is still a 200, with ``error`` saying why. A typed
+    ``/ask q`` answers as the CLI's does, its citations listed in ``reply``; ``POST ask`` gives
+    them as data."""
     text = body.text
 
     def run(r: Resources) -> TurnOut:
         tutor = _live(engine, course)
+        assert tutor.session is not None  # started before it was registered
+        exchanges = len(tutor.session.turns)
         try:
             reply = tutor.handle(text)
         finally:
             _forget_if_ended(engine, course, tutor)
-        return TurnOut.from_core(tutor, reply)
+        answered = len(tutor.session.turns) > exchanges
+        return TurnOut.from_core(tutor, reply, answered, tutor.last_error)
 
     return engine.interactive.call(run)
 
@@ -133,7 +143,8 @@ def ask(course: CourseDep, body: AskIn, engine: EngineDep) -> AskOut:
                     "source_ids can't be used inside a live session: its /ask asks every "
                     "source, in the session's conversation"
                 )
-            return AskOut(text=tutor.ground(question), citations=[], in_session=True)
+            answer = tutor.ground_answer(question)  # NotebookLM failing is a 502, as below
+            return AskOut.from_core(answer, _sources(r, course), in_session=True)
         sources = _linked(r, course)
         with engine.lock:
             guard(r.learner, course)
@@ -158,16 +169,22 @@ def ask(course: CourseDep, body: AskIn, engine: EngineDep) -> AskOut:
     return engine.interactive.call(run)
 
 
+def _sources(r: Resources, course: str) -> dict[str, ResourceRow]:
+    """The course's linked rows by NotebookLM source id, to label citations with."""
+    return {row.notebook_source_id: row for row in r.manifest.all(course) if row.notebook_source_id}
+
+
 def _linked(r: Resources, course: str) -> dict[str, ResourceRow]:
-    """The course's linked rows by NotebookLM source id. ``NothingLinked`` only when there are
-    none and the course has no notebook yet: replacing a changed file, the link job clears its
-    ``notebook_source_id`` before adding it again, so a course whose one file is mid-replace has
-    no linked row for a moment, but its notebook is there and ``ensure_notebook`` only reads it."""
-    rows = {row.notebook_source_id: row for row in r.manifest.all(course) if row.notebook_source_id}
+    """``_sources``, refused (422 ``nothing_linked``) only when there are none and the course has
+    no notebook yet: replacing a changed file, the link job clears its ``notebook_source_id``
+    before adding it again, so a course whose one file is mid-replace has no linked row for a
+    moment, but its notebook is there and ``ensure_notebook`` only reads it."""
+    rows = _sources(r, course)
     if not rows and not _has_notebook(r, course):
-        raise NothingLinked(
+        raise Refused(
+            "nothing_linked",
             f"Nothing from {course} is in NotebookLM yet; upload a file and let its link job "
-            "finish (or retry it)."
+            "finish (or retry it).",
         )
     return rows
 

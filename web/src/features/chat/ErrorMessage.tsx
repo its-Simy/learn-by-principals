@@ -6,15 +6,10 @@ import { JOB_LABELS } from "@/api/jobs"
 import type { Failure } from "@/api/queries.chat"
 import { EmptyState } from "@/components/EmptyState"
 import { Button } from "@/components/ui/button"
+import { formatWhen } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-import { capitalize, formatWhen } from "./model"
-
-const PROVIDER_NAMES: Record<string, string> = { notebooklm: "NotebookLM" }
-
-function providerName(provider: string): string {
-  return PROVIDER_NAMES[provider] ?? capitalize(provider)
-}
+import { providerName } from "./model"
 
 type ErrorMessageProps = {
   failure: Failure

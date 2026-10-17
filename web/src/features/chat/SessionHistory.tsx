@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
-
-import { formatWhen } from "./model"
+import { formatWhen } from "@/lib/format"
 
 // Only a stale row explains itself: the popover focuses its first badge on open, and a tooltip on every row would be noise.
 const STALE_HINT = "Still open, but no turn for over 2 hours. It blocks new sessions until closed."

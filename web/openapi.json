@@ -223,7 +223,7 @@
      "courses"
     ],
     "summary": "Create Course",
-    "description": "A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a\n422, both raised by ``Courses.add``.",
+    "description": "A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a\n422 (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``.",
     "operationId": "create_course_api_courses_post",
     "requestBody": {
      "content": {
@@ -526,7 +526,7 @@
      "chat"
     ],
     "summary": "Turn",
-    "description": "One REPL line, exactly as ``brightlearn tutor`` reads it; ``/end`` ends the session.",
+    "description": "One REPL line, exactly as ``brightlearn tutor`` reads it; ``/end`` ends the session.\nA line the tutor couldn't answer is still a 200, with ``error`` saying why. A typed\n``/ask q`` answers as the CLI's does, its citations listed in ``reply``; ``POST ask`` gives\nthem as data.",
     "operationId": "turn_api_courses__course__session_turn_post",
     "parameters": [
      {
@@ -2190,7 +2190,7 @@
      "in_session"
     ],
     "title": "AskOut",
-    "description": "Inside a live session the answer comes from the tutor's ``ground``, which already\nwrites its citations into ``text``, so ``citations`` is empty and ``in_session`` is set."
+    "description": "A grounded answer and its citations. ``in_session``: asked in the live tutor session's\nown conversation (its ``/ask``), which always asks every source."
    },
    "AttemptOut": {
     "properties": {
@@ -3003,13 +3003,18 @@
      "schema_version": {
       "type": "integer",
       "title": "Schema Version"
+     },
+     "term": {
+      "type": "string",
+      "title": "Term"
      }
     },
     "type": "object",
     "required": [
      "ok",
      "version",
-     "schema_version"
+     "schema_version",
+     "term"
     ],
     "title": "HealthOut"
    },
@@ -3878,6 +3883,44 @@
     "title": "TextOut",
     "description": "A text file's contents: a transcript, a draft, its diff, an exam paper or a brief."
    },
+   "TurnErrorOut": {
+    "properties": {
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "detail": {
+      "type": "string",
+      "title": "Detail"
+     },
+     "resets_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resets At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "provider",
+     "detail",
+     "resets_at"
+    ],
+    "title": "TurnErrorOut",
+    "description": "Why a line to the tutor got no answer, as a 502 body says it: the provider that failed\nlast (None when none was tried, or the persona had no concept to build on) and, for a rate\nlimit, the hint's reset time (e.g. ``3pm``)."
+   },
    "TurnIn": {
     "properties": {
      "text": {
@@ -3927,6 +3970,27 @@
      "ratable": {
       "type": "boolean",
       "title": "Ratable"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TurnErrorOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -3935,7 +3999,9 @@
      "ended",
      "persona",
      "probe",
-     "ratable"
+     "ratable",
+     "provider",
+     "error"
     ],
     "title": "TurnOut"
    },

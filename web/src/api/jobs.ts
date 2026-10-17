@@ -28,6 +28,7 @@ export const keys = {
   courses: () => ["courses"] as const,
   dashboard: () => ["dashboard"] as const,
   doctor: () => ["doctor"] as const,
+  health: () => ["health"] as const,
   // Studio (BL-049). Each extends the key of what writes it, so the job that changes it refreshes it.
   allConcepts: (course: string) => ["concepts", course, "with-retired"] as const,
   evidence: (course: string, conceptId: string) => ["concepts", course, "evidence", conceptId] as const,

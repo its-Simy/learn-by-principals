@@ -17,7 +17,12 @@ from core.ledger.ledger import estimate_tokens
 from core.memory.db import Manifest
 from core.memory.learner import Concept, LearnerMemory
 from core.personas import Persona, load, render
-from core.providers.knowledge.base import Conversation, KnowledgeError, KnowledgeProvider
+from core.providers.knowledge.base import (
+    Conversation,
+    GroundedAnswer,
+    KnowledgeError,
+    KnowledgeProvider,
+)
 from core.providers.models.base import TaskPackage
 
 log = logging.getLogger(__name__)
@@ -49,6 +54,11 @@ class TutorSession:
     turns: list[Turn] = field(default_factory=list)
     # One NotebookLM conversation per tutor session, so follow-ups ("why?") keep their context.
     conversation: Conversation = field(default_factory=Conversation)
+
+
+def sources_unavailable(exc: KnowledgeError) -> str:
+    """What stands in for the source context, or a ``/ask`` answer, when NotebookLM fails."""
+    return f"(course sources unavailable: {exc})"
 
 
 def truncate_tokens(text: str, cap: int) -> str:
@@ -133,10 +143,35 @@ class ContextCompiler:
         """A grounded answer with citations, asked in the session's own conversation (``/ask``)."""
         return self._source_context(question, course, session.conversation)
 
+    def ground_answer(self, question: str, course: str, session: TutorSession) -> GroundedAnswer:
+        """``ground``'s answer before ``flatten``, its citations as data. Raises the
+        ``KnowledgeError`` that ``ground`` turns into ``sources_unavailable`` text."""
+        notebook_id = self._knowledge.ensure_notebook(course)
+        return self._knowledge.query(notebook_id, question, conversation=session.conversation)
+
     def sources(self, question: str, course: str, source_ids: list[str] | None = None) -> str:
         """A grounded answer with citations in a fresh conversation, optionally limited to
         ``source_ids`` (exam generation). Never call it while the course has a tutor session."""
         return self._source_context(question, course, None, source_ids)
+
+    def flatten(self, answer: GroundedAnswer, course: str) -> str:
+        """The answer as one text: its own text, then one ``[n] filename: excerpt`` line per
+        citation, within ``SOURCE_CAP`` (the answer is cut before the citations are)."""
+        titles = {}
+        if self._manifest is not None:
+            titles = {
+                r.notebook_source_id: r.filename or r.title
+                for r in self._manifest.all(course)
+                if r.notebook_source_id
+            }
+        cited = "\n".join(
+            f"[{n}] {titles.get(c.source_id, c.source_id)}: {' '.join(c.excerpt.split())[:240]}"
+            for n, c in enumerate(answer.citations, start=1)
+        )
+        cited = truncate_tokens(cited, SOURCE_CAP // 3)
+        # The answer gives way before the citations do.
+        room = SOURCE_CAP - estimate_tokens(cited) - 1
+        return "\n".join(p for p in (truncate_tokens(answer.text.strip(), room), cited) if p)
 
     # -- sections ----------------------------------------------------------------------------
 
@@ -154,22 +189,8 @@ class ContextCompiler:
             )
         except KnowledgeError as exc:
             log.warning("No source context for %s: %s", course, exc)
-            return f"(course sources unavailable: {exc})"
-        titles = {}
-        if self._manifest is not None:
-            titles = {
-                r.notebook_source_id: r.filename or r.title
-                for r in self._manifest.all(course)
-                if r.notebook_source_id
-            }
-        cited = "\n".join(
-            f"[{n}] {titles.get(c.source_id, c.source_id)}: {' '.join(c.excerpt.split())[:240]}"
-            for n, c in enumerate(answer.citations, start=1)
-        )
-        cited = truncate_tokens(cited, SOURCE_CAP // 3)
-        # The answer gives way before the citations do.
-        room = SOURCE_CAP - estimate_tokens(cited) - 1
-        return "\n".join(p for p in (truncate_tokens(answer.text.strip(), room), cited) if p)
+            return sources_unavailable(exc)
+        return self.flatten(answer, course)
 
     def _learner_context(self, concepts: list[Concept]) -> str:
         lines = []

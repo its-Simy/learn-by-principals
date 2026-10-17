@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from api.app import create_app, protect, register_errors
 from api.deps import course_code
 from api.engine import Job, JobRunning
-from api.errors import Conflict
+from api.errors import Conflict, Refused
 from api.static import NOT_BUILT, mount_web
 from cli.app import app as cli
 from core import personas
@@ -34,6 +34,7 @@ def test_health(api):
         "ok": True,
         "version": version("brightlearn"),
         "schema_version": SCHEMA_VERSION,
+        "term": "Fall-2026",  # config.term, which the new-course dialog prefills
     }
 
 
@@ -195,6 +196,7 @@ def raising() -> TestClient:
         "duplicate": DuplicateCourse("course CSE220 already exists"),
         "conflict": Conflict("session_live", "Session s1 is live", session_id="s1"),
         "value": ValueError("unknown bucket 'misc'"),
+        "refused": Refused("nothing_linked", "Nothing from CSE220 is in NotebookLM yet"),
         "spec": personas.PersonaError("No persona 'x'"),
         "limited": ModelRateLimited("claude: usage limit", UsageHint(resets_at="3pm")),
         "noprovider": NoProvider("No model provider left for explain: claude is RATE_LIMITED"),
@@ -228,6 +230,11 @@ def raising() -> TestClient:
             {"code": "session_live", "detail": "Session s1 is live", "session_id": "s1"},
         ),
         ("value", 422, {"detail": "unknown bucket 'misc'"}),
+        (
+            "refused",
+            422,
+            {"code": "nothing_linked", "detail": "Nothing from CSE220 is in NotebookLM yet"},
+        ),
         ("spec", 422, {"detail": "No persona 'x'"}),
         ("limited", 502, {"provider": "claude", "resets_at": "3pm"}),
         ("noprovider", 502, {"provider": None, "resets_at": None}),

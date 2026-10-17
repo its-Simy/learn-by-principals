@@ -92,9 +92,12 @@ def test_seed_writes_an_unreviewed_draft(kp, db, tmp_path):
 def test_apply_refuses_an_unreviewed_draft(kp, db, tmp_path):
     path, _ = seed(kp, db, "CSE220", tmp_path)
     learner = LearnerMemory(db.conn)
-    with pytest.raises(DraftNotReviewed):
+    with pytest.raises(DraftNotReviewed) as refused:
         apply(path, learner)
     assert learner.concepts("CSE220") == []
+    # The draft by its file name: the web shows this message, and the vault path is the server's.
+    assert str(refused.value).startswith(f"{path.name} still says `reviewed: false`")
+    assert str(path.parent) not in str(refused.value)
 
 
 def test_apply_inserts_rows_and_is_idempotent(kp, db, tmp_path):

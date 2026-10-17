@@ -99,13 +99,17 @@ def test_duplicate_course_is_409(api):
 
 def test_a_code_or_term_that_cant_be_a_folder_is_422(api):
     client, *_ = api
-    for body in (
-        {"course": "CSE 220", "name": "Systems"},
-        {"course": "CSE220", "name": "Systems", "term": "../x"},
-        {"course": "CSE220", "name": "  "},
+    for body, code in (
+        ({"course": "CSE 220", "name": "Systems"}, "invalid_course_code"),
+        ({"course": "CSE220", "name": "Systems", "term": "../x"}, "invalid_term"),
+        ({"course": "CSE220", "name": "  "}, None),  # request validation: FastAPI's own body
     ):
-        assert client.post("/api/courses", json=body).status_code == 422, body
+        response = client.post("/api/courses", json=body)
+        assert response.status_code == 422, body
+        assert response.json().get("code") == code, body
     assert client.get("/api/courses").json() == []
+    term = client.post("/api/courses", json={"course": "CSE220", "name": "S", "term": "a b"})
+    assert term.json()["detail"] == "term 'a b' must be 1-32 letters, digits, _ or -"
 
 
 def test_an_unknown_course_is_404(api):

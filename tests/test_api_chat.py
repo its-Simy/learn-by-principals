@@ -10,6 +10,7 @@ import yaml
 from core.memory.db import Manifest, connect
 from core.memory.learner import LearnerMemory
 from core.providers.knowledge.base import KnowledgeError
+from core.providers.models.base import ModelRateLimited, UsageHint
 from core.sessions import guard
 from tests.test_api_courses_sources import add_course, parked, upload
 from tests.test_exam_cli import SPEC
@@ -86,6 +87,8 @@ def test_a_turn_grows_the_session_and_its_transcript(linked):
         "persona": "simplifier",
         "probe": None,
         "ratable": True,
+        "provider": "claude",
+        "error": None,
     }
     live = client.get("/api/courses/CSE220/session").json()
     assert live["turns"] == [
@@ -94,12 +97,48 @@ def test_a_turn_grows_the_session_and_its_transcript(linked):
     ]
     rated = client.post("/api/courses/CSE220/session/turn", json={"text": "/rate 4"}).json()
     assert rated["reply"] == "Rated the last answer 4/5."
+    assert rated["provider"] is None  # a command: no answer of its own, though one is ratable
     switched = client.post("/api/courses/CSE220/session/turn", json={"text": "/persona exemplar"})
     assert switched.json()["persona"] == "exemplar"
 
     text = client.get(f"/api/sessions/{session['session_id']}/transcript").json()["text"]
     assert "**Learner:** What is a pointer?" in text
     assert "_Rated 4/5 (claude)._" in text and "_Persona switched to exemplar._" in text
+
+
+def test_a_turn_with_no_answer_says_which_provider_failed_and_when_it_resets(linked, monkeypatch):
+    client, _, models, _ = linked
+    start(client)
+
+    def limited(name: str):
+        def run(task):
+            raise ModelRateLimited(f"{name} usage limit reached", UsageHint(resets_at="3pm"))
+
+        return run
+
+    for name, model in models.items():
+        monkeypatch.setattr(model, "run", limited(name))
+    turn = client.post("/api/courses/CSE220/session/turn", json={"text": "What is a pointer?"})
+
+    assert turn.status_code == 200, turn.text
+    body = turn.json()
+    assert body["reply"] == "(no answer: codex usage limit reached)"  # the CLI's line, as before
+    assert body["error"] == {
+        "provider": "codex",  # the last one tried: claude fell back to it
+        "detail": "codex usage limit reached",
+        "resets_at": "3pm",
+    }
+    assert (body["provider"], body["ratable"]) == (None, False)
+
+    # The next line's own outcome: a command has no error, even right after a failed turn.
+    help_ = client.post("/api/courses/CSE220/session/turn", json={"text": "/help"}).json()
+    assert help_["error"] is None
+    # Both are rate limited now, so the router tries neither: no provider to name.
+    again = client.post("/api/courses/CSE220/session/turn", json={"text": "Again?"}).json()
+    assert again["error"]["provider"] is None
+    assert again["error"]["detail"].startswith("No model provider left")
+    ended = client.post("/api/courses/CSE220/session/end").json()
+    assert ended["error"] is None and ended["provider"] is None
 
 
 def test_a_turn_without_a_live_session_is_404(linked):
@@ -124,20 +163,52 @@ def test_ask_in_a_session_uses_ground_in_the_sessions_conversation(linked):
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["in_session"] is True and body["citations"] == []
-    # ``ground`` writes its citations into the text, labelled by filename.
-    assert body["text"].startswith("Canned answer.") and "[1] lec3.pdf:" in body["text"]
+    # The citations as data, labelled as the no-session ask labels them.
+    assert body["in_session"] is True and body["text"] == "Canned answer."
+    (citation,) = body["citations"]
+    assert (citation["n"], citation["filename"], citation["bucket"]) == (1, "lec3.pdf", "lectures")
+    assert citation["excerpt"] == "lec3.pdf text about pointers"
     conversation = engine.tutors["CSE220"].session.conversation.conversation_id
     assert kp.conversations[asked:] == [conversation]
     assert kp.conversations[asked - 1] == conversation  # the turn's source context, too
     assert conversation not in kp.conversations[: asked - 1]  # the earlier ask was fresh
     text = client.get(f"/api/sessions/{session['session_id']}/transcript").json()["text"]
-    assert "**Ask (NotebookLM):** Where is swap()?" in text
+    # The transcript keeps the CLI's text: the citations listed under the answer.
+    assert "**Ask (NotebookLM):** Where is swap()?\n\n> Canned answer.\n> [1] lec3.pdf:" in text
+
+    # A typed `/ask q` is a REPL line: it answers as the CLI does, citations in the text.
+    typed = client.post("/api/courses/CSE220/session/turn", json={"text": "/ask Where is swap()?"})
+    reply = typed.json()["reply"]
+    assert reply.startswith("Canned answer.\n[1] lec3.pdf: lec3.pdf text about pointers")
+    assert typed.json()["provider"] is None
 
     filtered = client.post(
         "/api/courses/CSE220/ask", json={"question": "q", "source_ids": ["src2"]}
     )
     assert filtered.status_code == 422
+
+
+def test_an_in_session_ask_that_notebooklm_fails_is_a_502(linked, monkeypatch):
+    client, kp, _, _ = linked
+    session = start(client)
+
+    def down(*args, **kwargs):
+        raise KnowledgeError("notebook gone")
+
+    monkeypatch.setattr(kp, "query", down)
+    response = client.post("/api/courses/CSE220/ask", json={"question": "Where is swap()?"})
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "provider": "notebooklm",
+        "detail": "notebook gone",
+        "resets_at": None,
+    }
+    text = client.get(f"/api/sessions/{session['session_id']}/transcript").json()["text"]
+    assert "> (course sources unavailable: notebook gone)" in text
+    # The CLI's /ask still answers with the line.
+    typed = client.post("/api/courses/CSE220/session/turn", json={"text": "/ask Again?"})
+    assert typed.json()["reply"] == "(course sources unavailable: notebook gone)"
 
 
 def test_ask_without_a_session_cites_filename_and_bucket(linked):
@@ -169,8 +240,10 @@ def test_ask_and_start_need_something_linked(api):
     with parked(engine, "seed", "CSE214"):  # keep the link job from running
         assert upload(client, "CSE220", "lec3.pdf").status_code == 200
         ask = client.post("/api/courses/CSE220/ask", json={"question": "q"})
-        assert ask.status_code == 422 and "Nothing from CSE220" in ask.json()["detail"]
-        assert client.post("/api/courses/CSE220/session", json={}).status_code == 422
+        assert ask.status_code == 422 and ask.json()["code"] == "nothing_linked"
+        assert "Nothing from CSE220" in ask.json()["detail"]
+        started = client.post("/api/courses/CSE220/session", json={})
+        assert started.status_code == 422 and started.json()["code"] == "nothing_linked"
         assert kp.queries == [] and kp.notebooks == {}  # only the link job creates the notebook
         assert engine.tutors == {}
 

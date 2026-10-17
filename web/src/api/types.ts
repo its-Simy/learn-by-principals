@@ -125,7 +125,7 @@ export interface paths {
         /**
          * Create Course
          * @description A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a
-         *     422, both raised by ``Courses.add``.
+         *     422 (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``.
          */
         post: operations["create_course_api_courses_post"];
         delete?: never;
@@ -238,6 +238,9 @@ export interface paths {
         /**
          * Turn
          * @description One REPL line, exactly as ``brightlearn tutor`` reads it; ``/end`` ends the session.
+         *     A line the tutor couldn't answer is still a 200, with ``error`` saying why. A typed
+         *     ``/ask q`` answers as the CLI's does, its citations listed in ``reply``; ``POST ask`` gives
+         *     them as data.
          */
         post: operations["turn_api_courses__course__session_turn_post"];
         delete?: never;
@@ -831,8 +834,8 @@ export interface components {
         };
         /**
          * AskOut
-         * @description Inside a live session the answer comes from the tutor's ``ground``, which already
-         *     writes its citations into ``text``, so ``citations`` is empty and ``in_session`` is set.
+         * @description A grounded answer and its citations. ``in_session``: asked in the live tutor session's
+         *     own conversation (its ``/ask``), which always asks every source.
          */
         AskOut: {
             /** Text */
@@ -1109,6 +1112,8 @@ export interface components {
             version: string;
             /** Schema Version */
             schema_version: number;
+            /** Term */
+            term: string;
         };
         /**
          * JobOut
@@ -1418,6 +1423,20 @@ export interface components {
             text: string;
         };
         /**
+         * TurnErrorOut
+         * @description Why a line to the tutor got no answer, as a 502 body says it: the provider that failed
+         *     last (None when none was tried, or the persona had no concept to build on) and, for a rate
+         *     limit, the hint's reset time (e.g. ``3pm``).
+         */
+        TurnErrorOut: {
+            /** Provider */
+            provider: string | null;
+            /** Detail */
+            detail: string;
+            /** Resets At */
+            resets_at: string | null;
+        };
+        /**
          * TurnIn
          * @description One line of the REPL: a question, or ``/persona x``, ``/rate n``, ``/skip``, ``/ask q``,
          *     ``/end``, ``/help``.
@@ -1437,6 +1456,9 @@ export interface components {
             probe: components["schemas"]["ProbeOut"] | null;
             /** Ratable */
             ratable: boolean;
+            /** Provider */
+            provider: string | null;
+            error: components["schemas"]["TurnErrorOut"] | null;
         };
         /**
          * UploadOut

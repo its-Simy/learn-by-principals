@@ -15,7 +15,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { useNoStrayDrops } from "@/features/sources/UploadDropzone"
 import { ExamTakeView } from "@/features/exams/ExamTakeView"
 import { ThemeProvider } from "@/lib/theme"
-import { CoursePage } from "@/pages/CoursePage"
+import { CourseChat, CoursePage } from "@/pages/CoursePage"
 import { HomePage } from "@/pages/HomePage"
 import { SystemPage } from "@/pages/SystemPage"
 
@@ -70,8 +70,11 @@ export function App() {
             <Routes>
               <Route element={<Layout />}>
                 <Route index element={<HomePage />} />
-                <Route path="courses/:course" element={<CoursePage />} />
-                <Route path="courses/:course/exams/:id/take" element={<ExamTakeView />} />
+                {/* The take view replaces the chat area only: the rails, and the source selection, stay. */}
+                <Route path="courses/:course" element={<CoursePage />}>
+                  <Route index element={<CourseChat />} />
+                  <Route path="exams/:id/take" element={<ExamTakeView />} />
+                </Route>
                 <Route path="system" element={<SystemPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

@@ -13,7 +13,8 @@ session queues another. Point Vite at it with ``VITE_API_PORT`` (web/README.md).
 NotebookLM is an in-memory fake: it forgets its sources on exit, so each start re-adopts every
 linked row from the manifest. ``--delay`` makes each fake call take that many seconds, so the
 UI's waits (pending rows, elapsed times) can be seen; a file whose name contains "fail" is
-refused by the fake, to show a link job's failure.
+refused by the fake, to show a link job's failure, and a tutor question that says "rate limit"
+gets a usage limit from both fake models, to show a turn's error and its reset time.
 """
 
 from __future__ import annotations
@@ -58,7 +59,12 @@ from core.providers.knowledge.base import (  # noqa: E402
     SourceMeta,
     notebook_title,
 )
-from core.providers.models.base import ModelResult, TaskPackage, UsageHint  # noqa: E402
+from core.providers.models.base import (  # noqa: E402
+    ModelRateLimited,
+    ModelResult,
+    TaskPackage,
+    UsageHint,
+)
 from core.providers.storage.local import LocalStorageBackend  # noqa: E402
 from core.router.benchmarks import Benchmarks  # noqa: E402
 from core.router.health import HealthStore  # noqa: E402
@@ -156,6 +162,12 @@ PROBE_CONCEPT = re.compile(r"^## Concept\n(.+?) \(recorded", re.M)
 
 # FakeQuestioner's slot lines: a question_gen task that lists slots is exam generation.
 SLOT = re.compile(r"^\d+\. (multiple_choice|short_answer|coding), (easy|medium|hard)$", re.M)
+
+# A tutoring question saying "rate limit" is refused by both models with a limit that resets in
+# RATE_LIMIT_FOR, so the router skips them both until then, as it would a real limit.
+RATE_LIMIT = re.compile(r"\brate limit\b", re.I)
+RATE_LIMIT_FOR = timedelta(seconds=20)
+TUTORING = frozenset({"explain", "analogy", "exemplify"})
 
 
 class DevKnowledge(FakeKnowledge):
@@ -307,6 +319,10 @@ class DevModel(FakeCritic):
             return self._text(task, analyzer_finding(task.user))
         if task.task_type == "tutor_estimate":
             return self._text(task, "")
+        if task.task_type in TUTORING and RATE_LIMIT.search(task.user):
+            resets = (datetime.now(UTC) + RATE_LIMIT_FOR).isoformat(timespec="seconds")
+            message = f"{self.name} usage limit reached"
+            raise ModelRateLimited(message, UsageHint(limit_message=message, resets_at=resets))
         return super().run(task)
 
     def _text(self, task: TaskPackage, text: str) -> ModelResult:

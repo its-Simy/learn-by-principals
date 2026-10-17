@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react"
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { Link, useParams } from "react-router"
 
-import { ApiError, conflictCode } from "@/api/client"
+import { blockingJob, conflictCode } from "@/api/client"
 import { isActive, keys, useJob } from "@/api/jobs"
 import { useExam, useGrade, useTakeState, useTakeSteps, type Exam, type Question, type TakeState } from "@/api/queries.studio"
 import { JobRow } from "@/components/JobRow"
@@ -38,14 +38,7 @@ function FocusLine({ children }: { children: ReactNode }) {
   )
 }
 
-/** The job a 409 `job_running` names, if it names one. */
-function blockingJobId(error: unknown): string | undefined {
-  if (conflictCode(error) !== "job_running" || !(error instanceof ApiError)) return undefined
-  const body = error.body
-  if (typeof body !== "object" || body === null || !("job_id" in body)) return undefined
-  return typeof body.job_id === "string" ? body.job_id : undefined
-}
-
+/** The course page's chat area, while an attempt is taken: the rails and the source selection stay as they were. */
 export function ExamTakeView() {
   const params = useParams()
   // Upper-cased as the API returns courses, so the jobs watcher's invalidation (by job.course) matches these keys.
@@ -56,14 +49,14 @@ export function ExamTakeView() {
   const coursePath = `/courses/${encodeURIComponent(course)}`
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6">
         <div className="flex flex-col gap-2">
           <div>
             <Button variant="ghost" size="sm" className="-ml-2" asChild>
               <Link to={coursePath}>
                 <ArrowLeft />
-                Back to course
+                Back to chat
               </Link>
             </Button>
           </div>
@@ -75,7 +68,8 @@ export function ExamTakeView() {
         ) : state.isError ? (
           <ErrorNote error={state.error} />
         ) : (
-          <Attempt course={course} id={id} state={state.data} exam={exam.data} coursePath={coursePath} />
+          // Keyed, so taking another exam from the Studio rail starts without this one's error.
+          <Attempt key={id} course={course} id={id} state={state.data} exam={exam.data} coursePath={coursePath} />
         )}
       </div>
     </div>
@@ -117,7 +111,7 @@ function Attempt({ course, id, state, exam, coursePath }: AttemptProps) {
   const open = () => steps.open.mutate(undefined, handlers)
   const finish = () => steps.finish.mutate(undefined, handlers)
   // A grading refusal lasts only as long as the grade job: once it leaves the active state the note goes.
-  const blocking = useJob(blockingJobId(error))
+  const blocking = useJob(blockingJob(error))
   const shown = blocking.data && !isActive(blocking.data) ? null : error
 
   // A 422 belongs under the answer; a 409 says why the step waits; anything else is a failure.
@@ -365,7 +359,7 @@ function HandedIn({ course, id, state, exam, coursePath, children }: HandedInPro
           />
         )}
         <Button variant="outline" asChild>
-          <Link to={coursePath}>Back to course</Link>
+          <Link to={coursePath}>Back to chat</Link>
         </Button>
       </div>
       <div className="flex flex-col gap-2 border-t pt-4">{children}</div>

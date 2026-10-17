@@ -33,6 +33,7 @@ class HealthOut(BaseModel):
     ok: bool
     version: str
     schema_version: int
+    term: str  # config.term: what a new course is filed under when it names no term
 
 
 class PersonaOut(BaseModel):

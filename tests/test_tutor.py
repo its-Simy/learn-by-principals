@@ -11,6 +11,7 @@ from core.ledger.ledger import Ledger
 from core.memory.db import connect
 from core.memory.learner import Concept, LearnerMemory
 from core.memory.vault import Vault
+from core.providers.knowledge.base import KnowledgeError
 from core.providers.models.base import ModelError, ProviderState
 from core.router.router import Router
 from core.tutor import Tutor
@@ -92,7 +93,55 @@ def test_every_provider_failing_is_reported(tutor, models, monkeypatch):
     monkeypatch.setattr(models["claude"], "run", boom)
     monkeypatch.setattr(models["codex"], "run", boom)
     assert tutor.handle("What is a pointer?") == "(no answer: crashed)"
+    assert str(tutor.last_error) == "crashed" and tutor.last_error.provider == "codex"
+    assert tutor.handle("/help").startswith("Commands:")
+    assert tutor.last_error is None  # it describes the last line only
     assert tutor.handle("Again?").startswith("(no answer: No model provider left for explain")
+    assert isinstance(tutor.last_error, ModelError) and tutor.last_error.provider is None
+
+
+def test_an_answer_clears_the_last_error(tutor):
+    tutor.last_error = ModelError("an earlier turn failed")
+    assert tutor.ask("What is a pointer?") == "Claude says hi."
+    assert tutor.last_error is None
+
+
+def test_ask_grounds_in_the_sessions_conversation_with_citations(conn, models, tmp_path):
+    """``ground_answer`` keeps the citations as data; ``ground``, the CLI's ``/ask``, lists
+    them under the answer as before, and both record the text in the transcript."""
+    learner = LearnerMemory(conn)
+    kp = FakeKnowledge(answer_text="Pointers store addresses.")
+    lecture = tmp_path / "lec3.pdf"
+    lecture.write_text("lec3 text about pointers")
+    source_id = kp.add_file(kp.ensure_notebook("CSE220"), lecture)
+    router = Router(models, Ledger(conn), ["claude", "codex"])
+    compiler = ContextCompiler(kp, learner)
+    t = Tutor("CSE220", "simplifier", compiler, router, learner, Vault(tmp_path / "memory"))
+    t.start()
+    assert t.session is not None
+
+    answer = t.ground_answer("Where is swap()?")
+    assert answer.text == "Pointers store addresses."
+    assert [(c.source_id, c.excerpt) for c in answer.citations] == [
+        (source_id, "lec3 text about pointers")
+    ]
+    flat = f"Pointers store addresses.\n[1] {source_id}: lec3 text about pointers"
+    assert t.ground("Where is swap()?") == flat
+    assert t.ground("Where is swap()?") == compiler.ground("Where is swap()?", "CSE220", t.session)
+    assert set(kp.conversations) == {t.session.conversation.conversation_id}  # one conversation
+    text = t.transcript_path.read_text()
+    assert text.count("**Ask (NotebookLM):** Where is swap()?") == 3  # once per ask
+    assert f"> Pointers store addresses.\n> [1] {source_id}: lec3 text" in text
+    assert t.ground("") == "Usage: /ask <question>"
+
+    def down(*args, **kwargs):
+        raise KnowledgeError("notebook gone")
+
+    kp.query = down
+    with pytest.raises(KnowledgeError):
+        t.ground_answer("Again?")
+    assert t.ground("Again?") == "(course sources unavailable: notebook gone)"
+    assert t.transcript_path.read_text().count("> (course sources unavailable: notebook gone)") == 2
 
 
 def test_persona_switch_mid_session(tutor, models):

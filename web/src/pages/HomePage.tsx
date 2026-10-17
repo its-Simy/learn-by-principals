@@ -3,8 +3,10 @@ import { Plus } from "lucide-react"
 import { useId, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 
-import { ApiError } from "@/api/client"
-import { defaultTerm, useCourseSessions, useCourses, useCreateCourse, type Course } from "@/api/queries.courses"
+import { ApiError, errorCode } from "@/api/client"
+import { useSessions } from "@/api/queries.chat"
+import { useCourses, useCreateCourse, type Course } from "@/api/queries.courses"
+import { useHealth } from "@/api/queries.system"
 import { EmptyState } from "@/components/EmptyState"
 import { StateBadge } from "@/components/StateBadge"
 import { Button } from "@/components/ui/button"
@@ -18,11 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatClock } from "@/lib/format"
-
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`
-}
+import { formatClock, plural } from "@/lib/format"
 
 /** "today 14:05", "yesterday", "Oct 15": when a course was last studied. */
 function formatDay(iso: string, now: Date = new Date()): string {
@@ -40,7 +38,7 @@ function startOfDay(date: Date): number {
 
 function CourseCard({ course }: { course: Course }) {
   // CourseOut names only this server's live session; the course's sessions also show a CLI or stale one.
-  const { data: sessions } = useCourseSessions(course.course)
+  const { data: sessions } = useSessions(course.course)
   const unfinished = sessions?.find((s) => s.state !== "ended")
   const state = unfinished?.state ?? (course.open_session_id ? "open" : null)
   const last = sessions?.[0]
@@ -83,15 +81,20 @@ function CourseGrid({ courses }: { courses: Course[] }) {
 
 type FieldErrors = { course?: string; term?: string; form?: string }
 
-// Core's refusals say which field they mean: "course code 'x' must be ...", "term 'x' must be ...".
+// The server's refusals name the field they mean by their code.
 function fieldErrors(error: unknown): FieldErrors {
   if (!(error instanceof ApiError)) return { form: error instanceof Error ? error.message : String(error) }
   const message = error.message.charAt(0).toUpperCase() + error.message.slice(1)
-  const code = (error.body as { code?: unknown } | null)?.code
-  if (error.status === 409 && code === "duplicate_course") return { course: `${message}.` }
-  if (error.status === 422 && error.message.startsWith("course code")) return { course: message }
-  if (error.status === 422 && error.message.startsWith("term")) return { term: message }
-  return { form: message }
+  switch (errorCode(error)) {
+    case "duplicate_course":
+      return { course: `${message}.` }
+    case "invalid_course_code":
+      return { course: message }
+    case "invalid_term":
+      return { term: message }
+    default:
+      return { form: message }
+  }
 }
 
 const CODE_PATTERN = "[A-Za-z0-9_\\-]{1,32}"
@@ -102,17 +105,18 @@ function NewCourseForm({ onDone }: { onDone: () => void }) {
   const create = useCreateCourse()
   const [course, setCourse] = useState("")
   const [name, setName] = useState("")
-  const [term, setTerm] = useState(defaultTerm)
-  // An untouched term is left out, so the server uses its own (config.term); the prefill is
-  // only today's guess, which BRIGHTLEARN_TERM can override on the server.
-  const [termEdited, setTermEdited] = useState(false)
+  // Prefilled with the server's own term (config.term). Untouched (null), it is left out of the request, so the
+  // server files the course under that same term even if the dialog opened before /api/health answered.
+  const serverTerm = useHealth().data?.term ?? ""
+  const [editedTerm, setEditedTerm] = useState<string | null>(null)
+  const term = editedTerm ?? serverTerm
   const ids = { course: useId(), name: useId(), term: useId(), courseError: useId(), termError: useId() }
   const errors = create.isError ? fieldErrors(create.error) : {}
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     create.mutate(
-      { course: course.trim(), name: name.trim(), ...(termEdited ? { term: term.trim() || null } : {}) },
+      { course: course.trim(), name: name.trim(), ...(editedTerm !== null ? { term: editedTerm.trim() || null } : {}) },
       {
         onSuccess: (created) => {
           onDone()
@@ -171,11 +175,8 @@ function NewCourseForm({ onDone }: { onDone: () => void }) {
         <Input
           id={ids.term}
           value={term}
-          onChange={(e) => {
-            setTerm(e.target.value)
-            setTermEdited(true)
-          }}
-          placeholder={defaultTerm()}
+          onChange={(e) => setEditedTerm(e.target.value)}
+          placeholder={serverTerm}
           maxLength={32}
           pattern={CODE_PATTERN}
           autoComplete="off"

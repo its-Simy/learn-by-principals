@@ -19,11 +19,12 @@ from core.analysis.challenge import (
     format_estimate,
     parse_estimate,
 )
-from core.context.compiler import ContextCompiler, Turn, TutorSession
+from core.context.compiler import ContextCompiler, Turn, TutorSession, sources_unavailable
 from core.ledger.ledger import utcnow
 from core.memory.learner import LearnerMemory, SessionRow
 from core.memory.vault import Vault
 from core.personas import MissingAnchor, PersonaError, load
+from core.providers.knowledge.base import GroundedAnswer, KnowledgeError
 from core.providers.models.base import ModelError
 from core.router.router import Router
 
@@ -59,6 +60,9 @@ class Tutor:
         self.session: TutorSession | None = None
         self.providers_used: list[str] = []
         self.last_answer: tuple[str, str] | None = None  # (provider, task type), for /rate
+        # Why the last line handled got no tutor answer (every provider failed, or the persona
+        # had no anchor); None after any other line.
+        self.last_error: ModelError | MissingAnchor | None = None
         self.ended = False
         self._challenges = challenges
         self._queue: list[Challenge] = []
@@ -89,6 +93,7 @@ class Tutor:
 
     def handle(self, line: str) -> str | None:
         """One line of input: a command or a question. Returns what to show the learner."""
+        self.last_error = None
         line = line.strip()
         if not line:
             return None
@@ -127,23 +132,43 @@ class Tutor:
         return f"Persona: {persona.name}"
 
     def ground(self, question: str) -> str:
-        """``/ask``: NotebookLM's grounded answer, in this session's conversation (P66)."""
-        assert self.session is not None, "call start() first"
+        """``/ask``: NotebookLM's grounded answer, in this session's conversation (P66), with
+        its citations listed under it; when NotebookLM fails, a line saying so."""
         if not question:
             return "Usage: /ask <question>"
-        answer = self._compiler.ground(question, self.course, self.session)
-        self._touch()
-        quoted = "\n".join(f"> {line}" for line in answer.splitlines())
-        self._append(f"\n**Ask (NotebookLM):** {question}\n\n{quoted}\n")
+        try:
+            answer = self.ground_answer(question)
+        except KnowledgeError as exc:
+            return sources_unavailable(exc)
+        return self._compiler.flatten(answer, self.course)
+
+    def ground_answer(self, question: str) -> GroundedAnswer:
+        """``ground``'s answer with its citations as data (the web chat's chips), recorded in
+        the transcript as ``ground``'s text. A NotebookLM failure is recorded, then raised."""
+        assert self.session is not None, "call start() first"
+        try:
+            answer = self._compiler.ground_answer(question, self.course, self.session)
+        except KnowledgeError as exc:
+            log.warning("No grounded answer for %s: %s", self.course, exc)
+            self._record_ask(question, sources_unavailable(exc))
+            raise
+        self._record_ask(question, self._compiler.flatten(answer, self.course))
         return answer
+
+    def _record_ask(self, question: str, text: str) -> None:
+        self._touch()
+        quoted = "\n".join(f"> {line}" for line in text.splitlines())
+        self._append(f"\n**Ask (NotebookLM):** {question}\n\n{quoted}\n")
 
     def ask(self, question: str) -> str:
         assert self.session is not None, "call start() first"
+        self.last_error = None
         try:
             task = self._compiler.compile(question, self.course, self.persona, self.session)
             result = self._router.run(task)
         except (ModelError, MissingAnchor) as exc:
             log.warning("Tutor turn failed: %s", exc)
+            self.last_error = exc
             return f"(no answer: {exc})"
         self.session.turns += [Turn("learner", question), Turn("tutor", result.text)]
         self.last_answer = (result.provider, task.task_type)

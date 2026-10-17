@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, StringConstraints
 
+from api.errors import provider_failure
 from core.analysis.challenge import Probe
 from core.memory.db import ResourceRow
 from core.memory.learner import SessionRow
@@ -87,21 +88,44 @@ class LiveSessionOut(BaseModel):
         )
 
 
+class TurnErrorOut(BaseModel):
+    """Why a line to the tutor got no answer, as a 502 body says it: the provider that failed
+    last (None when none was tried, or the persona had no concept to build on) and, for a rate
+    limit, the hint's reset time (e.g. ``3pm``)."""
+
+    provider: str | None
+    detail: str
+    resets_at: str | None
+
+
 class TurnOut(BaseModel):
     reply: str | None  # None for a line that needs no answer
     ended: bool
     persona: str
     probe: ProbeOut | None
     ratable: bool
+    provider: str | None  # the provider that wrote this turn's tutoring answer, if it wrote one
+    # Set when the line went to the tutor and no answer came back; ``reply`` is then the CLI's
+    # "(no answer: …)" line.
+    error: TurnErrorOut | None
 
     @classmethod
-    def from_core(cls, tutor: Tutor, reply: str | None) -> TurnOut:
+    def from_core(
+        cls,
+        tutor: Tutor,
+        reply: str | None,
+        answered: bool = False,
+        error: Exception | None = None,
+    ) -> TurnOut:
+        """``answered``: this turn added a tutoring exchange, so ``last_answer`` is its own."""
         return cls(
             reply=reply,
             ended=tutor.ended,
             persona=tutor.persona,
             probe=_probe(tutor),
             ratable=tutor.last_answer is not None,
+            provider=tutor.last_answer[0] if answered and tutor.last_answer else None,
+            error=TurnErrorOut(**provider_failure(error)) if error is not None else None,
         )
 
 
@@ -114,15 +138,17 @@ class CitationOut(BaseModel):
 
 
 class AskOut(BaseModel):
-    """Inside a live session the answer comes from the tutor's ``ground``, which already
-    writes its citations into ``text``, so ``citations`` is empty and ``in_session`` is set."""
+    """A grounded answer and its citations. ``in_session``: asked in the live tutor session's
+    own conversation (its ``/ask``), which always asks every source."""
 
     text: str
     citations: list[CitationOut]
     in_session: bool
 
     @classmethod
-    def from_core(cls, answer: GroundedAnswer, sources: dict[str, ResourceRow]) -> AskOut:
+    def from_core(
+        cls, answer: GroundedAnswer, sources: dict[str, ResourceRow], in_session: bool = False
+    ) -> AskOut:
         """``sources`` maps a NotebookLM source id to its manifest row, as ``brightlearn ask``
         labels a citation ``filename (bucket)``."""
         citations = []
@@ -137,7 +163,7 @@ class AskOut(BaseModel):
                     excerpt=" ".join(citation.excerpt.split()),
                 )
             )
-        return cls(text=answer.text, citations=citations, in_session=False)
+        return cls(text=answer.text, citations=citations, in_session=in_session)
 
 
 class SessionOut(BaseModel):

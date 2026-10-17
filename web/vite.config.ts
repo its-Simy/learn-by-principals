@@ -10,6 +10,8 @@ const apiPort = process.env.VITE_API_PORT ?? "8765"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // One bundle (about 780 kB) served from localhost, where a split buys no load time; warn only past 1 MB.
+  build: { chunkSizeWarningLimit: 1000 },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

@@ -6,7 +6,8 @@ import { StateBadge } from "@/components/StateBadge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatWhen } from "./model"
+import { formatWhen } from "@/lib/format"
+
 import { SessionHistory } from "./SessionHistory"
 
 type PersonaSelectProps = {
