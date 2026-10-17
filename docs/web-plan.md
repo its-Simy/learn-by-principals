@@ -162,7 +162,7 @@ Daemon threads rather than an executor so Ctrl-C on `brightlearn web` exits at o
 
 **P66 across threads:** `start_session` runs `guard(r.learner, course)` and refuses if `jobs.running(course, CONVERSATION_JOBS)` (409 `job_running`); `exam_create` and `seed` job functions call `guard` as their first statement on the job thread; `ask` uses the live tutor's `ground` when one exists, else `guard` then a fresh `knowledge.query`. Every 409 carries `{code: "session_open", session_id, stale}` so the UI can offer "close stale session" in place.
 
-**Errors** (`api/app.py: register_errors`): `SessionOpen` → 409; `JobRunning` → 409; `LearnerError, SeedingError, SpecError, ExamFileError, GradeError, PersonaError, StorageError, ValueError` → 422; `KnowledgeError, ModelError` (incl. `NoProvider`) → 502 `{detail, provider, resets_at}`, where `resets_at` comes from a `ModelRateLimited` hint so the chat can say when to retry; `FileNotFoundError` → 404. The top bar's `HealthDots` read the `health` records (state, cooldown) already in `/api/dashboard`.
+**Errors** (`api/app.py: register_errors`): `SessionOpen` → 409; `JobRunning` → 409; `DuplicateCourse` → 409 (registered before the generic handler); `LearnerError, SeedingError, SpecError, ExamFileError, GradeError, PersonaError, StorageError, ValueError` (which covers `ImportRefused`) → 422; `KnowledgeError, ModelError` (incl. `NoProvider`) → 502 `{detail, provider, resets_at}`, where `resets_at` comes from a `ModelRateLimited` hint so the chat can say when to retry; `FileNotFoundError` → 404. The top bar's `HealthDots` read the `health` records (state, cooldown) already in `/api/dashboard`.
 
 ### Files
 
@@ -188,7 +188,7 @@ Thread column: req = per-request connection; int = interactive worker; job = job
 | `GET /api/courses` | req | `Courses.all()` + source/concept counts + `engine.live_sessions()` | `list[CourseOut{course, name, term, created_at, sources, linked, concepts, open_session_id}]` |
 | `POST /api/courses` `{course, name, term?}` | req | `Courses.add` (term defaults to `config.term`; 409 on duplicate) | `CourseOut` |
 | `GET /api/courses/{c}/sources` | req | `Manifest.all(course)` | `list[SourceOut{resource_id, filename, bucket, size, sync_state, notebook_source_id, linked, added_at}]` |
-| `POST /api/courses/{c}/sources/upload` multipart `files[]`, form `bucket?` | req → job | per file: write to `tmp_dir/{uuid}/{sanitize_filename(name)}`, `Importer.import_file`; `shutil.rmtree` in `finally`; then a `link` job running `LinkStep.run(course)` | `UploadOut{imported: list[SourceOut], job: JobOut}` |
+| `POST /api/courses/{c}/sources/upload` multipart `files[]`, form `bucket?` | req → job | 409 `job_running` while a `link` job for this course is running (the link step writes back the row it read at the start, so a concurrent re-upload would be overwritten); then per file: write to `tmp_dir/{uuid}/{sanitize_filename(name)}`, `Importer.import_file`; `shutil.rmtree` in `finally`; then a `link` job running `LinkStep.run(course)` | `UploadOut{imported: list[SourceOut], job: JobOut}` |
 | `POST /api/courses/{c}/sources/link` | job | `LinkStep.run(course)` (retries un-linked rows by construction) | `JobOut` |
 | `POST /api/courses/{c}/session` `{persona="simplifier"}` | int | `guard`; `jobs.running` check; `wiring.tutor(...)`; `start()`, `opening()`; `engine.tutors[course] = t` | `LiveSessionOut{session_id, persona, started_at, turns: [{role, text}], probe, ended, ratable}` |
 | `GET /api/courses/{c}/session` | int | `engine.tutors.get(course)` | `LiveSessionOut \| null` |
@@ -314,7 +314,7 @@ This session orchestrates; Opus 5.5 agents (`Agent` tool, `model: "opus"`, `isol
 
 **Before the first agent:** commit the pending review fixes (`BL-041: Validation log: review fixes`) and write `TICKETS-4.md` from this plan (BL-042 … BL-050, with the "Still not ticketed" list), committed as `TICKETS-4: web backlog`. The tickets file is the brief; the plan sections are the detail.
 
-**Per-worktree setup** (in every agent's brief): `.venv` is gitignored, so each worktree runs `uv sync` for Python and `pnpm --dir web install` once `web/` exists. Agents run `.venv/bin/pytest -q` and `.venv/bin/ruff check .` (and `pnpm --dir web typecheck && pnpm --dir web build` for web tickets) in their own worktree before committing. No agent touches `~/.brightlearn`; tests use `tmp_path` homes.
+**Per-worktree setup** (in every agent's brief): first `git reset --hard <tickets-3 HEAD>` so the branch starts at the merged tip. `.venv` is gitignored, so each worktree runs `uv venv .venv && env -u CONDA_PREFIX uv pip install --python .venv/bin/python -e . pytest ruff` (never a bare `uv pip install`: with `CONDA_PREFIX` set it lands in the conda base env), then `chflags nohidden .venv/lib/python3.12/site-packages/*.pth` (macOS flags them hidden and Python 3.12.9 then skips them), and `pnpm --dir web install` once `web/` exists. Agents run `.venv/bin/pytest -q` and `.venv/bin/ruff check .` (and `pnpm --dir web typecheck && pnpm --dir web build` for web tickets) in their own worktree before committing. No agent touches `~/.brightlearn`; tests use `tmp_path` homes.
 
 **Waves** (an agent starts only when its inputs are merged):
 
