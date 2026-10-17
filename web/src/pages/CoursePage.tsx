@@ -2,8 +2,8 @@
 import { FileText, Sparkles } from "lucide-react"
 import { useParams } from "react-router"
 
-import { EmptyState } from "@/components/EmptyState"
 import { Rail } from "@/components/Rail"
+import { ChatPane } from "@/features/chat/ChatPane"
 import { useSourceSelection } from "@/features/sources/selection"
 import { SourcesPane } from "@/features/sources/SourcesPane"
 import { StudioPane } from "@/features/studio/StudioPane"
@@ -19,7 +19,7 @@ export function CoursePage() {
         <SourcesPane course={course} selected={selectedSourceIds} setSelected={setSelectedSourceIds} />
       </Rail>
       <section aria-label="Chat" className="flex min-w-0 flex-1 flex-col bg-background">
-        <EmptyState className="flex-1" message="The chat arrives with BL-048." />
+        <ChatPane course={course} selectedSourceIds={selectedSourceIds} />
       </section>
       <Rail id="studio" title="Studio" icon={Sparkles} side="right" width={360}>
         <StudioPane course={course} />

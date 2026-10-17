@@ -39,6 +39,9 @@ export const keys = {
   take: (course: string, id: string) => ["exams", course, id, "take"] as const,
   results: (course: string, id: string) => ["exams", course, id, "results"] as const,
   brief: (course: string, podcastId: number) => ["podcasts", course, podcastId, "brief"] as const,
+  session: (course: string) => ["session", course] as const,
+  sessions: (course: string) => ["sessions", course] as const,
+  personas: () => ["personas"] as const,
 }
 
 /** What each kind's job writes, refreshed for the job's course when it finishes. */
