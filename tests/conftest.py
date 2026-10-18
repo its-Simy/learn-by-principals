@@ -4,6 +4,26 @@ import pytest
 
 from core.config import Config
 
+TESTS = Path(__file__).resolve().parent
+E2E = TESTS / "e2e"
+# Files whose tests cross a process boundary: the FastAPI test client or the CLI runner, on fakes.
+INTEGRATION_PREFIXES = ("test_api_", "test_cli_", "test_exam_cli")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Every test carries exactly one tier marker, from its path: e2e under tests/e2e/, integration
+    for the API and CLI files, unit for the rest. `tryfirst` so the markers exist before pytest
+    deselects by `-m`."""
+    for item in items:
+        path = Path(str(item.fspath))
+        if E2E in path.parents:
+            item.add_marker(pytest.mark.e2e)
+        elif path.name.startswith(INTEGRATION_PREFIXES):
+            item.add_marker(pytest.mark.integration)
+        else:
+            item.add_marker(pytest.mark.unit)
+
 
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path: Path, monkeypatch) -> None:
