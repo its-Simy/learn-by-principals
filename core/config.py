@@ -119,6 +119,32 @@ def load_routing(path: Path) -> dict[str, tuple[str, ...]]:
 
 
 def ensure_home(config: Config) -> None:
-    """Create the secrets directory with owner-only permissions."""
+    """Create the secrets directory with owner-only permissions, and the upload staging dir."""
     config.home.mkdir(mode=0o700, parents=True, exist_ok=True)
     config.home.chmod(0o700)
+    config.tmp_dir.mkdir(parents=True, exist_ok=True)
+
+
+def default_config_toml() -> str:
+    """A ``config.toml`` that changes nothing: every setting commented out, with its default."""
+    lines = [
+        "# BrightLearn settings (optional). A missing key keeps the default shown here.",
+        "#",
+        "# [routing] orders the model providers per purpose (teaching, analysis, housekeeping,",
+        "# classify) or per task type. The first usable provider is tried; the next is the one",
+        f"# fallback. Providers in this build: {', '.join(sorted(KNOWN_PROVIDERS))}.",
+        "#",
+        "# [routing]",
+    ]
+    for purpose, order in DEFAULT_ROUTING.items():
+        names = ", ".join(f'"{n}"' for n in order)
+        lines.append(f"# {purpose} = [{names}]")
+    return "\n".join(lines) + "\n"
+
+
+def write_default_config(config: Config) -> bool:
+    """Write the commented default ``config.toml`` once; an existing file is never touched."""
+    if config.config_path.exists():
+        return False
+    config.config_path.write_text(default_config_toml(), encoding="utf-8")
+    return True

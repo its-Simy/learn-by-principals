@@ -538,7 +538,7 @@ def test_from_config_points_notebooklm_home_at_brightlearn(config, monkeypatch):
 def test_auth_check_without_a_login_explains_where_to_log_in(config, monkeypatch, tmp_path):
     monkeypatch.setattr(gn.Path, "home", lambda: tmp_path / "nohome")
     ok, detail = gn.auth_check(config)
-    assert not ok and "brightlearn dev nlm-login" in detail
+    assert not ok and "brightlearn setup" in detail
 
     stray = tmp_path / "nohome/.notebooklm/profiles/default/storage_state.json"
     stray.parent.mkdir(parents=True)

@@ -13,6 +13,7 @@ from cli.doctor import doctor
 from cli.generate import generate
 from cli.maintain import auto_maintain, maintain_cmd
 from cli.podcast import podcast
+from cli.setup import setup
 from cli.sync import sync
 from cli.tutor import tutor
 from cli.web import web
@@ -26,7 +27,9 @@ app.command()(tutor)
 app.command()(podcast)
 app.command()(dashboard)
 app.command("maintain")(maintain_cmd)
+app.command()(setup)
 app.command()(web)
+app.command("start", help="Start BrightLearn: the same as `web`.")(web)
 app.add_typer(courses.app, name="courses")
 app.add_typer(dev.app, name="dev")
 app.add_typer(concepts.app, name="concepts")

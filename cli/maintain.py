@@ -14,9 +14,9 @@ from core.memory.db import connect
 log = logging.getLogger(__name__)
 console = Console()
 
-# Read-only by contract (doctor), this command itself, and the developer helpers: `dev openapi`
-# is run from scripts and must never open, let alone migrate, the real database (P102).
-NO_AUTO_RUN = frozenset({"maintain", "doctor", "dev"})
+# Read-only by contract (doctor, setup), this command itself, and the developer helpers: `dev
+# openapi` is run from scripts and must never open, let alone migrate, the real database (P102).
+NO_AUTO_RUN = frozenset({"maintain", "doctor", "dev", "setup"})
 
 
 def maintain_cmd() -> None:

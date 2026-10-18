@@ -315,19 +315,21 @@ def test_a_build_serves_files_and_the_spa_for_deep_links(tmp_path):
 # -- the CLI --------------------------------------------------------------------------------
 
 
-def test_web_runs_uvicorn_on_localhost(monkeypatch):
-    runs, timers = [], []
+@pytest.fixture
+def served(monkeypatch):
+    """`web` with every start-up probe scripted: a built app, nothing on the port, no server yet."""
+    runs, opened, openers = [], [], []
     monkeypatch.setattr("uvicorn.run", lambda *a, **kw: runs.append((a, kw)))
+    monkeypatch.setattr("cli.web.dist_ready", lambda: True)
+    monkeypatch.setattr("cli.web.already_running", lambda url: False)
+    monkeypatch.setattr("cli.web.port_free", lambda port: True)
+    monkeypatch.setattr("cli.web.start_opener", lambda url: openers.append(url))
+    monkeypatch.setattr("cli.web.webbrowser.open", lambda url: opened.append(url))
+    return runs, opened, openers
 
-    class FakeTimer:
-        def __init__(self, interval, fn, args):
-            timers.append((interval, fn, args))
-            self.daemon = False
 
-        def start(self) -> None:
-            assert self.daemon
-
-    monkeypatch.setattr("cli.web.threading.Timer", FakeTimer)
+def test_web_runs_uvicorn_on_localhost(served):
+    runs, opened, openers = served
     result = CliRunner().invoke(cli, ["web", "--no-open", "--port", "8799"])
     assert result.exit_code == 0, result.output
     assert runs == [
@@ -342,9 +344,48 @@ def test_web_runs_uvicorn_on_localhost(monkeypatch):
             },
         )
     ]
-    assert timers == []
-    assert CliRunner().invoke(cli, ["web"]).exit_code == 0
-    assert timers[0][0] == 1.0 and timers[0][2] == ("http://127.0.0.1:8765/",)
+    assert openers == [] and opened == []
+    # `--open` (the default) opens the browser once the server answers, not after a fixed delay.
+    assert CliRunner().invoke(cli, ["start"]).exit_code == 0
+    assert openers == ["http://127.0.0.1:8765/"] and len(runs) == 2
+
+
+def test_web_refuses_an_unbuilt_app_unless_api_only(served, monkeypatch):
+    runs, *_ = served
+    monkeypatch.setattr("cli.web.dist_ready", lambda: False)
+    result = CliRunner().invoke(cli, ["web"])
+    assert result.exit_code == 1 and "pnpm --dir web" in result.output
+    assert runs == []
+    result = CliRunner().invoke(cli, ["web", "--no-open"])
+    assert result.exit_code == 0 and "API only" in result.output
+    assert len(runs) == 1
+
+
+def test_web_opens_an_already_running_server_instead_of_starting_one(served, monkeypatch):
+    runs, opened, openers = served
+    monkeypatch.setattr("cli.web.already_running", lambda url: True)
+    result = CliRunner().invoke(cli, ["start"])
+    assert result.exit_code == 0 and "already running" in result.output
+    assert runs == [] and openers == [] and opened == ["http://127.0.0.1:8765/"]
+
+
+def test_web_names_a_busy_port(served, monkeypatch):
+    runs, *_ = served
+    monkeypatch.setattr("cli.web.port_free", lambda port: False)
+    result = CliRunner().invoke(cli, ["web", "--port", "8765"])
+    assert result.exit_code == 1 and "--port 8766" in result.output
+    assert runs == []
+
+
+def test_wait_until_ready_polls_then_gives_up(monkeypatch):
+    from cli import web
+
+    answers = iter([False, False, True])
+    monkeypatch.setattr(web, "already_running", lambda url: next(answers))
+    monkeypatch.setattr(web.time, "sleep", lambda s: None)
+    assert web.wait_until_ready("http://127.0.0.1:1/", timeout_s=5) is True
+    monkeypatch.setattr(web, "already_running", lambda url: False)
+    assert web.wait_until_ready("http://127.0.0.1:1/", timeout_s=0) is False
 
 
 def test_dev_openapi_prints_the_contract_without_side_effects():

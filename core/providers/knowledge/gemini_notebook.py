@@ -48,7 +48,7 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 PROVIDER = "notebooklm"
-INSTALL_HINT = "uv pip install 'notebooklm-py[android,browser]'"
+INSTALL_HINT = "re-run ./setup.sh (setup.cmd on Windows), which installs it"
 
 # Artifact kinds -> download file extension.
 ARTIFACT_EXT = {
@@ -574,9 +574,9 @@ def auth_check(config: Config, timeout_s: float = 60.0) -> tuple[bool, str]:
         if default_library_storage().exists():
             return False, (
                 f"no login in {where}, but one exists in ~/.notebooklm (made without "
-                "NOTEBOOKLM_HOME); run `brightlearn dev nlm-login --account <gmail>`"
+                "NOTEBOOKLM_HOME); run `brightlearn setup`"
             )
-        return False, f"no login in {where}; run `brightlearn dev nlm-login --account <gmail>`"
+        return False, f"no login in {where}; run `brightlearn setup`"
     cmd = [
         sys.executable,
         "-m",
