@@ -1,8 +1,43 @@
-# BrightLearn
+```
+ \  .---.  /     ____       _       _     _   _
+   /     \      | __ ) _ __(_) __ _| |__ | |_| |    ___  __ _ _ __ _ __
+--|   ~   |--   |  _ \| '__| |/ _` | '_ \| __| |   / _ \/ _` | '__| '_ \
+   \  |  /      | |_) | |  | | (_| | | | | |_| |__|  __/ (_| | |  | | | |
+    |===|       |____/|_|  |_|\__, |_| |_|\__|_____\___|\__,_|_|  |_| |_|
+    '---'                     |___/
+```
 
-BrightLearn is a personal learning tool. You upload the files for something you are learning, it keeps them in a local folder and sends them to Google's NotebookLM, and you ask questions that are answered from those files, with citations. With Claude Code or Codex installed on your own subscription, it also tutors you, tracks what you have mastered with evidence, and writes and grades practice exams. Everything it records lives on your machine, in a SQLite database and a Markdown vault.
+**A tutor that learns from your own course files, on the AI subscriptions you already have.**
 
-## Requirements
+[![CI](https://github.com/its-Simy/learn-by-principals/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/its-Simy/learn-by-principals/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Billing: none per request](https://img.shields.io/badge/billing-none%20per%20request-brightgreen.svg)](#how-it-works)
+
+BrightLearn is a personal learning tool that runs on your own machine. You upload the files for something you are learning, it keeps them in a local folder and sends them to Google's NotebookLM, and you ask questions that are answered from those files, with citations. With Claude Code or Codex installed on your own subscription, it also tutors you, tracks what you have mastered with the evidence behind every level, and writes and grades practice exams, all recorded on your machine in a SQLite database and a Markdown vault.
+
+## Features
+
+### With NotebookLM alone
+
+- **Sources**: drop in PDFs, Word and PowerPoint files, Markdown, text, CSV or EPUB. Each file is filed into a bucket (syllabus, lectures, assignments, labs, readings, exams, code, other) and added to the course's own NotebookLM notebook; uploading a changed file keeps the old version.
+- **Grounded chat**: questions answered only from the sources you tick, with citations you can open.
+- **Concept lists**: NotebookLM drafts the course's concepts; you review the draft, then apply it.
+- **Audio Overviews**: NotebookLM podcasts, briefed on your weakest concepts or framed for an exam.
+- **Every other NotebookLM artifact**: quizzes, flashcards and reports, saved beside the course's files.
+- **A dashboard**: usage, provider health and mastery as one HTML file.
+
+### With Claude Code or Codex
+
+- **Tutoring sessions** grounded in your sources, in the browser or the terminal, with three teaching personas (simplifier, exemplar, analogist) you can switch between mid-session.
+- **Mastery tracking with evidence**: after each session an Analyzer reads the transcript and records evidence for each concept. A mastery level (0 to 5) changes only with the evidence that justifies it, and its retention fades between reviews.
+- **Challenger probes**: when the Analyzer proposes a big jump, your next session asks one short question to confirm it (or you skip it).
+- **Practice exams** from a short YAML spec: one model writes the questions and the other critiques them; multiple-choice answers are checked against the key, open answers are graded by a model that didn't write them, and every graded answer becomes evidence.
+- **With both installed**, the model that teaches you is never the one that judges you, and BrightLearn learns from measured runs which model is better at each task.
+
+## Quick start
+
+### What you need
 
 Required for the minimum product (chat with your sources, concept lists, Audio Overviews):
 
@@ -19,12 +54,12 @@ Optional, each unlocking more (see [Optional models](#optional-models)):
 | [Claude Code](https://claude.com/claude-code) on a Pro or Max subscription | Tutoring sessions, mastery tracking, practice exams |
 | [Codex](https://github.com/openai/codex) on a ChatGPT subscription | The same, and a second model to critique and grade |
 
-Nothing is billed per request: NotebookLM, Claude Code and Codex all run on their subscriptions, and BrightLearn refuses to run with an `ANTHROPIC_API_KEY` set.
+Nothing is billed per request: NotebookLM, Claude Code and Codex all run on their subscriptions. `ANTHROPIC_API_KEY` must be unset; BrightLearn removes it from every model call, and `brightlearn doctor` flags it when it is set.
 
-## Quick start
+### Install and run
 
 ```sh
-git clone <this repo> brightlearn && cd brightlearn
+git clone https://github.com/its-Simy/learn-by-principals.git brightlearn && cd brightlearn
 ```
 
 macOS or Linux, in Terminal:
@@ -41,9 +76,33 @@ Windows, in PowerShell or by double-clicking the files:
 .\start.cmd     # every time
 ```
 
-`setup` is safe to run again: finished steps are skipped, and it prints a table of what is ready and what is optional. `start` opens the app in your browser once the server answers; running it a second time just opens the page again. The app serves only your own machine (`127.0.0.1`), with no login, so nobody else can reach it.
+Setup installs uv (with its own Python 3.12), pnpm and Node when they are missing, installs the Python packages exactly as `uv.lock` says, and builds the web app. Then `brightlearn setup` makes the home folder, logs in to NotebookLM through Chrome or Edge, and prints doctor's table of what is ready, with the install lines for the optional model CLIs.
 
-Flags that go to `brightlearn setup` can follow the script: `./setup.sh --account you@gmail.com` skips the prompt, `--skip-login` defers the login, `--relogin` repeats it, `--browser msedge` picks Edge, `--dev` also installs the test tools.
+`setup` is safe to run again: finished steps are skipped. `start` opens the app in your browser once the server answers; running it a second time just opens the page again. The app serves only your own machine (`127.0.0.1`), with no login, so nobody else can reach it.
+
+Flags that go to `brightlearn setup` can follow the script: `./setup.sh --account you@gmail.com` skips the prompt, `--skip-login` defers the login, `--relogin` repeats it, `--browser msedge` picks Edge, `--yes` never prompts, and `--dev` also installs the test tools.
+
+## How it works
+
+1. **Your files** go into a local course folder, `~/.brightlearn/courses/{term}/{course}/{bucket}/`, uploaded by hand in the web app.
+2. **NotebookLM** holds one notebook per course with every file but the `code` bucket. It answers questions from those files with citations, and makes the Audio Overviews and other artifacts.
+3. **Claude Code or Codex** (optional) do the reasoning: tutoring, analysing each session, Challenger probes, and writing, critiquing and grading exams. Each call gets a compact package of a few thousand tokens (your mastery, the relevant concepts and passages), never your whole history.
+4. **The learner memory** is a SQLite database (courses, concepts, mastery, evidence, sessions and a ledger of every model run) and a Markdown vault (transcripts, summaries, concept drafts and exams), both on your machine.
+
+The web app has three panes, after NotebookLM's:
+
+- **Sources**: upload by drag and drop, see each file's state in NotebookLM, and tick the files a question should use.
+- **Chat**: with no session, a grounded answer from the ticked sources; start a session and the same box talks to your tutor ("Sources only" still sends a plain grounded question). Every wait shows its step and how long it has taken.
+- **Studio**: tiles for Mastery, Practice exam, Audio Overview and Concepts, each opening its own view, with the jobs in progress and everything made listed under them.
+
+What it promises:
+
+- **Nothing is billed per request.** Every service runs on a subscription you already have, or is free.
+- **Every outside service sits behind one interface**, so NotebookLM, a model or the storage can be swapped without touching the rest.
+- **Nothing is deleted.** A replaced file keeps its old version, a dropped concept is retired with its history, and old sessions are archived; models are sent only what the task needs.
+- **Mastery needs evidence.** No level is set without the recorded evidence behind it, which you can inspect.
+- **Learning is inferred from normal conversation.** There are no forced quizzes; a Challenger asks one question only when a big jump needs confirming.
+- **Teaching and evaluation run on different models**, so the tutor never grades its own teaching.
 
 ## Optional models
 
@@ -101,8 +160,38 @@ The web app covers the everyday flow, and it's the only way to upload files. The
 - **Windows: PowerShell refused to run the script**: a machine policy overrides it; in an elevated PowerShell, `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then `.\setup.cmd` again.
 - **pip instead of uv**: `python3.12 -m venv .venv`, activate it, `pip install -r requirements.txt -e .`, then `pnpm --dir web install && pnpm --dir web build` and `brightlearn setup`.
 
-## Development
+## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev loop, and `CLAUDE.md` for the principles, the repo layout, the conventions and the decision log. `TICKETS-4.md` is the backlog, `docs/web-plan.md` the web app's design, `web/README.md` the web dev loop, and `docs/validation-log.md` the first runs against real accounts.
+All work lands on the `dev` branch, so open pull requests against `dev`; CI runs the tests, lint and the web build on macOS, Windows and Ubuntu for every one. `main` is promoted from `dev` by pull request once CI is green and the Playwright tour of the web app passes, and nothing is pushed to it directly, so it is always the last version that worked end to end.
 
-BrightLearn is MIT licensed.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the test tiers and the dev loop; [CLAUDE.md](CLAUDE.md) has the principles, the repo layout, the conventions and the decision log. [TICKETS-4.md](TICKETS-4.md) is the backlog, [docs/web-plan.md](docs/web-plan.md) the web app's design, [web/README.md](web/README.md) the web dev loop, and [docs/validation-log.md](docs/validation-log.md) the first runs against real accounts.
+
+## Roadmap
+
+Not scheduled yet, from the backlog's [Still not ticketed](TICKETS-4.md#still-not-ticketed) list:
+
+- An install without Node or a clone: one `uv tool install brightlearn`.
+- A local model (Ollama) for small housekeeping tasks, such as filing an upload whose name doesn't say what it is.
+- Working out which concepts a question is about with a model, instead of matching keywords.
+- Zoom links and other link-only course items as sources.
+- Uploading a whole folder of files from the command line.
+- Changing a course's term.
+- Exporting a practice exam to PDF.
+- The quoted evidence behind each mastery level in the Mastery view, and a Markdown note per concept in the vault.
+- Running two long jobs (an exam and a podcast) at once, and cancelling a queued job.
+- Each Audio Overview's format and length in its list.
+- A clear message when a teaching persona can't run yet on a new course, instead of "No provider could answer".
+- Codex installed through npm on Windows, used without its shim's problems.
+- A model provider that uses API keys, for a future multi-user version.
+
+## License
+
+MIT; see [LICENSE](LICENSE).
+
+## Acknowledgements
+
+- [NotebookLM](https://notebooklm.google.com) by Google, which reads your files and grounds every answer.
+- [notebooklm-py](https://github.com/teng-lin/notebooklm-py) by Teng Lin, the unofficial Python client BrightLearn reaches NotebookLM through.
+- [Claude Code](https://claude.com/claude-code) by Anthropic and [Codex](https://github.com/openai/codex) by OpenAI, the model CLIs that tutor, analyse and grade.
+
+BrightLearn is an independent project, not affiliated with Google, Anthropic or OpenAI.
