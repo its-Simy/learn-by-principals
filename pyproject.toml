@@ -63,3 +63,19 @@ markers = [
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
+# `uv run pytest --cov` measures these four packages. CI's `--cov-fail-under` sits on its command
+# line, never in addopts, so a local run never fails on it; tests/README.md has the number's origin.
+[tool.coverage.run]
+source = ["core", "api", "cli", "dashboard"]
+branch = true
+# Committed migrations are frozen SQL that tests/test_migrations.py applies on every run.
+omit = ["core/memory/migrations/*"]
+
+[tool.coverage.report]
+skip_covered = false
+show_missing = false
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
