@@ -17,8 +17,9 @@ Run `typecheck` and `build` before committing a web change.
 `scripts/dev_server.py` serves the same API on the test fakes (`tests/fakes/`), against a scratch home of its own, so every pane works with no accounts and no quota:
 
 ```sh
-.venv/bin/python scripts/dev_server.py --home /tmp/brightlearn-dev --port 8801
-VITE_API_PORT=8801 pnpm --dir web dev
+uv run python scripts/dev_server.py --home /tmp/brightlearn-dev --port 8801
+VITE_API_PORT=8801 pnpm --dir web dev            # macOS/Linux
+$env:VITE_API_PORT = 8801; pnpm --dir web dev    # PowerShell
 ```
 
 - `--home` (required) holds the database, course files, vault and temp dir; nothing under `~/.brightlearn` is read or written, and a home inside it is refused. Delete the folder to start over.

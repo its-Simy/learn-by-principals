@@ -1,6 +1,6 @@
 """The web API on fakes, for developing the UI without NotebookLM or the model CLIs.
 
-    .venv/bin/python scripts/dev_server.py --home /tmp/brightlearn-dev [--port 8765] [--delay 1]
+    uv run python scripts/dev_server.py --home <scratch folder> [--port 8765] [--delay 1]
 
 Serves ``create_app`` with the test fakes behind both workers, the way ``tests/conftest.py``'s
 ``api`` fixture does, against a scratch home: ``--home`` holds the database, the course files,
