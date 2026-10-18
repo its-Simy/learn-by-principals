@@ -6,6 +6,6 @@ if errorlevel 1 (
   echo Setup failed; see above. If PowerShell refused to run the script, a machine policy
   echo overrides -ExecutionPolicy Bypass: in an elevated PowerShell run
   echo     Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-  pause
+  if not defined CI pause
   exit /b 1
 )

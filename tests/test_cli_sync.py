@@ -1,3 +1,4 @@
+import re
 from contextlib import contextmanager
 
 import pytest
@@ -85,7 +86,8 @@ def test_second_sync_makes_no_calls(stored, knowledge):
 
     assert result.exit_code == 0
     assert knowledge.calls == []
-    assert "CSE220 │ 0     │ 0        │ 0        │ 0" in result.output
+    # The row's cells, whatever box glyphs Rich draws on this console.
+    assert re.search(r"CSE220\W+0\W+0\W+0\W+0\b", result.output)
 
 
 def test_sync_all(stored, knowledge):

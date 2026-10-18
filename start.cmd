@@ -7,13 +7,13 @@ set "PYTHONUTF8=1"
 set "UV_MANAGED_PYTHON=1"
 if not exist ".venv\pyvenv.cfg" (
   echo No Python environment yet: run setup.cmd first.
-  pause
+  if not defined CI pause
   exit /b 1
 )
 uv run --no-sync brightlearn start %*
 if errorlevel 1 (
   echo.
   echo BrightLearn did not start; see above.
-  pause
+  if not defined CI pause
   exit /b 1
 )

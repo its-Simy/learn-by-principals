@@ -1,0 +1,81 @@
+# The gate for every change: tests, lint and the web build on the three OSes BrightLearn runs on,
+# and the setup scripts themselves on each.
+name: CI
+
+on:
+  push:
+    branches: [main, "tickets-*"]
+  pull_request:
+
+env:
+  PYTHONUTF8: "1"
+  UV_MANAGED_PYTHON: "1"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync pytest -q --basetemp="${{ runner.temp }}/pt"
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web typecheck
+      - run: pnpm --dir web build
+      - name: The committed API contract and types match the app
+        if: runner.os == 'Linux'
+        run: |
+          uv run --no-sync brightlearn dev openapi --out "${{ runner.temp }}/openapi.json"
+          diff "${{ runner.temp }}/openapi.json" web/openapi.json
+          pnpm --dir web gen
+          git diff --exit-code -- web/src/api/types.ts
+      - name: requirements.txt matches uv.lock
+        if: runner.os == 'Linux'
+        run: |
+          uv export --no-dev --format requirements.txt --no-hashes --no-emit-project -o "${{ runner.temp }}/requirements.txt"
+          diff <(tail -n +3 "${{ runner.temp }}/requirements.txt") <(tail -n +3 requirements.txt)
+
+  setup-scripts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      BRIGHTLEARN_HOME: ${{ runner.temp }}/brightlearn-home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+      - name: setup.sh
+        if: runner.os != 'Windows'
+        run: ./setup.sh --yes --skip-login
+      - name: setup.cmd
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: setup.cmd --yes --skip-login
+      - name: A second run is a no-op, and the app imports
+        run: |
+          uv run --no-sync brightlearn setup --yes --skip-login
+          uv run --no-sync brightlearn --help

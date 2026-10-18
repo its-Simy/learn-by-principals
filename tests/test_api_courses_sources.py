@@ -1,9 +1,12 @@
 """BL-045: course and source routes; an upload is stored by the Importer and linked by a job."""
 
+import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import get_args
+
+import pytest
 
 from api.engine import Engine, Job, Resources
 from api.schemas.sources import SyncState
@@ -251,6 +254,7 @@ def test_retry_returns_the_link_job_already_queued_or_running(api):
     engine.drain()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows limits the path, not the name (MAX_PATH)")
 def test_a_name_too_long_to_store_is_422(api, config):
     client, _, _, engine = api
     add_course(client)
@@ -265,6 +269,7 @@ def test_a_name_too_long_to_store_is_422(api, config):
     engine.drain()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows limits the path, not the name (MAX_PATH)")
 def test_a_failure_mid_list_keeps_the_files_before_it(api, config):
     client, kp, _, engine = api
     add_course(client)
@@ -281,6 +286,7 @@ def test_a_failure_mid_list_keeps_the_files_before_it(api, config):
     assert [s["linked"] for s in client.get("/api/courses/CSE220/sources").json()] == [True]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows limits the path, not the name (MAX_PATH)")
 def test_a_new_version_whose_kept_copy_would_be_too_long_is_422(api, config):
     """Within the limit, but its ``_versions`` copy (name plus nine bytes) would not be."""
     client, _, _, engine = api

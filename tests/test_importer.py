@@ -60,7 +60,7 @@ def course_root(config: Config):
 
 def stored_files(config: Config) -> set[str]:
     root = course_root(config)
-    return {str(p.relative_to(root)) for p in root.rglob("*") if p.is_file()}
+    return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
 
 
 def test_files_land_in_the_bucket_tree(upload, db, config, tmp_path):

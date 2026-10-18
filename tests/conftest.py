@@ -10,6 +10,7 @@ def isolated_home(tmp_path: Path, monkeypatch) -> None:
     """No test ever reads or writes the real ~/.brightlearn (tests may override these)."""
     monkeypatch.setenv("BRIGHTLEARN_HOME", str(tmp_path / "isolated-home"))
     monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "isolated-vault"))
+    monkeypatch.setenv("BRIGHTLEARN_TMP_DIR", str(tmp_path / "isolated-tmp"))
 
 
 @pytest.fixture

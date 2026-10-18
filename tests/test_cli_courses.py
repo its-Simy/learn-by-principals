@@ -1,5 +1,7 @@
 """``brightlearn courses add``: the code is optional and derived from the name when left out."""
 
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from cli.app import app
@@ -15,7 +17,8 @@ def test_add_derives_the_code_from_the_name(tmp_path, monkeypatch):
     result = runner.invoke(app, ["courses", "add", "--name", "Linear Algebra"])
     assert result.exit_code == 0, result.output
     assert "Added LINEAR-ALGEBRA (Linear Algebra)" in result.output
-    assert "Fall-2026/LINEAR-ALGEBRA" in result.output.replace("\n", "")
+    folder = str(Path("Fall-2026") / "LINEAR-ALGEBRA")  # the OS's own separator
+    assert folder in result.output.replace("\n", "")
     again = runner.invoke(app, ["courses", "add", "--name", "Linear Algebra"])
     assert "Added LINEAR-ALGEBRA-2" in again.output
     explicit = runner.invoke(app, ["courses", "add", "math201", "--name", "Linear Algebra"])
