@@ -49,10 +49,14 @@
 }
 
 /*
+ * NotebookLM's greys: a light grey page with white panels, or a dark grey page with lighter grey
+ * panels, never pure black. Light is the default (lib/theme.ts); the tokens do all the work and no
+ * component carries a `dark:` class of its own.
+ *
  * Semantic state colours: the only colours a StateBadge or HealthDot uses, always next to text.
  * Each passes 4.5:1 as text on bg-muted (the lowest-contrast surface in each theme):
- *   light, on #f5f5f5   success #047857 5.03:1   warning #9a4a00 5.74:1   pending #1d4ed8 6.15:1
- *   dark,  on #262626   success #34d399 7.87:1   warning #fbbf24 9.07:1   pending #60a5fa 5.95:1
+ *   light, on #f0f4f9   success #047857 4.97:1   warning #9a4a00 5.67:1   pending #1d4ed8 6.07:1
+ *   dark,  on #303134   success #34d399 6.77:1   warning #fbbf24 7.79:1   pending #60a5fa 5.12:1
  */
 :root {
     color-scheme: light;
@@ -60,37 +64,37 @@
     --warning: #9a4a00;
     --pending: #1d4ed8;
     --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --background: #f8fafd;
+    --foreground: #1f1f1f;
+    --card: #ffffff;
+    --card-foreground: #1f1f1f;
+    --popover: #ffffff;
+    --popover-foreground: #1f1f1f;
+    --primary: #1f1f1f;
+    --primary-foreground: #ffffff;
+    --secondary: #e9eef6;
+    --secondary-foreground: #1f1f1f;
+    --muted: #f0f4f9;
+    --muted-foreground: #444746;
+    --accent: #e9eef6;
+    --accent-foreground: #1f1f1f;
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --border: #dadce0;
+    --input: #c4c7c5;
+    --ring: #747775;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: #ffffff;
+    --sidebar-foreground: #1f1f1f;
+    --sidebar-primary: #1f1f1f;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e9eef6;
+    --sidebar-accent-foreground: #1f1f1f;
+    --sidebar-border: #dadce0;
+    --sidebar-ring: #747775;
 }
 
 .dark {
@@ -98,37 +102,37 @@
     --success: #34d399;
     --warning: #fbbf24;
     --pending: #60a5fa;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --background: #1f1f1f;
+    --foreground: #e3e3e3;
+    --card: #28292a;
+    --card-foreground: #e3e3e3;
+    --popover: #333537;
+    --popover-foreground: #e3e3e3;
+    --primary: #e3e3e3;
+    --primary-foreground: #1f1f1f;
+    --secondary: #333537;
+    --secondary-foreground: #e3e3e3;
+    --muted: #303134;
+    --muted-foreground: #c4c7c5;
+    --accent: #333537;
+    --accent-foreground: #e3e3e3;
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --border: #444746;
+    --input: #5f6368;
+    --ring: #8e918f;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --sidebar: #28292a;
+    --sidebar-foreground: #e3e3e3;
+    --sidebar-primary: #e3e3e3;
+    --sidebar-primary-foreground: #1f1f1f;
+    --sidebar-accent: #333537;
+    --sidebar-accent-foreground: #e3e3e3;
+    --sidebar-border: #444746;
+    --sidebar-ring: #8e918f;
 }
 
 @layer base {

@@ -6,11 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BrightLearn</title>
     <script>
-      // Pre-paint copy of src/lib/theme.ts (same key, same default) so dark mode never flashes white.
-      // theme.ts owns the logic; change both together.
+      // Pre-paint copy of src/lib/theme.ts (same key, same default: light unless "dark" was saved) so a
+      // saved dark theme never flashes light. theme.ts owns the logic; change both together.
       try {
-        var saved = localStorage.getItem("brightlearn.theme")
-        if (saved === "dark" || (saved !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+        if (localStorage.getItem("brightlearn.theme") === "dark") {
           document.documentElement.classList.add("dark")
         }
       } catch (e) {}
