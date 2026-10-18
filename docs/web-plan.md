@@ -230,7 +230,7 @@ Thread column: req = per-request connection; int = interactive worker; job = job
 
 **Acceptance:** tests pass.
 
-**Contract (integration step after BL-045 and BL-046 merge):** `brightlearn dev openapi > web/openapi.json` is committed; `tests/test_api_openapi.py` asserts `create_app(config).openapi()` equals the file, with a message that says how to regenerate it and the TS types. This lands with BL-047 so the web tickets build on a pinned contract.
+**Contract (integration step after BL-045 and BL-046 merge):** `brightlearn dev openapi --out web/openapi.json` is committed; `tests/test_api_openapi.py` asserts `create_app(config).openapi()` equals the file, with a message that says how to regenerate it and the TS types. This lands with BL-047 so the web tickets build on a pinned contract.
 
 ---
 
@@ -303,7 +303,7 @@ Since BL-051 it opens on a home after NotebookLM's: a 2-column grid of `StudioTi
 
 ## BL-050 Docs and validation for the new workflow
 
-- `CLAUDE.md`: repo layout adds `api/` and `web/`; conventions add the contract step (`brightlearn dev openapi > web/openapi.json && pnpm --dir web gen` whenever a route changes) and `pnpm typecheck && pnpm build`; a decision-log row for the web architecture (two worker threads, one NotebookLM provider per thread, per-request SQLite connections, localhost only, no auth).
+- `CLAUDE.md`: repo layout adds `api/` and `web/`; conventions add the contract step (`brightlearn dev openapi --out web/openapi.json && pnpm --dir web gen` whenever a route changes) and `pnpm typecheck && pnpm build`; a decision-log row for the web architecture (two worker threads, one NotebookLM provider per thread, per-request SQLite connections, localhost only, no auth).
 - `docs/validation-log.md` rewritten for the manual flow: (1) NotebookLM login + doctor; (2) `brightlearn web`, create CSE220, upload the syllabus and two lectures, check the Sources pane and `~/.brightlearn/courses/Fall-2026/CSE220/`; (3) spike C + `nlm-test`; (4) capture the model CLI outputs; (5) model-test; (6) concepts seed/apply from Studio; (7) a tutor session in Chat; (8) an exam from Studio; (9) a podcast.
 - `README.md`: what it is, setup (`uv sync`, `pnpm --dir web install && pnpm --dir web build`, `brightlearn dev nlm-login`, `brightlearn web`), where data lives.
 - `TICKETS-4.md` "Still not ticketed" carries the leftovers (Zoom links, PDF export, WAL if "database is locked" ever appears, a second long-job worker).

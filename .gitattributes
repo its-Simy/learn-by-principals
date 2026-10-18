@@ -1,0 +1,14 @@
+# LF in the repo and on every checkout, so Windows clones don't churn generated files.
+* text=auto eol=lf
+# cmd.exe misparses LF-terminated labels; PowerShell is fine either way but keep the pair alike.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+*.jpg binary
+*.m4a binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.db binary

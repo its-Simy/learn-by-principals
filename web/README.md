@@ -8,7 +8,7 @@ Run everything from the repo root with `pnpm --dir web <script>`, or from `web/`
 - **Dev:** start the API with `brightlearn web --no-open` (it listens on 127.0.0.1:8765), then `pnpm --dir web dev`. Vite serves the app with hot reload and forwards `/api` to 8765.
 - **Build:** `pnpm --dir web build` type-checks and writes `web/dist/`, which `brightlearn web` serves on its own, so no Node is needed at run time.
 - **Typecheck:** `pnpm --dir web typecheck` checks the app and `vite.config.ts`.
-- **Gen:** `pnpm --dir web gen` regenerates `src/api/types.ts` from `web/openapi.json`, the pinned API contract. Whenever a route or schema changes, run `brightlearn dev openapi > web/openapi.json`, then `gen`, and commit both. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
+- **Gen:** `pnpm --dir web gen` regenerates `src/api/types.ts` from `web/openapi.json`, the pinned API contract. Whenever a route or schema changes, run `brightlearn dev openapi --out web/openapi.json`, then `gen`, and commit both. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
 
 Run `typecheck` and `build` before committing a web change.
 

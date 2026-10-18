@@ -162,7 +162,7 @@ Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term 
 - Tests use fakes in `tests/fakes/`; no network in tests. `scripts/dev_server.py` serves the API on the same fakes against a scratch `--home`, so the UI can be tried with no accounts.
 - `api/` never imports `cli/`; both sit on `core/` (`tests/test_principles.py` checks it). The API holds no business logic of its own: a rule it needs goes in `core/`, and a route makes the same core calls as its CLI command.
 - Routes are plain `def`, so FastAPI runs them in its threadpool and a five-minute model call never blocks the event loop. Pydantic lives only under `api/schemas/`, each model with a `from_core`; core stays dataclasses.
-- The contract step: whenever a route or schema changes, run `brightlearn dev openapi > web/openapi.json && pnpm --dir web gen` and commit both files. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
+- The contract step: whenever a route or schema changes, run `brightlearn dev openapi --out web/openapi.json && pnpm --dir web gen` and commit both files. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
 - `dev` commands skip auto-maintenance, as `doctor` and `maintain` do, so `brightlearn dev openapi` never opens or migrates the real database (P102).
 - Uploads stage in `config.tmp_dir/{uuid}`, always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.

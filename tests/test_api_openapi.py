@@ -9,7 +9,7 @@ from core.config import Config
 
 ROOT = Path(__file__).parent.parent
 CONTRACT = ROOT / "web" / "openapi.json"
-REGENERATE = "run `brightlearn dev openapi > web/openapi.json` and `pnpm --dir web gen`"
+REGENERATE = "run `brightlearn dev openapi --out web/openapi.json` and `pnpm --dir web gen`"
 
 
 def test_the_committed_contract_is_the_apps(config: Config):
@@ -17,7 +17,7 @@ def test_the_committed_contract_is_the_apps(config: Config):
     nothing."""
     document = create_app(config).openapi()
 
-    assert document == json.loads(CONTRACT.read_text()), (
+    assert document == json.loads(CONTRACT.read_text(encoding="utf-8")), (
         f"web/openapi.json is out of date: {REGENERATE}, and commit both files"
     )
     assert not config.db_path.exists()

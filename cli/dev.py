@@ -109,8 +109,18 @@ def nlm_login(
 
 
 @app.command("openapi")
-def openapi() -> None:
-    """Print the API's OpenAPI document, which the web app's TypeScript types are built from."""
+def openapi(
+    out: Path | None = typer.Option(
+        None, help="Write the document here (UTF-8, LF) instead of printing it."
+    ),
+) -> None:
+    """The API's OpenAPI document, which the web app's TypeScript types are built from. Use
+    ``--out web/openapi.json``: a shell redirect on PowerShell writes UTF-16 with CRLF."""
     from api.app import create_app  # here, so the other commands don't import the web stack
 
-    typer.echo(json.dumps(create_app(load_config()).openapi(), indent=1))
+    text = json.dumps(create_app(load_config()).openapi(), indent=1) + "\n"
+    if out is None:
+        typer.echo(text, nl=False)
+        return
+    out.write_text(text, encoding="utf-8", newline="\n")
+    console.print(f"Wrote {out}")
