@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
@@ -137,6 +138,14 @@ class Manifest:
 
 FOLDER_NAME = re.compile(r"[A-Za-z0-9_-]{1,32}")
 
+# A derived course code keeps room for a "-NN" dedupe suffix within FOLDER_NAME's 32.
+CODE_BASE_LENGTH = 28
+
+
+def slug(text: str) -> str:
+    """The one rule for turning a name into an identifier: concept ids, exam files, course codes."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "untitled"
+
 
 class CourseError(ValueError):
     pass
@@ -190,6 +199,17 @@ class Courses:
         except sqlite3.IntegrityError as exc:  # another writer added it since get()
             raise DuplicateCourse(f"course {course} already exists") from exc
         return row
+
+    def code_for(self, name: str) -> str:
+        """A code for a course named only by hand: the upper-cased slug of the name, cut to fit a
+        folder name, then ``-2``, ``-3``, … while the table already has it."""
+        ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+        base = re.sub(r"[^A-Z0-9]+", "-", ascii_name.upper()).strip("-")[:CODE_BASE_LENGTH]
+        base = base.rstrip("-") or "COURSE"
+        code, n = base, 2
+        while self.get(code) is not None:
+            code, n = f"{base}-{n}", n + 1
+        return code
 
     def get(self, course: str) -> CourseRow | None:
         row = self.conn.execute("SELECT * FROM courses WHERE course = ?", (course,)).fetchone()

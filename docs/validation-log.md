@@ -66,8 +66,8 @@ Copy this block for any step not listed below.
   brightlearn web
   ```
   It serves `http://127.0.0.1:8765/` and opens it. In the browser:
-  1. **New course:** Course code `CSE220`, Name `Systems Fundamentals I`, Term left at `Fall-2026`. **Create course.**
-  2. **Create course** opens CSE220's page. With **Auto bucket** selected, drop the syllabus and two lectures on the Sources pane (or use **Upload**).
+  1. **New course:** Name `CSE220`. **Create.** The dialog asks for a name only: the code (the folder and notebook name) is derived from it, here `CSE220`, and the course is filed under today's term, `Fall-2026`. A longer name such as `Systems Fundamentals I` would give the code `SYSTEMS-FUNDAMENTALS-I`; the rest of this log uses `CSE220`.
+  2. **Create** opens CSE220's page. With **Auto bucket** selected, drop the syllabus and two lectures on the Sources pane (or use **Upload**).
   3. Upload one of the lectures again, unchanged.
 
   Then, in a second terminal:
@@ -75,9 +75,9 @@ Copy this block for any step not listed below.
   brightlearn courses list
   brightlearn doctor
   ```
-  The CLI equivalent of the first click is `brightlearn courses add CSE220 --name "Systems Fundamentals I"`; files come in through the web app only.
+  The CLI equivalent of the first click is `brightlearn courses add CSE220 --name "Systems Fundamentals I"` (`courses add --name NAME` alone derives the code, and `--term` is the only way to file a course under another term); files come in through the web app only.
 - **Expected:**
-  - **Before uploading:** the Sources pane says "Upload the syllabus to start." and the chat "Upload course files to ask about them." Back on Home, the grid shows a CSE220 card, "CSE220 · Fall-2026", "0 sources · 0 linked · 0 concepts".
+  - **Before uploading:** the Sources pane says "Upload the syllabus to start." and the chat "Upload course files to ask about them." Back on Home, the grid shows a CSE220 card with the name only (no code or term line) and "0 sources · 0 linked · 0 concepts".
   - **Upload:** each file shows a pending row until it's stored, then a source row with its bucket badge: `syllabus`, `lectures`, `lectures`. The link bar shows "Linking to NotebookLM" with the elapsed time ("typically a few seconds a file") while the badges read "linking". It ends "Sources: 3 linked", with three "linked" badges. Nothing is "deferred": that only happens past the 50-source cap.
   - **The unchanged re-upload:** no new row, the badge stays "linked", and its link job ends "Sources already up to date". This is the old "second run skips everything" check (P16, P93).
   - **On disk:** the files are in `~/.brightlearn/courses/Fall-2026/CSE220/syllabus/` and `~/.brightlearn/courses/Fall-2026/CSE220/lectures/`. `courses list` shows CSE220, term `Fall-2026`, 3 files, and that folder.

@@ -223,7 +223,7 @@
      "courses"
     ],
     "summary": "Create Course",
-    "description": "A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a\n422 (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``.",
+    "description": "The dialog sends only a name; the code is derived from it (``Courses.code_for``). A duplicate\nis a 409 (``duplicate_course``), a code or term that can't be a folder name a 422\n(``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``.",
     "operationId": "create_course_api_courses_post",
     "requestBody": {
      "content": {
@@ -2601,8 +2601,15 @@
    "CourseIn": {
     "properties": {
      "course": {
-      "type": "string",
-      "minLength": 1,
+      "anyOf": [
+       {
+        "type": "string",
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Course"
      },
      "name": {
@@ -2624,7 +2631,6 @@
     },
     "type": "object",
     "required": [
-     "course",
      "name"
     ],
     "title": "CourseIn"

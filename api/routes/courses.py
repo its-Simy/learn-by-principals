@@ -34,10 +34,13 @@ def list_courses(conn: DbDep, engine: EngineDep) -> list[CourseOut]:
 
 @router.post("/courses", status_code=201, responses=conflicts(DUPLICATE_COURSE))
 def create_course(body: CourseIn, conn: DbDep, cfg: ConfigDep) -> CourseOut:
-    """A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a
-    422 (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``."""
+    """The dialog sends only a name; the code is derived from it (``Courses.code_for``). A duplicate
+    is a 409 (``duplicate_course``), a code or term that can't be a folder name a 422
+    (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``."""
+    courses = Courses(conn)
+    code = body.course.upper() if body.course else courses.code_for(body.name)
     try:
-        row = Courses(conn).add(body.course.upper(), body.name, body.term or cfg.term)
+        row = courses.add(code, body.name, body.term or cfg.term)
     except BadFolderName as exc:
         raise Refused(FIELD_CODES[exc.field], str(exc)) from exc
     return CourseOut.from_core(row, [], 0, None)

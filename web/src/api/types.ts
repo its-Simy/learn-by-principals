@@ -124,8 +124,9 @@ export interface paths {
         put?: never;
         /**
          * Create Course
-         * @description A duplicate is a 409 (``duplicate_course``), a code or term that can't be a folder name a
-         *     422 (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``.
+         * @description The dialog sends only a name; the code is derived from it (``Courses.code_for``). A duplicate
+         *     is a 409 (``duplicate_course``), a code or term that can't be a folder name a 422
+         *     (``invalid_course_code``, ``invalid_term``), both raised by ``Courses.add``.
          */
         post: operations["create_course_api_courses_post"];
         delete?: never;
@@ -964,7 +965,7 @@ export interface components {
         /** CourseIn */
         CourseIn: {
             /** Course */
-            course: string;
+            course?: string | null;
             /** Name */
             name: string;
             /** Term */

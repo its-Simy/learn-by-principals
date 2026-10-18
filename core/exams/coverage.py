@@ -17,8 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from core.exams.spec import ExamSpec, apportion
+from core.memory.db import slug
 from core.memory.learner import Concept, Mastery
-from core.memory.vault import slug
 
 WEAKNESS_FLOOR = 0.5
 DIAGNOSTIC_FLOOR = 0.1

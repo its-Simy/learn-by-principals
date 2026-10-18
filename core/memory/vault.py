@@ -12,13 +12,10 @@ from typing import Any
 
 import yaml
 
+from core.memory.db import slug
 from core.memory.learner import Concept, Evidence, LearnerMemory, Mastery, SessionRow
 
 _FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
-
-
-def slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "untitled"
 
 
 def concept_row(concept: Concept, mastery: Mastery | None) -> dict[str, Any]:

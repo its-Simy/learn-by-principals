@@ -66,7 +66,7 @@ Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` +
 | Key | Default | Notes |
 | --- | --- | --- |
 | `home` | `~/.brightlearn` | Secrets directory, mode 700; `BRIGHTLEARN_HOME` overrides |
-| `term` | from the date, e.g. `Fall-2026` | Only the default for new courses (`BRIGHTLEARN_TERM`); `courses add --term` or the New course dialog overrides it. Each course keeps its own term in `courses`. |
+| `term` | from the date, e.g. `Fall-2026` | Only the default for new courses (`BRIGHTLEARN_TERM`); `courses add --term` overrides it (the New course dialog asks for a name only). Each course keeps its own term in `courses`. |
 | `storage_root` | `~/.brightlearn/courses` | Canonical course files |
 | `tmp_dir` | `/tmp/brightlearn` | Upload staging; always emptied |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |

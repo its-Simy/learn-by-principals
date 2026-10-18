@@ -12,7 +12,7 @@ NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 
 
 class CourseIn(BaseModel):
-    course: NonBlank  # upper-cased, as the CLI does with every course code
+    course: NonBlank | None = None  # upper-cased as the CLI does; derived from the name if left out
     name: NonBlank
     term: str | None = None  # the term folder; today's term (config.term) when left out
 

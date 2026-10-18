@@ -34,7 +34,9 @@ def list_cmd() -> None:
 
 @app.command("add")
 def add_cmd(
-    code: str = typer.Argument(..., help="Course code, e.g. CSE220; it names the course folder."),
+    code: str | None = typer.Argument(
+        None, help="Course code, e.g. CSE220 (the folder name). Derived from the name if left out."
+    ),
     name: str = typer.Option(..., help='Course name, e.g. "Systems Fundamentals".'),
     term: str | None = typer.Option(None, help="Term folder, e.g. Fall-2026. Default: from date."),
 ) -> None:
@@ -43,7 +45,8 @@ def add_cmd(
     ensure_home(config)
     conn = connect(config.db_path)
     try:
-        row = Courses(conn).add(code.upper(), name, config.term)
+        courses = Courses(conn)
+        row = courses.add(code.upper() if code else courses.code_for(name), name, config.term)
     except CourseError as exc:
         raise typer.BadParameter(str(exc)) from exc
     finally:

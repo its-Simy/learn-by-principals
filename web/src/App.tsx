@@ -28,7 +28,7 @@ const NO_HEALTH: ProviderHealth[] = []
 
 function Layout() {
   const course = useMatch("/courses/:course/*")?.params.course?.toUpperCase()
-  const name = useCourse(course)?.name
+  const name = useCourse(course)?.name // the bar shows the name only, and nothing until it is known
   // Watches every job from here, above the panes, so a collapsed rail never loses a finished job.
   const jobs = useJobsWatcher()
   useNoStrayDrops() // a file dropped anywhere but the Sources pane never replaces the app
@@ -36,7 +36,7 @@ function Layout() {
   const health = useDashboard({ refetchInterval: HEALTH_POLL_MS }).data?.health ?? NO_HEALTH
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      <TopBar courseTitle={course && (name ? `${course} · ${name}` : course)}>
+      <TopBar courseTitle={name}>
         <HealthDots health={health} />
         <JobsIndicator jobs={jobs} />
       </TopBar>

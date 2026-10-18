@@ -2,6 +2,7 @@
 import { ListChecks, LoaderCircle } from "lucide-react"
 
 import { isActive, JOB_LABELS, type Job } from "@/api/jobs"
+import { useCourseName } from "@/api/queries.courses"
 import { StateBadge } from "@/components/StateBadge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -33,19 +34,26 @@ export function JobsIndicator({ jobs }: { jobs: Job[] }) {
         ) : (
           <ul className="max-h-80 divide-y overflow-y-auto">
             {recent.map((job) => (
-              <li key={job.id} className="flex items-center justify-between gap-3 px-4 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">{JOB_LABELS[job.kind]}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {job.course} · {timing(job)}
-                  </p>
-                </div>
-                <StateBadge state={job.status} />
-              </li>
+              <RecentJob key={job.id} job={job} />
             ))}
           </ul>
         )}
       </PopoverContent>
     </Popover>
+  )
+}
+
+function RecentJob({ job }: { job: Job }) {
+  const course = useCourseName(job.course)
+  return (
+    <li className="flex items-center justify-between gap-3 px-4 py-2">
+      <div className="min-w-0">
+        <p className="truncate text-sm">{JOB_LABELS[job.kind]}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {course} · {timing(job)}
+        </p>
+      </div>
+      <StateBadge state={job.status} />
+    </li>
   )
 }

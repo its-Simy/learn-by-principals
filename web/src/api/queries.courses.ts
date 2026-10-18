@@ -21,7 +21,12 @@ export function useCourse(course: string | undefined): Course | undefined {
   return course === undefined ? undefined : data?.find((c) => c.course === course.toUpperCase())
 }
 
-/** A duplicate code is a 409 `duplicate_course`, a bad code or term a 422: both for the dialog to show. */
+/** The course's name wherever the API hands back only its code (jobs, the dashboard); the code until the list loads. */
+export function useCourseName(course: string): string {
+  return useCourse(course)?.name ?? course
+}
+
+/** The dialog sends only a name; the server derives the code. A duplicate from a race is a 409 `duplicate_course`. */
 export function useCreateCourse() {
   const queryClient = useQueryClient()
   return useMutation({

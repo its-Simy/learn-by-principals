@@ -28,7 +28,7 @@ from typing import Any
 
 import yaml
 
-from core.memory.vault import slug
+from core.memory.db import slug
 from core.sync.classify import BUCKETS
 
 FORMATS = ("multiple_choice", "short_answer", "coding")

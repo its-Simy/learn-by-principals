@@ -61,6 +61,10 @@ Two commits: `BL-047: Web scaffold and shell`, then `BL-047: Sources pane`.
 **Build:** `CLAUDE.md` (layout adds `api/` and `web/`; conventions add the contract step and the web checks; decision-log row for the web architecture), `docs/validation-log.md` rewritten for the manual flow (NotebookLM login + doctor; `brightlearn web`, create CSE220, upload; spike C + `nlm-test`; capture CLI outputs; model-test; concepts; tutor session; exam; podcast), `README.md` (what, setup, where data lives).
 **Acceptance:** every command named in the log exists; `/code-review` on the docs diff is clean.
 
+### BL-051 NotebookLM-style simplification
+**Build:** (A) a new course asks for a name only: `Courses.code_for(name)` derives the code (upper-cased slug, cut to 28, `-2`/`-3` while taken), `CourseIn.course` optional, `courses add [CODE]`, the card and the top bar show the name only, and the term is CLI-only; (B) the top bar is the word "BrightLearn" with no mark; (C) both themes on NotebookLM's greys (light page `#f8fafd` with white panels, dark page `#1f1f1f` with `#28292a` panels), light by default, tokens only; (D) Studio as tiles → specifics: a home of four tiles (Mastery, Practice exam, Audio Overview, Concepts) with a one-line count each, the jobs in progress under them, then a compact list of everything made; a tile opens its view (Back, title, one action, the body the card had), nested editors go back to their view.
+**Acceptance:** `pytest`, `ruff`, `typecheck` and `build` green; the contract regenerated; on the fakes a fresh profile opens light, "Linear Algebra" lands on `/courses/LINEAR-ALGEBRA` and a second one on `-2`, every Studio flow (seed → draft → apply, create → take → grade, generate → play) still completes from its view, and the home shows the job while it runs and the output after.
+
 ---
 
 ## Still not ticketed

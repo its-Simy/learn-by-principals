@@ -17,9 +17,8 @@ from typing import Any
 import yaml
 
 from core.jsonutil import extract_json_array
-from core.memory.db import Manifest
+from core.memory.db import Manifest, slug
 from core.memory.learner import Concept, LearnerMemory
-from core.memory.vault import slug
 from core.providers.knowledge.base import KnowledgeProvider
 
 SEED_PROMPT = """List the concepts this course teaches, derived from the syllabus and the lecture

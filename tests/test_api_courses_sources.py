@@ -89,6 +89,19 @@ def test_counts_follow_uploads_and_links(api):
     assert (course["sources"], course["linked"]) == (1, 1)
 
 
+def test_a_course_can_be_created_by_name_alone(api):
+    """The dialog sends only a name: the code is derived and deduped; an explicit code wins."""
+    client, *_ = api
+    first = client.post("/api/courses", json={"name": "Linear Algebra"})
+    assert first.status_code == 201, first.text
+    assert (first.json()["course"], first.json()["name"]) == ("LINEAR-ALGEBRA", "Linear Algebra")
+    second = client.post("/api/courses", json={"name": "Linear Algebra"})
+    assert second.json()["course"] == "LINEAR-ALGEBRA-2"
+    explicit = client.post("/api/courses", json={"course": "math201", "name": "Linear Algebra"})
+    assert explicit.json()["course"] == "MATH201"
+    assert client.get("/api/courses/LINEAR-ALGEBRA/sources").status_code == 200
+
+
 def test_duplicate_course_is_409(api):
     client, *_ = api
     add_course(client)

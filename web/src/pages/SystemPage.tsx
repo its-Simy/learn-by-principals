@@ -2,6 +2,7 @@
 import { RefreshCw } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { useCourseName } from "@/api/queries.courses"
 import { useDashboard, useDoctor, type Dashboard } from "@/api/queries.system"
 import { EmptyState } from "@/components/EmptyState"
 import { LevelBar } from "@/components/LevelBar"
@@ -282,19 +283,26 @@ function Weakest({ data }: { data: Dashboard }) {
       ) : (
         <Table head={["Concept", "Course", "Level", "Confidence", "Retention"]}>
           {data.weakest.map((c) => (
-            <tr key={`${c.course}-${c.name}`}>
-              <td className="min-w-32">{c.name}</td>
-              <td>{c.course}</td>
-              <td>
-                <LevelBar level={c.level} label={`${c.name} mastery`} />
-              </td>
-              <td className="tabular-nums">{percent(c.confidence)}</td>
-              <td className="tabular-nums">{percent(c.retention)}</td>
-            </tr>
+            <WeakestRow key={`${c.course}-${c.name}`} concept={c} />
           ))}
         </Table>
       )}
     </Section>
+  )
+}
+
+function WeakestRow({ concept: c }: { concept: Dashboard["weakest"][number] }) {
+  const course = useCourseName(c.course)
+  return (
+    <tr>
+      <td className="min-w-32">{c.name}</td>
+      <td>{course}</td>
+      <td>
+        <LevelBar level={c.level} label={`${c.name} mastery`} />
+      </td>
+      <td className="tabular-nums">{percent(c.confidence)}</td>
+      <td className="tabular-nums">{percent(c.retention)}</td>
+    </tr>
   )
 }
 

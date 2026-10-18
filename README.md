@@ -41,7 +41,7 @@ The web app covers the everyday flow, and it's the only way to upload files. The
 | Command | What it does |
 | --- | --- |
 | `brightlearn web [--port 8765] [--no-open]` | The web app: Sources, Chat and Studio |
-| `brightlearn courses list` · `courses add CODE --name TEXT [--term T]` | List or add courses |
+| `brightlearn courses list` · `courses add [CODE] --name TEXT [--term T]` (the code is derived from the name if left out) | List or add courses |
 | `brightlearn sync --course CODE \| --all [--include-code]` | Send stored files to NotebookLM (an upload in the web app does this itself) |
 | `brightlearn ask "QUESTION" --course CODE [--sources syllabus,lectures]` | A grounded answer with citations |
 | `brightlearn tutor --course CODE [--persona simplifier]` | A tutoring session in the terminal |

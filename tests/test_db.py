@@ -101,6 +101,43 @@ def test_a_duplicate_that_slips_past_the_check_is_still_a_duplicate(monkeypatch)
     assert [(c.name, c.term) for c in courses.all()] == [("Systems Fundamentals", "Fall-2026")]
 
 
+@pytest.mark.parametrize(
+    ("name", "code"),
+    [
+        ("Linear Algebra", "LINEAR-ALGEBRA"),
+        ("Álgebra lineal", "ALGEBRA-LINEAL"),
+        ("CSE220", "CSE220"),
+        ("  Intro to (Systems) / Networks!  ", "INTRO-TO-SYSTEMS-NETWORKS"),
+        ("!!!", "COURSE"),
+        ("Systems Fundamentals and Architecture of Computers", "SYSTEMS-FUNDAMENTALS-AND-ARC"),
+    ],
+)
+def test_code_for_is_the_upper_cased_slug_of_the_name(name, code):
+    courses = Courses(connect(":memory:"))
+    assert courses.code_for(name) == code
+    courses.add(courses.code_for(name), name, "Fall-2026")  # always a legal folder name
+
+
+def test_code_for_dedupes_against_the_table():
+    courses = Courses(connect(":memory:"))
+    long = "Systems Fundamentals and Architecture of Computers"
+    for _ in range(3):
+        courses.add(courses.code_for("Linear Algebra"), "Linear Algebra", "Fall-2026")
+        courses.add(courses.code_for(long), long, "Fall-2026")
+    codes = [c.course for c in courses.all()]
+    assert sorted(c for c in codes if c.startswith("LINEAR")) == [
+        "LINEAR-ALGEBRA",
+        "LINEAR-ALGEBRA-2",
+        "LINEAR-ALGEBRA-3",
+    ]
+    assert sorted(c for c in codes if c.startswith("SYSTEMS")) == [
+        "SYSTEMS-FUNDAMENTALS-AND-ARC",
+        "SYSTEMS-FUNDAMENTALS-AND-ARC-2",
+        "SYSTEMS-FUNDAMENTALS-AND-ARC-3",
+    ]
+    assert all(len(c) <= 32 for c in codes)
+
+
 def test_find_is_deterministic_with_a_duplicate_name():
     """Rows from before v13 could share a name in a bucket; the oldest one wins."""
     manifest = Manifest(connect(":memory:"))
