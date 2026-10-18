@@ -1,6 +1,6 @@
 # BrightLearn — CLAUDE.md
 
-Personal learning platform: course files uploaded by hand → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning) → SQLite + Markdown learner memory. You use it through a local web app (`brightlearn web`: Sources | Chat | Studio) or the CLI. V1 is a one-student prototype with zero metered LLM API spend. Tickets: `TICKETS-4.md`; the web design: `docs/web-plan.md`.
+Personal learning platform: course files uploaded by hand → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning, optional) → SQLite + Markdown learner memory. You use it through a local web app (`brightlearn start`: Sources | Chat | Studio) or the CLI. V1 is a one-student prototype with zero metered LLM API spend; anyone can clone it, run `setup.sh` / `setup.cmd` and `start.sh` / `start.cmd`. Tickets: `TICKETS-4.md`; the web design: `docs/web-plan.md`; the dev loop: `CONTRIBUTING.md`.
 
 ## Principles (every change must respect these)
 
@@ -53,8 +53,12 @@ brightlearn/
 │                         # exam.py, podcast.py, generate.py, web.py (`brightlearn web`), dev.py, …
 ├── web/                  # Vite + React + shadcn SPA: src/api (generated types, hooks), src/features/{sources,chat,studio,exams}, src/components
 ├── dashboard/            # data.py (queries), render.py (self-contained HTML, inline SVG)
-├── scripts/              # spike_c.py (throwaway spike), dev_server.py (the API on the test fakes, no accounts)
-└── tests/                # fakes/
+├── scripts/              # spike_c.py (throwaway spike), dev_server.py (the API on the test fakes, no accounts),
+│                         # env.sh / env.ps1 (what the setup and start scripts share)
+├── tests/                # fakes/
+├── setup.sh  setup.cmd (+ setup.ps1)   # one-command setup: uv, pnpm, Node, uv sync, web build, `brightlearn setup`
+├── start.sh  start.cmd  BrightLearn.command   # `uv run brightlearn start`, no activation
+└── .github/workflows/ci.yml   # tests, lint and the web build on macOS, Windows and Ubuntu, plus the scripts
 ```
 
 Nothing personal lives in the repo. The vault (transcripts, concept notes, drafts) is at `~/.brightlearn/vault/`; `personas/` stays in the repo because it is code.
@@ -68,13 +72,13 @@ Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` +
 | `home` | `~/.brightlearn` | Secrets directory, mode 700; `BRIGHTLEARN_HOME` overrides |
 | `term` | from the date, e.g. `Fall-2026` | Only the default for new courses (`BRIGHTLEARN_TERM`); `courses add --term` overrides it (the New course dialog asks for a name only). Each course keeps its own term in `courses`. |
 | `storage_root` | `~/.brightlearn/courses` | Canonical course files |
-| `tmp_dir` | `/tmp/brightlearn` | Upload staging; always emptied |
+| `tmp_dir` | `/tmp/brightlearn` (the OS temp folder on Windows) | Upload staging; always emptied; `ensure_home` creates it |
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
 | `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
 | `retention_half_life_days` | `21` | `BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS` |
 | `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex`; classify `claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins). Unknown provider names are dropped with a warning. |
 
-Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far. The web app's port is not config: `brightlearn web --port` (default `8765`, always on 127.0.0.1).
+Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far (`brightlearn setup` writes it once, every line commented out). The web app's port is not config: `brightlearn web --port` (default `8765`, always on 127.0.0.1).
 
 ## Provider interfaces
 
@@ -157,13 +161,14 @@ Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term 
 ## Conventions
 
 - Python 3.12, `ruff`, `pytest`. Type hints everywhere. Dataclasses for models.
-- Setup, safe in any worktree: `uv venv .venv && env -u CONDA_PREFIX uv pip install --python .venv/bin/python -e . pytest ruff httpx`, then `chflags nohidden .venv/lib/python3.12/site-packages/*.pth` (macOS hides them, and Python 3.12 then skips them). Never a bare `uv pip install` or `pip install`: with `CONDA_PREFIX` set it lands in the conda base env. Then `pnpm --dir web install`.
-- Before committing: `.venv/bin/pytest -q` and `.venv/bin/ruff check .`; for a web change, `pnpm --dir web typecheck && pnpm --dir web build` too. The web app's own conventions are in `web/README.md`.
+- Setup, safe in any worktree: `./setup.sh --dev --skip-login` (`setup.cmd --dev --skip-login` on Windows). It uses uv's own Python 3.12, syncs from `uv.lock`, builds the web app and keeps the environment outside an iCloud- or OneDrive-synced folder (the sync re-hides the editable install's `.pth`; `.venv` is then a link to `~/.venvs/<repo>`). Never a bare `pip install`; after editing `pyproject.toml`, `uv lock` and re-run the script. Details in `CONTRIBUTING.md`.
+- Before committing: `uv run pytest -q`, `uv run ruff check .` and `uv run ruff format --check .`; for a web change, `pnpm --dir web typecheck && pnpm --dir web build` too. CI runs all of it on macOS, Windows and Ubuntu. The web app's own conventions are in `web/README.md`.
+- Windows is a target: every text read and write names `encoding="utf-8"` (ruff `PLW1514`), prompts go to a model CLI on stdin, paths are compared with `as_posix()` or `Path`, and a POSIX-only test is skipped on `os.name == "nt"`, not deleted.
 - Tests use fakes in `tests/fakes/`; no network in tests. `scripts/dev_server.py` serves the API on the same fakes against a scratch `--home`, so the UI can be tried with no accounts.
 - `api/` never imports `cli/`; both sit on `core/` (`tests/test_principles.py` checks it). The API holds no business logic of its own: a rule it needs goes in `core/`, and a route makes the same core calls as its CLI command.
 - Routes are plain `def`, so FastAPI runs them in its threadpool and a five-minute model call never blocks the event loop. Pydantic lives only under `api/schemas/`, each model with a `from_core`; core stays dataclasses.
 - The contract step: whenever a route or schema changes, run `brightlearn dev openapi --out web/openapi.json && pnpm --dir web gen` and commit both files. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
-- `dev` commands skip auto-maintenance, as `doctor` and `maintain` do, so `brightlearn dev openapi` never opens or migrates the real database (P102).
+- `dev` commands skip auto-maintenance, as `doctor`, `setup` and `maintain` do, so `brightlearn dev openapi` never opens or migrates the real database (P102).
 - Uploads stage in `config.tmp_dir/{uuid}`, always deleted in a `finally`.
 - Log with `logging`, never `print`, except in CLI output via `rich`.
 - Commit message format: `BL-0XX: <ticket title>`.
@@ -180,6 +185,7 @@ Newest first. Add a row whenever a principle is bent or a provider choice change
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| Oct 18, 2026 | One-command setup and start for anyone who clones: `setup.sh` / `setup.cmd` install uv (and its Python 3.12), pnpm and Node when missing, sync from a committed `uv.lock`, build the web app and hand over to `brightlearn setup`; `start.sh` / `start.cmd` run `brightlearn start`. notebooklm-py is a plain dependency (the minimum product is NotebookLM alone); Claude Code and Codex are optional tiers the app names when they are missing. The environment lives outside an iCloud/OneDrive-synced folder via `UV_PROJECT_ENVIRONMENT`. Prompts reach the model CLIs on stdin. CI runs on macOS, Windows and Ubuntu. | BL-052. Open-sourcing: a clone must run on a stranger's Mac or Windows machine without the author's shell habits (`env -u CONDA_PREFIX`, `chflags`), and an npm `.cmd` shim on Windows re-parses argv through cmd.exe. |
 | Oct 18, 2026 | Ollama is removed for now: the provider, its config and doctor row, and its place in the routing defaults. A name in `[routing]` that no provider implements is dropped with a warning. | BL-052. Simon's call: two model CLIs are enough for V1, and a local model can return later behind `ModelProvider` with no change to the router (its `task_types` rule stays). |
 | Oct 18, 2026 | The web app reads as a general learning tool, closer to NotebookLM: a new course asks for a name only and `Courses.code_for` derives the code (the upper-cased slug, deduped with `-2`, `-3`), so the card, the top bar, the jobs popover and the dashboard show the name and the term is set only by `courses add --term`; the top bar is the word "BrightLearn" with no mark; both themes use NotebookLM's greys (light `#f8fafd` page / white panels, dark `#1f1f1f` / `#28292a`) with light as the default and the OS preference ignored; Studio opens on tiles, then the chosen tool's view, with the course's jobs and a compact list of everything made under the tiles. | BL-051. Simon's decisions: it is a learning tool that happens to work for school, so a course code and a term are storage details, and the Studio should read like NotebookLM's (pick a box, then its specifics). |
 | Oct 17, 2026 | The web app is chat-first, after NotebookLM's three panes: Sources and Studio are rails that collapse to an icon strip (sheets below `lg`), and one chat follows the session state, a grounded ask on the checked sources with no session and a tutor turn with one ("Sources only" sends `/ask`). Every wait shows its step and elapsed time, and every empty pane names the next action. | BL-047–049. During a session an ask already goes through the tutor's own NotebookLM conversation (P66), so one stream shows what the API does; and a tutor turn or the Analyzer can take minutes, so a wait must say what it is waiting for. |

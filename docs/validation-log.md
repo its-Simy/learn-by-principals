@@ -38,11 +38,10 @@ Copy this block for any step not listed below.
 - **Date:**
 - **Command:**
   ```
-  env -u CONDA_PREFIX uv pip install --python .venv/bin/python "notebooklm-py[android,browser]"
-  brightlearn dev nlm-login --account <gmail>
-  brightlearn doctor
+  ./setup.sh --account <gmail>        # setup.cmd --account <gmail> on Windows
+  uv run brightlearn doctor
   ```
-  `nlm-login` opens your installed Chrome for the Google login (`--browser chromium` uses Playwright's own, which the install doesn't download and which the library says crashes on macOS 15+; P105). Doctor never does: every check is read-only and spends no quota. Before the install, doctor's NotebookLM row suggests a bare `uv pip install`; use the line above instead, or it lands in the conda base env (P103).
+  `setup.sh` installs what is missing (uv, pnpm, Node), syncs the Python environment from `uv.lock` (notebooklm-py included), builds the web app, then `brightlearn setup` opens your installed Chrome (or Edge: `--browser msedge`) for the Google login and prints doctor's table. Doctor never opens anything: every check is read-only and spends no quota.
 - **Expected:**
   - Credentials land in `~/.brightlearn/notebooklm/`, not `~/.notebooklm/` (P20).
   - Doctor has nine rows: Config, DB schema, Storage root, Temp dir, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, NotebookLM, Claude Code and Codex.
@@ -50,7 +49,7 @@ Copy this block for any step not listed below.
   - `ANTHROPIC_API_KEY` is green (unset). Red means the key is exported: unset it before going on, or Claude Code would bill the API (principle 1).
   - Config is green and names the term new courses get, e.g. `term Fall-2026`. Storage root and Temp dir are green.
   - DB schema is yellow, "no database yet; `brightlearn courses add` creates it", on a machine with no database: step 2 creates it. On one that has a database, it's green at v13, or yellow saying it migrates to v13 on the next run.
-  - Claude Code and Codex are yellow (not on PATH) until step 4 installs them. Green only means `--version` ran: doctor never checks the login, because that would spend quota.
+  - Claude Code and Codex are yellow (not on PATH) until step 4 installs them, and setup prints the install and login lines for this OS under the table. Green only means `--version` ran: doctor never checks the login, because that would spend quota (`brightlearn setup --probe` does, once per CLI).
   - `OPENAI_API_KEY` set is a yellow warning: Codex runs without it, on the subscription.
   - Doctor exits 0. It exits 1 only when a row is red.
 - **Output summary:**
@@ -93,7 +92,7 @@ Copy this block for any step not listed below.
 - **Date:**
 - **Command:**
   ```
-  .venv/bin/python scripts/spike_c.py
+  uv run python scripts/spike_c.py
   brightlearn dev nlm-test
   ```
   Both read the syllabus uploaded in step 2 from the manifest.
@@ -111,9 +110,9 @@ Copy this block for any step not listed below.
 - **Date:**
 - **Command:** Install the `claude` CLI on PATH (P49) and Codex (P52), check `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are unset, then capture exactly what the providers will parse:
   ```
-  claude -p "Say hi" --output-format json --tools "" --no-session-persistence --strict-mcp-config --system-prompt "Answer the user directly and briefly." > claude_hi.json
+  echo "Say hi" | claude -p --output-format json --tools "" --no-session-persistence --strict-mcp-config --system-prompt "Answer the user directly and briefly." > claude_hi.json
   codex --help > codex_help.txt
-  codex exec --skip-git-repo-check --sandbox read-only --color never -o codex_last.txt "Say hi" > codex_hi.txt 2>&1
+  echo "Say hi" | codex exec --skip-git-repo-check --sandbox read-only --color never -o codex_last.txt > codex_hi.txt 2>&1
   ```
   `-o` matters: `CodexProvider` reads the reply from that file and uses stdout and stderr only for the `model:` and `tokens used` lines. Paste all four files (`claude_hi.json`, `codex_help.txt`, `codex_hi.txt`, `codex_last.txt`) into the chat; they become `tests/fixtures/cli/`.
 - **Expected:**
