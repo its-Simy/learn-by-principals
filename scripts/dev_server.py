@@ -399,6 +399,11 @@ def main() -> None:
     parser.add_argument("--home", required=True, type=Path, help="Scratch home (created).")
     parser.add_argument("--port", type=int, default=8765, help="Port on 127.0.0.1.")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds per fake call.")
+    parser.add_argument(
+        "--no-models",
+        action="store_true",
+        help="Both model CLIs 'not installed': the NotebookLM-only tier, as a fresh setup sees it.",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -415,6 +420,14 @@ def main() -> None:
         knowledge.adopt(Manifest(conn).all())
         if Courses(conn).get(COURSE) is None:
             seed(config, conn, knowledge)
+        health = HealthStore(conn)
+        for name, model in models.items():
+            if args.no_models:
+                model.state = ProviderState.DISABLED
+                detail = f"`{name}` is not on PATH"
+            else:
+                detail = "dev server fake"
+            health.set(name, model.state, datetime.now(UTC), detail=detail)
     finally:
         conn.close()
 

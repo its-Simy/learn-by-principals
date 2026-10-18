@@ -66,6 +66,12 @@ TASK_PURPOSE = {
 Routing = Sequence[str] | Mapping[str, Sequence[str]]
 
 
+# When no model CLI is installed at all: the NotebookLM tier still works, this part doesn't.
+INSTALL_MODELS_HINT = (
+    "Tutoring, mastery and exams need Claude Code or Codex: see Optional models in the README"
+)
+
+
 class NoProvider(ModelError):
     """No provider may take this task right now; the message says why for each one."""
 
@@ -157,9 +163,11 @@ class Router:
             else:
                 usable.append(name)
         if not usable:
-            raise NoProvider(
-                f"No model provider left for {task_type}: " + ("; ".join(why) or "none configured")
-            )
+            reasons = "; ".join(why) or "none configured"
+            message = f"No model provider left for {task_type}: {reasons}"
+            if not why or all("is DISABLED" in w or "not configured" in w for w in why):
+                message += f". {INSTALL_MODELS_HINT}"
+            raise NoProvider(message)
         return self._rank(task_type, usable)
 
     def route(

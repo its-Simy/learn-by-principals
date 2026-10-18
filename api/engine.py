@@ -36,7 +36,7 @@ from core.memory.learner import LearnerMemory
 from core.memory.vault import Vault
 from core.providers.knowledge.base import KnowledgeProvider
 from core.providers.models.base import ModelProvider
-from core.router.router import Router
+from core.router.router import INSTALL_MODELS_HINT, Router
 from core.tutor import Tutor
 
 log = logging.getLogger(__name__)
@@ -116,6 +116,12 @@ def open_resources(config: Config) -> Resources:
     except BaseException:
         conn.close()
         raise
+    for name, provider in providers.items():
+        executable = getattr(provider, "executable", None)
+        if executable is not None and executable() is None:
+            log.warning(
+                "`%s` is not on PATH, so %s is unavailable. %s", name, name, INSTALL_MODELS_HINT
+            )
     return Resources(config, conn, knowledge, providers)
 
 

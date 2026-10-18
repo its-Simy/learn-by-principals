@@ -222,6 +222,22 @@ def test_no_allowed_available_provider_raises_no_provider(conn):
     assert router.route("classify") is models["local"]
 
 
+def test_no_model_installed_at_all_says_what_to_install(conn, models):
+    """A fresh NotebookLM-only setup: every CLI is DISABLED, so the 502 names the optional step."""
+    from core.router.router import INSTALL_MODELS_HINT
+
+    for model in models.values():
+        model.state = ProviderState.DISABLED
+    with pytest.raises(NoProvider) as info:
+        Router(models, Ledger(conn), ["claude", "codex"]).route("explain")
+    assert str(info.value).endswith(INSTALL_MODELS_HINT)
+    # A rate limit is not "nothing installed": no install hint then.
+    models["claude"].state = ProviderState.RATE_LIMITED
+    with pytest.raises(NoProvider) as info:
+        Router(models, Ledger(conn), ["claude", "codex"], clock=Clock()).route("explain")
+    assert INSTALL_MODELS_HINT not in str(info.value)
+
+
 def test_excluded_providers_are_named_in_the_message(conn, models):
     with pytest.raises(NoProvider, match="claude is excluded for this task"):
         Router(models, Ledger(conn), ["claude"]).run(task(), exclude={"claude"})

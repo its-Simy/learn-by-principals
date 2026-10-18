@@ -28,6 +28,20 @@ export function useDashboard(options: { refetchInterval?: number } = {}) {
   })
 }
 
+export const MODELS_HINT = "Tutoring, mastery and exams need Claude Code or Codex (optional): see the README."
+
+/**
+ * The note for a feature that needs a model CLI, when none is installed: every model provider in
+ * the polled health is disabled (or there is none), which is how a fresh NotebookLM-only setup
+ * looks. Null while health is unknown or any model is usable.
+ */
+export function useModelsHint(): string | null {
+  const health = useDashboard().data?.health
+  if (!health) return null
+  const models = health.filter((h) => h.provider !== "notebooklm")
+  return models.every((h) => h.state.toLowerCase() === "disabled") ? MODELS_HINT : null
+}
+
 /** Read-only checks (versions, paths, the NotebookLM login); never cached, so a visit re-runs them. */
 export function useDoctor() {
   return useQuery({

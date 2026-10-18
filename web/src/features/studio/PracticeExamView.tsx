@@ -3,6 +3,7 @@ import { Link } from "react-router"
 
 import { isActive } from "@/api/jobs"
 import { useConcepts, useExams, useGrade, useLinkedSourceCount, usePaper, type Exam } from "@/api/queries.studio"
+import { useModelsHint } from "@/api/queries.system"
 import { EmptyState } from "@/components/EmptyState"
 import { JobRow } from "@/components/JobRow"
 import { Pending } from "@/components/Pending"
@@ -33,6 +34,7 @@ export function PracticeExamView({ course, onNewExam, onBack }: PracticeExamView
 
   // An exam is planned from the concepts and grounded in the linked sources: without both it can't be good.
   const ready = (concepts.data?.length ?? 0) > 0 && linked > 0
+  const modelsHint = useModelsHint()
   const list = exams.data ?? []
   const status = exams.data
     ? list.length === 0
@@ -43,7 +45,7 @@ export function PracticeExamView({ course, onNewExam, onBack }: PracticeExamView
   return (
     <StudioView
       title="Practice exams"
-      description={status}
+      description={modelsHint ? `${status ?? ""}${status ? " · " : ""}${modelsHint}` : status}
       action={
         <Button size="sm" disabled={!ready || isActive(createJob)} onClick={onNewExam} {...openerProps(NEW_EXAM)}>
           New exam

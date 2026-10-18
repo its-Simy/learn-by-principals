@@ -2,6 +2,7 @@
 import { GraduationCap } from "lucide-react"
 
 import type { LiveSession, Persona } from "@/api/queries.chat"
+import { useModelsHint } from "@/api/queries.system"
 import { StateBadge } from "@/components/StateBadge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -54,6 +55,7 @@ type SessionBannerProps = {
 
 export function SessionBanner(props: SessionBannerProps) {
   const { course, session, personas, busy } = props
+  const modelsHint = useModelsHint()
   return (
     <div className="shrink-0 border-b">
       <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
@@ -63,6 +65,8 @@ export function SessionBanner(props: SessionBannerProps) {
           <>
             <p className="min-w-0 flex-1 basis-64 text-sm text-muted-foreground">
               Asking the course sources. Start a tutoring session to get coaching and track mastery.
+              {/* Start stays enabled: a CLI installed later works after a restart, and the turn's error says what is missing. */}
+              {modelsHint && <span className="block text-xs text-warning">{modelsHint}</span>}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <PersonaSelect personas={personas} value={props.persona} disabled={busy} onChange={props.onPersonaChange} />
