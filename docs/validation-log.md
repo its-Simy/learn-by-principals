@@ -146,8 +146,8 @@ Copy this block for any step not listed below.
 ### 6. Seed and apply CSE220's concepts from the Studio pane
 - **Date:**
 - **Command:** In the browser, on CSE220's Studio pane:
-  1. **Seed** in the Concepts card (or in the Mastery card's empty state).
-  2. Open the new draft from the Concepts card's list. Click **Apply** once before editing.
+  1. Open the **Concepts** tile and click **Seed** (or the **Mastery** tile's empty state).
+  2. Open the new draft from the Concepts view's list (or from "Made so far" on the Studio's home, then the list). Click **Apply** once before editing.
   3. In the draft view, fix names, modules and weeks; add `aliases:` for any renames; set `reviewed: true`. **Save.**
   4. **Apply**, then **Apply** again.
 
@@ -161,7 +161,7 @@ Copy this block for any step not listed below.
   - **Seed:** a "Seeding concepts" row with the elapsed time, then "Concept draft ready: N concepts". The draft is a new `~/.brightlearn/vault/courses/CSE220/concepts.draft.{timestamp}.yaml`, listed as "latest" and "needs review"; it never overwrites an earlier one (P65). The draft view shows the changes from the draft before it, or says it's the first.
   - **Apply before review:** refused with the reason (the draft still says `reviewed: false`); nothing changes.
   - **Save:** a YAML mistake (a bad indent, `week: two`) shows its error under the editor and leaves the file as it was.
-  - **First apply:** "Applied: N added · 0 updated · 0 unchanged · 0 retired". The Concepts card reads "N active · 0 retired"; the Mastery card reads "N concepts · N below level 3" and lists the weakest five.
+  - **First apply:** "Applied: N added · 0 updated · 0 unchanged · 0 retired". The Concepts view reads "N active · 0 retired" and its tile "N active"; the Mastery view reads "N concepts · N below level 3" and lists every concept weakest-first.
   - **Second apply:** "Applied: 0 added · 0 updated · N unchanged · 0 retired".
   - **CLI instead:** the first `apply` prints "Applied concepts.draft.{timestamp}.yaml: N added, 0 updated, 0 retired (0 unchanged)." `seed` refuses while a tutor session is open on CSE220.
   - Every concept has a week, because exam specs select concepts by week (P74).
@@ -179,7 +179,7 @@ Copy this block for any step not listed below.
   3. Five turns on pointers.
   4. Rate the last answer with the 1–5 buttons under it.
   5. Turn on **Sources only**, ask one question, and turn it off again.
-  6. While the session is live, click **Seed** in the Studio's Concepts card.
+  6. While the session is live, click **Seed** in the Studio's Concepts view.
   7. **End session.**
   8. Open **History**, then the session's **Transcript**.
 
@@ -201,7 +201,7 @@ Copy this block for any step not listed below.
   - **History:** the session is ended, with "Tutor: claude · Analyzer: codex" (different after a fallback, but never one provider for both); **Transcript** opens it in a dialog.
   - **`sessions list`:** shows the session as ended.
   - **Dashboard:** `brightlearn dashboard`, and the System page (`/system`), show the runs, provider health and the rating (P61).
-  - **Check by hand:** do the evidence excerpts quote your own words? A concept's name in the Mastery card opens its evidence rows, but without their excerpts (P103), so read those with `sqlite3 ~/.brightlearn/brightlearn.db "SELECT concept_id, type, excerpt_ref FROM evidence WHERE session_id = '<session_id>'"`.
+  - **Check by hand:** do the evidence excerpts quote your own words? A concept's name in the Mastery view opens its evidence rows, but without their excerpts (P103), so read those with `sqlite3 ~/.brightlearn/brightlearn.db "SELECT concept_id, type, excerpt_ref FROM evidence WHERE session_id = '<session_id>'"`.
 - **Output summary:**
 - **Problems opened:**
 - **Tickets created:**
@@ -210,7 +210,7 @@ Copy this block for any step not listed below.
 ### 8. An exam from the Studio pane
 - **Date:**
 - **Command:** In the browser, on CSE220's Studio pane:
-  1. **New exam** in the Practice exams card. The editor opens with a template for CSE220 (Midterm 1, weeks 1–5). For a shorter first run, set `formats: {multiple_choice: 6, short_answer: 3, coding: 1}`. **Create.**
+  1. Open the **Practice exam** tile, then **New exam**. The editor opens with a template for CSE220 (Midterm 1, weeks 1–5). For a shorter first run, set `formats: {multiple_choice: 6, short_answer: 3, coding: 1}`. **Create.**
   2. Once the exam's row appears: **Paper**, then **Take** and **Start**. Answer a few questions, reload the page, then carry on to the last question, skipping one on the way, and **Finish**.
   3. **Grade**, then **Results**.
 
@@ -227,16 +227,16 @@ Copy this block for any step not listed below.
   - **Take:** opens at `/courses/CSE220/exams/<exam>/take`, "10 questions · not taken yet", then after **Start** one question at a time ("Attempt 1 · 1 of 10"): multiple choice as radio buttons, short answers in a text box, coding in a monospace one. After the reload it resumes on the same question with the answers kept. **Finish** shows "Attempt 1 handed in · 9 answered, 1 skipped". (The CLI's `take` stops with `/quit` and resumes.)
   - **Grade:** "Grading exam", then "Graded: X of Y correct", and one evidence row per answered question. While it runs, the take view's **Take again** is refused with "Grading is in progress on this course. Your answers are saved; carry on once it has finished." (P101).
   - **Results:** each concept with its correct count and level, and each question with your answer, the feedback and the reference answer.
-  - **Grading again:** the CLI writes no new evidence: "0 new evidence row(s); 9 answer(s) were already graded." In the web app, the card's Grade is disabled once the attempt is graded ("Attempt 1 is graded"), and the take view no longer offers it.
+  - **Grading again:** the CLI writes no new evidence: "0 new evidence row(s); 9 answer(s) were already graded." In the web app, the exam row's Grade is disabled once the attempt is graded ("Attempt 1 is graded"), and the take view no longer offers it.
   - **Check by hand:** are the questions grounded, and is the answer key right?
 - **Output summary:**
 - **Problems opened:**
 - **Tickets created:**
 - **Status:** not run
 
-### 9. A podcast from the Audio Overview card
+### 9. A podcast from the Audio Overview view
 - **Date:**
-- **Command:** In the browser, on CSE220's Studio pane, in the Audio Overview card: Format **Deep dive**, Length **Default**, Exam **Midterm 1**. **Generate.** Once it's ready, play the episode and open its **Brief**.
+- **Command:** In the browser, on CSE220's Studio pane, open the **Audio Overview** tile: Format **Deep dive**, Length **Default**, Exam **Midterm 1**. **Generate.** Once it's ready, play the episode and open its **Brief**.
   The CLI equivalent: `brightlearn podcast --course CSE220 --exam "Midterm 1"`.
 - **Expected:**
   - "Generating audio overview" with the elapsed time ("typically 5–15 minutes"), then "Audio overview ready".

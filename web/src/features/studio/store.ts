@@ -1,5 +1,5 @@
 // Studio state that must outlive the pane: collapsing the rail, closing its sheet or crossing `lg`
-// unmounts it, and an open editor, its unsaved text or the job a card started shouldn't go with
+// unmounts it, and an open editor, its unsaved text or the job a view started shouldn't go with
 // it. Kept per tab in memory; a reload starts the pane afresh (the server holds what matters).
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useSyncExternalStore } from "react"
@@ -10,9 +10,38 @@ import { fetchJobs, isActive, keys, POLL_MS, useJob, type Job, type JobKind } fr
 /** The attribute on the control that opens a Studio view, so Back returns the focus to it. */
 export const OPENER = "data-studio-opener"
 
-/** Spread onto the control that opens `view` ("new-exam", "draft:{name}"). */
+/** Spread onto the control that opens `view`: a tile ("exams"), New exam ("exams:new"), a draft row. */
 export function openerProps(view: string): Record<typeof OPENER, string> {
   return { [OPENER]: view }
+}
+
+/**
+ * The Studio's views, kept per course in `useStudioState`: the home of tiles, one view per tool,
+ * and the two editors nested under Practice exams and Concepts.
+ */
+export const HOME = "home"
+export const MASTERY = "mastery"
+export const EXAMS = "exams"
+export const AUDIO = "audio"
+export const CONCEPTS = "concepts"
+export const NEW_EXAM = "exams:new"
+const DRAFT = "concepts:draft:"
+
+export function draftView(name: string): string {
+  return `${DRAFT}${name}`
+}
+
+/** The draft a `concepts:draft:{name}` view edits, or null for any other view. */
+export function draftOf(view: string): string | null {
+  return view.startsWith(DRAFT) ? view.slice(DRAFT.length) : null
+}
+
+/** Where Back goes: an editor to its tool, a tool to home, home nowhere. */
+export function parentView(view: string): string | null {
+  if (view === HOME) return null
+  if (view === NEW_EXAM) return EXAMS
+  if (draftOf(view) !== null) return CONCEPTS
+  return HOME
 }
 
 const values = new Map<string, unknown>()
@@ -35,12 +64,12 @@ export function useStudioState<T>(key: string, initial: T): [T, (next: T) => voi
   return [value, set]
 }
 
-const sameCourse = (a: string, b: string) => a.toUpperCase() === b.toUpperCase()
+export const sameCourse = (a: string, b: string) => a.toUpperCase() === b.toUpperCase()
 
 /**
- * The job a card shows in its JobRow: the one it started, remembered while the rail is closed,
+ * The job a view shows in its JobRow: the one it started, remembered while the rail is closed,
  * or else, given `kind`, one of that kind already queued or running on the course (started in
- * another tab, or before a reload). `start` records a job the card just submitted.
+ * another tab, or before a reload). `start` records a job the view just submitted.
  */
 export function useCardJob(course: string, slot: string, kind?: JobKind): [Job | undefined, (job: Job) => void] {
   const queryClient = useQueryClient()

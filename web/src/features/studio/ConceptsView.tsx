@@ -6,9 +6,10 @@ import { EmptyState } from "@/components/EmptyState"
 import { Pending } from "@/components/Pending"
 import { StateBadge } from "@/components/StateBadge"
 import { draftWhen } from "@/features/studio/format"
+import { ErrorNote } from "@/features/studio/notes"
 import { SeedButton, SeedStatus, useSeedAction } from "@/features/studio/seed"
-import { ErrorNote, StudioCard } from "@/features/studio/StudioCard"
-import { openerProps } from "@/features/studio/store"
+import { draftView, openerProps } from "@/features/studio/store"
+import { StudioView } from "@/features/studio/StudioView"
 
 /** `hint` adds the explanation in a focusable tooltip; leave it off inside a button. */
 export function ReviewedBadge({ reviewed, hint = false }: { reviewed: boolean; hint?: boolean }) {
@@ -23,7 +24,9 @@ export function ReviewedBadge({ reviewed, hint = false }: { reviewed: boolean; h
   )
 }
 
-export function ConceptsCard({ course, onOpenDraft }: { course: string; onOpenDraft: (name: string) => void }) {
+type ConceptsViewProps = { course: string; onOpenDraft: (name: string) => void; onBack: () => void }
+
+export function ConceptsView({ course, onOpenDraft, onBack }: ConceptsViewProps) {
   const concepts = useConcepts(course, true)
   const drafts = useDrafts(course)
   const seed = useSeedAction(course)
@@ -33,7 +36,7 @@ export function ConceptsCard({ course, onOpenDraft }: { course: string; onOpenDr
   const status = concepts.data ? `${active} active · ${retired} retired` : undefined
 
   return (
-    <StudioCard title="Concepts" status={status} action={<SeedButton action={seed} variant="outline" />}>
+    <StudioView title="Concepts" description={status} action={<SeedButton action={seed} variant="outline" />} onBack={onBack}>
       {concepts.isError && <ErrorNote error={concepts.error} />}
       <SeedStatus action={seed} />
       {drafts.isPending ? (
@@ -51,7 +54,7 @@ export function ConceptsCard({ course, onOpenDraft }: { course: string; onOpenDr
           ))}
         </ul>
       )}
-    </StudioCard>
+    </StudioView>
   )
 }
 
@@ -60,7 +63,7 @@ function DraftRow({ draft, onOpen }: { draft: Draft; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      {...openerProps(`draft:${draft.name}`)}
+      {...openerProps(draftView(draft.name))}
       className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
       <span className="min-w-0 flex-1">

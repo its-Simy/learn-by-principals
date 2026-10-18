@@ -5,10 +5,10 @@ import { useApplyDraft, useDraftDiff, useDrafts, useDraftText, useSaveDraft, typ
 import { Pending } from "@/components/Pending"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ReviewedBadge } from "@/features/studio/ConceptsCard"
-import { DiffBlock, EditorView } from "@/features/studio/EditorView"
+import { ReviewedBadge } from "@/features/studio/ConceptsView"
 import { draftLabel } from "@/features/studio/format"
-import { ErrorNote } from "@/features/studio/StudioCard"
+import { ErrorNote } from "@/features/studio/notes"
+import { DiffBlock, StudioView } from "@/features/studio/StudioView"
 import { isUnprocessable, useStudioState } from "@/features/studio/store"
 
 type DraftEditorProps = { course: string; name: string; onBack: () => void }
@@ -29,8 +29,9 @@ export function DraftEditor({ course, name, onBack }: DraftEditorProps) {
   const saveError = save.error
 
   return (
-    <EditorView
+    <StudioView
       title={draftLabel(name)}
+      backLabel="Back to Concepts"
       badge={draft && <ReviewedBadge reviewed={draft.reviewed} hint />}
       description="Edit the list, set reviewed: true, Save, then Apply. Concepts left out are retired, never deleted."
       onBack={onBack}
@@ -108,7 +109,7 @@ export function DraftEditor({ course, name, onBack }: DraftEditorProps) {
           </div>
         </div>
       )}
-    </EditorView>
+    </StudioView>
   )
 }
 

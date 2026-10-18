@@ -1,44 +1,54 @@
-// The Studio rail: four cards ordered by what matters to the learner, or one editor view in their place.
-// The rail's body is already a ScrollArea, so the pane is a plain column inside it.
+// The Studio rail, after NotebookLM's: a home of tiles, or the view of the tool a tile opened, or the editor
+// that view opened (a new exam's spec, a concept draft). The rail's body is already a ScrollArea.
 import { useEffect, useRef } from "react"
 
-import { AudioOverviewCard } from "@/features/studio/AudioOverviewCard"
-import { ConceptsCard } from "@/features/studio/ConceptsCard"
+import { AudioOverviewView } from "@/features/studio/AudioOverviewView"
+import { ConceptsView } from "@/features/studio/ConceptsView"
 import { DraftEditor } from "@/features/studio/DraftEditor"
 import { ExamEditor } from "@/features/studio/ExamEditor"
-import { MasteryCard } from "@/features/studio/MasteryCard"
-import { PracticeExamCard } from "@/features/studio/PracticeExamCard"
-import { OPENER, useStudioState } from "@/features/studio/store"
-
-const CARDS = "cards"
-const NEW_EXAM = "new-exam"
-const DRAFT = "draft:"
+import { MasteryView } from "@/features/studio/MasteryView"
+import { PracticeExamView } from "@/features/studio/PracticeExamView"
+import {
+  AUDIO,
+  CONCEPTS,
+  draftOf,
+  draftView,
+  EXAMS,
+  HOME,
+  MASTERY,
+  NEW_EXAM,
+  OPENER,
+  parentView,
+  useStudioState,
+} from "@/features/studio/store"
+import { StudioHome } from "@/features/studio/StudioHome"
 
 export function StudioPane({ course }: { course: string }) {
-  // Which view is open, kept while the rail is collapsed: "cards", "new-exam" or "draft:{name}".
-  const [view, setView] = useStudioState(`${course}:view`, CARDS)
+  // Which view is open, kept while the rail is collapsed (store.ts names them).
+  const [view, setView] = useStudioState(`${course}:view`, HOME)
   const closed = useRef<string | null>(null)
   const back = () => {
+    const parent = parentView(view)
+    if (parent === null) return
     closed.current = view
-    setView(CARDS)
+    setView(parent)
   }
   useEffect(() => {
-    if (view !== CARDS || closed.current === null) return
+    if (closed.current === null) return
+    // Back lands the focus on what opened the closed view (its tile, New exam, a draft row), which the parent
+    // view renders. When that control is disabled meanwhile (New exam while an exam generates) or gone, the
+    // parent view's own heading keeps the focus it took on mount.
     const opener = document.querySelector<HTMLElement>(`[${OPENER}="${CSS.escape(closed.current)}"]`)
     closed.current = null
-    // New exam is disabled while the exam it just queued is generating: its card's heading instead.
-    if (opener?.matches(":disabled")) opener.closest('[role="region"]')?.querySelector<HTMLElement>("h3")?.focus()
-    else opener?.focus()
+    if (opener && !opener.matches(":disabled")) opener.focus()
   }, [view])
 
+  const draft = draftOf(view)
   if (view === NEW_EXAM) return <ExamEditor course={course} onBack={back} />
-  if (view.startsWith(DRAFT)) return <DraftEditor course={course} name={view.slice(DRAFT.length)} onBack={back} />
-  return (
-    <div className="flex flex-col gap-4">
-      <MasteryCard course={course} />
-      <PracticeExamCard course={course} onNewExam={() => setView(NEW_EXAM)} />
-      <AudioOverviewCard course={course} />
-      <ConceptsCard course={course} onOpenDraft={(name) => setView(`${DRAFT}${name}`)} />
-    </div>
-  )
+  if (draft !== null) return <DraftEditor course={course} name={draft} onBack={back} />
+  if (view === MASTERY) return <MasteryView course={course} onBack={back} />
+  if (view === EXAMS) return <PracticeExamView course={course} onBack={back} onNewExam={() => setView(NEW_EXAM)} />
+  if (view === AUDIO) return <AudioOverviewView course={course} onBack={back} />
+  if (view === CONCEPTS) return <ConceptsView course={course} onBack={back} onOpenDraft={(name) => setView(draftView(name))} />
+  return <StudioHome course={course} onOpen={setView} />
 }

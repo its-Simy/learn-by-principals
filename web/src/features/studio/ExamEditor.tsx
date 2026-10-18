@@ -6,8 +6,8 @@ import { useCreateExam, useExamTemplate } from "@/api/queries.studio"
 import { Pending } from "@/components/Pending"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { EditorView } from "@/features/studio/EditorView"
-import { ErrorNote, Note } from "@/features/studio/StudioCard"
+import { ErrorNote, Note } from "@/features/studio/notes"
+import { StudioView } from "@/features/studio/StudioView"
 import { isUnprocessable, useCardJob, useStudioState } from "@/features/studio/store"
 
 type ExamEditorProps = { course: string; onBack: () => void }
@@ -24,8 +24,9 @@ export function ExamEditor({ course, onBack }: ExamEditorProps) {
   const error = create.error
 
   return (
-    <EditorView
+    <StudioView
       title="New practice exam"
+      backLabel="Back to Practice exams"
       description="Which weeks, sources, formats and difficulty to cover. Generating takes a few minutes; the exam appears in Practice exams when it is ready."
       onBack={onBack}
     >
@@ -65,7 +66,7 @@ export function ExamEditor({ course, onBack }: ExamEditorProps) {
                 create.mutate(text, {
                   onSuccess: (job) => {
                     start(job)
-                    onBack() // the Practice exams card shows the job, then the exam
+                    onBack() // the Practice exams view shows the job, then the exam
                   },
                 })
               }
@@ -80,6 +81,6 @@ export function ExamEditor({ course, onBack }: ExamEditorProps) {
           </div>
         </div>
       )}
-    </EditorView>
+    </StudioView>
   )
 }

@@ -8,7 +8,7 @@ import { StateBadge } from "@/components/StateBadge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { letter, withLetter } from "@/features/studio/format"
-import { ErrorNote } from "@/features/studio/StudioCard"
+import { ErrorNote } from "@/features/studio/notes"
 import { formatWhen } from "@/lib/format"
 
 type ResultsDialogProps = {

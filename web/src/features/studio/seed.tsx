@@ -1,10 +1,10 @@
-// Seeding concepts from the syllabus and lectures, shared by the Mastery card's empty state and the Concepts card.
+// Seeding concepts from the syllabus and lectures, shared by the Mastery view's empty state and the Concepts view.
 import { conflictCode } from "@/api/client"
 import { isActive } from "@/api/jobs"
 import { useSeed } from "@/api/queries.studio"
 import { JobRow } from "@/components/JobRow"
 import { Button } from "@/components/ui/button"
-import { ErrorNote, Note } from "@/features/studio/StudioCard"
+import { ErrorNote, Note } from "@/features/studio/notes"
 import { useCardJob } from "@/features/studio/store"
 
 export function useSeedAction(course: string) {

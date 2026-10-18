@@ -1,4 +1,4 @@
-// Display text for the Studio cards and the take view.
+// Display text for the Studio views and the take view.
 import type { Attempt, Concept, Draft } from "@/api/queries.studio"
 
 /** "A", "B", ...: how a multiple-choice option is named and answered. */
@@ -23,16 +23,31 @@ export function retentionText(concept: Concept): string {
   return `retention ${Math.round(concept.retention_confidence * 100)}%`
 }
 
+const DRAFT_NAME = /^concepts\.draft\.(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(?:-(\d+))?\.yaml$/
+
+/** The seed time in a draft's name (local time, as seeding wrote it) and its `-n` suffix, if the name has that form. */
+function parseDraftName(name: string): { when: Date; n: string | undefined } | null {
+  const m = DRAFT_NAME.exec(name)
+  if (!m) return null
+  const [, y, mo, d, h, mi, s, n] = m
+  return { when: new Date(+y, +mo - 1, +d, +h, +mi, +s), n }
+}
+
+/** When a draft was seeded, as epoch ms, to order it among exams and episodes; null for any other name. */
+export function draftTime(draft: Draft | string): number | null {
+  return parseDraftName(typeof draft === "string" ? draft : draft.name)?.when.getTime() ?? null
+}
+
 /**
  * When a draft was seeded, from its name: `concepts.draft.20261017-191518.yaml` -> "17 Oct, 19:15:18"
  * (seconds, so two seeds a minute apart differ). Any other name is returned as is.
  */
 export function draftWhen(draft: Draft | string): string {
   const name = typeof draft === "string" ? draft : draft.name
-  const m = /^concepts\.draft\.(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(?:-(\d+))?\.yaml$/.exec(name)
-  if (!m) return name
-  const [, y, mo, d, h, mi, s, n] = m
-  const when = new Date(+y, +mo - 1, +d, +h, +mi, +s).toLocaleString([], {
+  const parsed = parseDraftName(name)
+  if (!parsed) return name
+  const { n } = parsed
+  const when = parsed.when.toLocaleString([], {
     day: "numeric",
     month: "short",
     hour: "2-digit",

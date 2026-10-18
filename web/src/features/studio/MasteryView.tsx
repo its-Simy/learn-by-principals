@@ -1,69 +1,66 @@
-// Where the learner stands: the weakest five concepts, how many sit at each level, and the full list on demand.
+// Where the learner stands: how many concepts sit at each level, then every concept weakest-first with its
+// level and retention, each name opening the evidence behind it.
 import { useConcepts, useEvidence, type Concept } from "@/api/queries.studio"
 import { EmptyState } from "@/components/EmptyState"
 import { LevelBar } from "@/components/LevelBar"
 import { Pending } from "@/components/Pending"
 import { StateBadge } from "@/components/StateBadge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { retentionText, weakestFirst } from "@/features/studio/format"
+import { ErrorNote } from "@/features/studio/notes"
 import { SeedButton, SeedStatus, useSeedAction } from "@/features/studio/seed"
-import { ErrorNote, StudioCard } from "@/features/studio/StudioCard"
 import { useStudioState } from "@/features/studio/store"
+import { StudioView } from "@/features/studio/StudioView"
 import { formatWhen } from "@/lib/format"
 
-const WEAKEST = 5
 const LEVELS = [0, 1, 2, 3, 4, 5] as const
 
-export function MasteryCard({ course }: { course: string }) {
-  const [expanded, setExpanded] = useStudioState(`${course}:mastery:expanded`, false)
+type MasteryViewProps = { course: string; onBack: () => void }
+
+export function MasteryView({ course, onBack }: MasteryViewProps) {
   const [withRetired, setWithRetired] = useStudioState(`${course}:mastery:retired`, false)
   const concepts = useConcepts(course)
+  const every = useConcepts(course, true)
   const seed = useSeedAction(course)
 
   if (concepts.isPending) {
     return (
-      <StudioCard title="Mastery">
+      <StudioView title="Mastery" onBack={onBack}>
         <Pending label="Loading concepts" />
-      </StudioCard>
+      </StudioView>
     )
   }
   if (concepts.isError) {
     return (
-      <StudioCard title="Mastery">
+      <StudioView title="Mastery" onBack={onBack}>
         <ErrorNote error={concepts.error} />
-      </StudioCard>
+      </StudioView>
     )
   }
-  const all = [...concepts.data].sort(weakestFirst)
-  if (all.length === 0) {
+  const active = [...concepts.data].sort(weakestFirst)
+  if (active.length === 0) {
     return (
-      <StudioCard title="Mastery" status="No concepts yet">
+      <StudioView title="Mastery" description="No concepts yet" onBack={onBack}>
         <EmptyState className="py-4" message="Seed concepts from the syllabus." action={<SeedButton action={seed} />} />
         <SeedStatus action={seed} />
-      </StudioCard>
+      </StudioView>
     )
   }
 
-  const below = all.filter((c) => c.level < 3).length
+  const below = active.filter((c) => c.level < 3).length
+  const shown = withRetired && every.data ? [...every.data].sort(weakestFirst) : active
   return (
-    <StudioCard
-      title="Mastery"
-      status={`${all.length} concepts · ${below} below level 3`}
-      action={
-        <Button size="sm" variant="outline" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-          {expanded ? "Show fewer" : "See all"}
-        </Button>
-      }
-    >
-      <LevelCounts concepts={all} />
-      {expanded ? (
-        <FullList course={course} active={all} withRetired={withRetired} onWithRetired={setWithRetired} />
-      ) : (
-        <ConceptList course={course} concepts={all.slice(0, WEAKEST)} label="Weakest concepts" />
-      )}
-    </StudioCard>
+    <StudioView title="Mastery" description={`${active.length} concepts · ${below} below level 3`} onBack={onBack}>
+      <LevelCounts concepts={active} />
+      <label className="flex items-center gap-2 text-sm">
+        <Checkbox checked={withRetired} onCheckedChange={(on) => setWithRetired(on === true)} />
+        Include retired concepts
+      </label>
+      {withRetired && every.isPending && <Pending label="Loading retired concepts" />}
+      {withRetired && every.isError && <ErrorNote error={every.error} />}
+      <ConceptList course={course} concepts={shown} label="Concepts, weakest first" />
+    </StudioView>
   )
 }
 
@@ -77,23 +74,6 @@ function LevelCounts({ concepts }: { concepts: Concept[] }) {
         </div>
       ))}
     </dl>
-  )
-}
-
-function FullList(props: { course: string; active: Concept[]; withRetired: boolean; onWithRetired: (on: boolean) => void }) {
-  const { course, active, withRetired, onWithRetired } = props
-  const every = useConcepts(course, true)
-  const shown = withRetired && every.data ? [...every.data].sort(weakestFirst) : active
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox checked={withRetired} onCheckedChange={(on) => onWithRetired(on === true)} />
-        Include retired concepts
-      </label>
-      {withRetired && every.isPending && <Pending label="Loading retired concepts" />}
-      {withRetired && every.isError && <ErrorNote error={every.error} />}
-      <ConceptList course={course} concepts={shown} label="All concepts" />
-    </div>
   )
 }
 

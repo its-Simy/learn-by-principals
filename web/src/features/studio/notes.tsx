@@ -1,39 +1,11 @@
-// The frame every Studio card shares: a title, a one-line status, one primary action, then its list.
+// Notes every Studio view shares: a failure in place, a note that isn't one, and a read-only text from the API.
 import type { UseQueryResult } from "@tanstack/react-query"
 import { CircleAlert } from "lucide-react"
-import { useId, type ReactNode } from "react"
+import type { ReactNode } from "react"
 
 import { Markdown } from "@/components/Markdown"
 import { Pending } from "@/components/Pending"
-import { Card, CardAction, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-
-type StudioCardProps = {
-  title: string
-  /** One line: where things stand. */
-  status?: ReactNode
-  /** The card's one primary action. */
-  action?: ReactNode
-  children?: ReactNode
-  className?: string
-}
-
-export function StudioCard({ title, status, action, children, className }: StudioCardProps) {
-  const titleId = useId()
-  return (
-    <Card role="region" aria-labelledby={titleId} className={cn("gap-3 py-4 shadow-none", className)}>
-      <CardHeader className="gap-1 px-4">
-        {/* Focusable from script: Back from an editor lands here when its opener is disabled. */}
-        <h3 id={titleId} tabIndex={-1} className="text-sm leading-none font-semibold outline-none">
-          {title}
-        </h3>
-        {status && <CardDescription className="text-xs">{status}</CardDescription>}
-        {action && <CardAction>{action}</CardAction>}
-      </CardHeader>
-      {children && <CardContent className="flex flex-col gap-3 px-4">{children}</CardContent>}
-    </Card>
-  )
-}
 
 /** A failed load or request, in place. */
 export function ErrorNote({ error, className }: { error: unknown; className?: string }) {

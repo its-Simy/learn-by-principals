@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { fullyGraded, gradeJobFor } from "@/features/exams/grading"
 import { ResultsDialog } from "@/features/exams/ResultsDialog"
 import { attemptsSummary } from "@/features/studio/format"
-import { ErrorNote, StudioCard, TextBody } from "@/features/studio/StudioCard"
-import { openerProps, useCardJob } from "@/features/studio/store"
+import { ErrorNote, TextBody } from "@/features/studio/notes"
+import { NEW_EXAM, openerProps, useCardJob } from "@/features/studio/store"
+import { StudioView } from "@/features/studio/StudioView"
 import { formatWhen } from "@/lib/format"
 
 export const CREATE_TYPICAL = "2–5 minutes"
@@ -22,9 +23,9 @@ export function takePath(course: string, examId: string): string {
   return `/courses/${encodeURIComponent(course)}/exams/${encodeURIComponent(examId)}/take`
 }
 
-type PracticeExamCardProps = { course: string; onNewExam: () => void }
+type PracticeExamViewProps = { course: string; onNewExam: () => void; onBack: () => void }
 
-export function PracticeExamCard({ course, onNewExam }: PracticeExamCardProps) {
+export function PracticeExamView({ course, onNewExam, onBack }: PracticeExamViewProps) {
   const exams = useExams(course)
   const concepts = useConcepts(course)
   const linked = useLinkedSourceCount(course)
@@ -40,14 +41,15 @@ export function PracticeExamCard({ course, onNewExam }: PracticeExamCardProps) {
     : undefined
 
   return (
-    <StudioCard
+    <StudioView
       title="Practice exams"
-      status={status}
+      description={status}
       action={
-        <Button size="sm" disabled={!ready || isActive(createJob)} onClick={onNewExam} {...openerProps("new-exam")}>
+        <Button size="sm" disabled={!ready || isActive(createJob)} onClick={onNewExam} {...openerProps(NEW_EXAM)}>
           New exam
         </Button>
       }
+      onBack={onBack}
     >
       {createJob && <JobRow job={createJob} typical={CREATE_TYPICAL} />}
       {exams.isPending ? (
@@ -70,7 +72,7 @@ export function PracticeExamCard({ course, onNewExam }: PracticeExamCardProps) {
           ))}
         </ul>
       )}
-    </StudioCard>
+    </StudioView>
   )
 }
 

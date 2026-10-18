@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { fullyGraded, gradeJobFor } from "@/features/exams/grading"
 import { ResultsDialog } from "@/features/exams/ResultsDialog"
 import { letter } from "@/features/studio/format"
-import { ErrorNote, Note } from "@/features/studio/StudioCard"
+import { ErrorNote, Note } from "@/features/studio/notes"
 import { isUnprocessable, useCardJob, useStudioState } from "@/features/studio/store"
 
 const FORMAT_LABEL: Record<Question["format"], string> = {
@@ -323,7 +323,7 @@ type HandedInProps = AttemptProps & { children: ReactNode }
 /** After Finish: grade the attempt (a job), read its results, go back to the course or take it again. */
 function HandedIn({ course, id, state, exam, coursePath, children }: HandedInProps) {
   const grade = useGrade(course, id)
-  // The Studio card's slot for this exam, so the card shows this grade job too.
+  // The Studio exam row's slot for this exam, so the Practice exams view shows this grade job too.
   const [remembered, start] = useCardJob(course, `grade:${id}`)
   // The exam list's summary of this attempt, once it has caught up with the take state.
   const latest = exam?.attempts.at(-1)

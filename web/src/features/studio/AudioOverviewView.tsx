@@ -19,8 +19,9 @@ import { Pending } from "@/components/Pending"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ErrorNote, StudioCard, TextBody } from "@/features/studio/StudioCard"
+import { ErrorNote, TextBody } from "@/features/studio/notes"
 import { useCardJob, useStudioState } from "@/features/studio/store"
+import { StudioView } from "@/features/studio/StudioView"
 import { formatWhen } from "@/lib/format"
 
 export const PODCAST_TYPICAL = "5–15 minutes"
@@ -42,7 +43,7 @@ const isFormat = (v: string): v is PodcastFormat => Object.hasOwn(FORMATS, v)
 const isLength = (v: string): v is PodcastLength => Object.hasOwn(LENGTHS, v)
 const NO_EXAM = "none" // Radix Select has no empty value
 
-export function AudioOverviewCard({ course }: { course: string }) {
+export function AudioOverviewView({ course, onBack }: { course: string; onBack: () => void }) {
   const [format, setFormat] = useStudioState<PodcastFormat>(`${course}:podcast:format`, "deep-dive")
   const [length, setLength] = useStudioState<PodcastLength>(`${course}:podcast:length`, "default")
   const [exam, setExam] = useStudioState<string>(`${course}:podcast:exam`, NO_EXAM)
@@ -70,14 +71,15 @@ export function AudioOverviewCard({ course }: { course: string }) {
     )
 
   return (
-    <StudioCard
+    <StudioView
       title="Audio Overview"
-      status={status}
+      description={status}
       action={
         <Button size="sm" disabled={!hasSources || generate.isPending || isActive(job)} onClick={submit}>
           Generate
         </Button>
       }
+      onBack={onBack}
     >
       <div className={hasSources ? "grid grid-cols-2 gap-2" : "hidden"}>
         <div className="flex min-w-0 flex-col gap-1">
@@ -157,7 +159,7 @@ export function AudioOverviewCard({ course }: { course: string }) {
           ))}
         </ul>
       )}
-    </StudioCard>
+    </StudioView>
   )
 }
 
