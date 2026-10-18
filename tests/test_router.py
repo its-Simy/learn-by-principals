@@ -42,6 +42,8 @@ class Checked(FakeModel):
 
 
 class Housekeeper(FakeModel):
+    """A provider that takes only housekeeping task types (the router's ``task_types`` rule)."""
+
     task_types = frozenset({"classify", "extract_metadata", "summarize"})
 
 
@@ -206,18 +208,18 @@ def test_limited_is_still_usable(conn, models):
 
 
 def test_no_allowed_available_provider_raises_no_provider(conn):
-    models = {"claude": Checked("claude"), "ollama": Housekeeper("ollama")}
+    models = {"claude": Checked("claude"), "local": Housekeeper("local")}
     models["claude"].state = ProviderState.RATE_LIMITED
-    router = Router(models, Ledger(conn), ["claude", "ollama", "codex"], clock=Clock())
+    router = Router(models, Ledger(conn), ["claude", "local", "codex"], clock=Clock())
 
     with pytest.raises(NoProvider) as info:
         router.route("explain")
     message = str(info.value)
     assert message.startswith("No model provider left for explain:")
     assert "claude is RATE_LIMITED until 2026-09-23T13:00" in message
-    assert "ollama doesn't take explain" in message
+    assert "local doesn't take explain" in message
     assert "codex is not configured" in message
-    assert router.route("classify") is models["ollama"]
+    assert router.route("classify") is models["local"]
 
 
 def test_excluded_providers_are_named_in_the_message(conn, models):
@@ -264,18 +266,18 @@ def test_rate_validates_and_records(conn, models):
 def test_one_fallback_per_task(conn):
     from core.providers.models.base import ModelError
 
-    models = {n: Checked(n) for n in ("claude", "codex", "ollama")}
+    models = {n: Checked(n) for n in ("claude", "codex", "third")}
 
     def boom(task):
         raise ModelError("crashed")
 
     models["claude"].run = boom
     models["codex"].run = boom
-    router = Router(models, Ledger(conn), ["claude", "codex", "ollama"])
+    router = Router(models, Ledger(conn), ["claude", "codex", "third"])
 
     with pytest.raises(ModelError, match="crashed"):
         router.run(task())
-    assert models["ollama"].tasks == []  # a second fallback is never tried
+    assert models["third"].tasks == []  # a second fallback is never tried
     rows = conn.execute("SELECT provider, fallback_from FROM model_runs ORDER BY rowid").fetchall()
     assert [tuple(r) for r in rows] == [("claude", None), ("codex", "claude")]
 
@@ -283,7 +285,7 @@ def test_one_fallback_per_task(conn):
 def test_a_skipped_preferred_provider_is_the_one_fallback(conn):
     from core.providers.models.base import ModelError
 
-    models = {n: Checked(n) for n in ("claude", "codex", "ollama")}
+    models = {n: Checked(n) for n in ("claude", "codex", "third")}
     models["claude"].state = ProviderState.DISABLED
 
     def boom(task):
@@ -291,8 +293,8 @@ def test_a_skipped_preferred_provider_is_the_one_fallback(conn):
 
     models["codex"].run = boom
     with pytest.raises(ModelError):
-        Router(models, Ledger(conn), ["claude", "codex", "ollama"]).run(task())
-    assert models["ollama"].tasks == []
+        Router(models, Ledger(conn), ["claude", "codex", "third"]).run(task())
+    assert models["third"].tasks == []
 
 
 def test_the_error_raised_names_the_provider_that_raised_it(conn, models):

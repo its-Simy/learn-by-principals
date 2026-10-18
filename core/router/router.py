@@ -112,7 +112,7 @@ class Router:
         return list(routing.get(task_type) or routing.get(purpose) or self.providers)
 
     def allows(self, name: str, task_type: str) -> bool:
-        """Providers may limit themselves with a ``task_types`` attribute (e.g. Ollama)."""
+        """Providers may limit themselves with a ``task_types`` attribute (housekeeping-only)."""
         allowed = getattr(self.providers[name], "task_types", None)
         return allowed is None or task_type in allowed
 

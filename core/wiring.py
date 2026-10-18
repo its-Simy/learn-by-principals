@@ -24,11 +24,11 @@ from core.providers.knowledge.gemini_notebook import GeminiNotebookProvider
 from core.providers.models.base import ModelProvider
 from core.providers.models.claude_code import ClaudeCodeProvider
 from core.providers.models.codex import CodexProvider
-from core.providers.models.ollama import OllamaProvider
 from core.router.router import Router
 from core.tutor import Tutor
 
-MODEL_PROVIDERS = {"claude": ClaudeCodeProvider, "codex": CodexProvider, "ollama": OllamaProvider}
+# Keep in step with core.config.KNOWN_PROVIDERS (config can't import wiring).
+MODEL_PROVIDERS = {"claude": ClaudeCodeProvider, "codex": CodexProvider}
 
 
 def knowledge(config: Config, conn: sqlite3.Connection) -> GeminiNotebookProvider:

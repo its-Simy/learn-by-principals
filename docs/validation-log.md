@@ -45,13 +45,13 @@ Copy this block for any step not listed below.
   `nlm-login` opens your installed Chrome for the Google login (`--browser chromium` uses Playwright's own, which the install doesn't download and which the library says crashes on macOS 15+; P105). Doctor never does: every check is read-only and spends no quota. Before the install, doctor's NotebookLM row suggests a bare `uv pip install`; use the line above instead, or it lands in the conda base env (P103).
 - **Expected:**
   - Credentials land in `~/.brightlearn/notebooklm/`, not `~/.notebooklm/` (P20).
-  - Doctor has nine rows: Config, DB schema, Storage root, Temp dir, `ANTHROPIC_API_KEY`, NotebookLM, Claude Code, Codex and Ollama.
+  - Doctor has nine rows: Config, DB schema, Storage root, Temp dir, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, NotebookLM, Claude Code and Codex.
   - NotebookLM is green.
   - `ANTHROPIC_API_KEY` is green (unset). Red means the key is exported: unset it before going on, or Claude Code would bill the API (principle 1).
   - Config is green and names the term new courses get, e.g. `term Fall-2026`. Storage root and Temp dir are green.
   - DB schema is yellow, "no database yet; `brightlearn courses add` creates it", on a machine with no database: step 2 creates it. On one that has a database, it's green at v13, or yellow saying it migrates to v13 on the next run.
   - Claude Code and Codex are yellow (not on PATH) until step 4 installs them. Green only means `--version` ran: doctor never checks the login, because that would spend quota.
-  - Ollama is an optional yellow warning.
+  - `OPENAI_API_KEY` set is a yellow warning: Codex runs without it, on the subscription.
   - Doctor exits 0. It exits 1 only when a row is red.
 - **Output summary:**
 - **Problems opened:**

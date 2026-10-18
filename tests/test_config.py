@@ -40,13 +40,31 @@ def test_routing_defaults_and_config_toml(tmp_path):
     assert load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing == {
         "teaching": ("claude", "codex"),
         "analysis": ("codex", "claude"),
-        "housekeeping": ("claude", "codex", "ollama"),
-        "classify": ("ollama", "claude", "codex"),
+        "housekeeping": ("claude", "codex"),
+        "classify": ("claude", "codex"),
     }
     (tmp_path / "config.toml").write_text('[routing]\nteaching = ["codex", "claude"]\n')
     routing = load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing
     assert routing["teaching"] == ("codex", "claude")
     assert routing["analysis"] == ("codex", "claude")
+
+
+def test_unknown_provider_names_are_dropped_with_a_warning(tmp_path, caplog):
+    """A stale name (Ollama left in BL-052) degrades the order instead of failing every job."""
+    (tmp_path / "config.toml").write_text('[routing]\nclassify = ["ollama", "codex"]\n')
+    routing = load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing
+    assert routing["classify"] == ("codex",)
+    assert "unknown provider(s) ['ollama']" in caplog.text
+
+
+def test_a_purpose_with_no_known_provider_is_refused(tmp_path):
+    import pytest
+
+    from core.config import ConfigError
+
+    (tmp_path / "config.toml").write_text('[routing]\nteaching = ["ollama"]\n')
+    with pytest.raises(ConfigError, match="no known provider"):
+        load_config({"BRIGHTLEARN_HOME": str(tmp_path)})
 
 
 def test_bad_routing_is_refused(tmp_path):

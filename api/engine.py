@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 # Every model purpose a route can need: the tutor and exam generation teach, the Analyzer, the
-# Critic and the grader analyse. Housekeeping (Ollama) has no route yet.
+# Critic and the grader analyse. Housekeeping has no route yet.
 PURPOSES = ("teaching", "analysis")
 
 # Every kind of job, in one place: the web client's types are generated from it (via JobOut).

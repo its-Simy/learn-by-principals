@@ -71,10 +71,10 @@ def test_checks_cover_only_local_state_and_the_providers(config):
         "Storage root",
         "Temp dir",
         "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
         "NotebookLM",
         "Claude Code",
         "Codex",
-        "Ollama",
     ]
 
 

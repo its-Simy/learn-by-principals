@@ -25,7 +25,7 @@ brightlearn/
 │   ├── providers/
 │   │   ├── storage/      # base.py, local.py
 │   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
-│   │   └── models/       # base.py, cli_base.py, claude_code.py, codex.py, ollama.py (Phase 5+)
+│   │   └── models/       # base.py, cli_base.py, claude_code.py, codex.py (Phase 5+)
 │   ├── memory/           # schema.py, db.py, learner.py, vault.py, seeding.py, migrations/vNNN_*.py
 │   ├── sync/             # classify.py, importer.py, link.py
 │   ├── context/          # Context Compiler (Phase 5)
@@ -72,8 +72,7 @@ Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` +
 | `db_path` | `~/.brightlearn/brightlearn.db` | |
 | `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
 | `retention_half_life_days` | `21` | `BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS` |
-| `ollama_url` / `ollama_model` | `http://localhost:11434` / `llama3.2:3b` | `BRIGHTLEARN_OLLAMA_URL`, `BRIGHTLEARN_OLLAMA_MODEL` |
-| `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex, ollama`; classify `ollama, claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins) |
+| `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex`; classify `claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins). Unknown provider names are dropped with a warning. |
 
 Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far. The web app's port is not config: `brightlearn web --port` (default `8765`, always on 127.0.0.1).
 
@@ -109,7 +108,7 @@ class ModelProvider(ABC):
 
 Provider states: `AVAILABLE → LIMITED → RATE_LIMITED → AUTH_EXPIRED → BROKEN → DISABLED`.
 
-Implementations (V1): `LocalStorageBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`, `OllamaProvider` (housekeeping tasks only).
+Implementations (V1): `LocalStorageBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`.
 
 ## Data model (SQLite)
 
@@ -181,6 +180,7 @@ Newest first. Add a row whenever a principle is bent or a provider choice change
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| Oct 18, 2026 | Ollama is removed for now: the provider, its config and doctor row, and its place in the routing defaults. A name in `[routing]` that no provider implements is dropped with a warning. | BL-052. Simon's call: two model CLIs are enough for V1, and a local model can return later behind `ModelProvider` with no change to the router (its `task_types` rule stays). |
 | Oct 18, 2026 | The web app reads as a general learning tool, closer to NotebookLM: a new course asks for a name only and `Courses.code_for` derives the code (the upper-cased slug, deduped with `-2`, `-3`), so the card, the top bar, the jobs popover and the dashboard show the name and the term is set only by `courses add --term`; the top bar is the word "BrightLearn" with no mark; both themes use NotebookLM's greys (light `#f8fafd` page / white panels, dark `#1f1f1f` / `#28292a`) with light as the default and the OS preference ignored; Studio opens on tiles, then the chosen tool's view, with the course's jobs and a compact list of everything made under the tiles. | BL-051. Simon's decisions: it is a learning tool that happens to work for school, so a course code and a term are storage details, and the Studio should read like NotebookLM's (pick a box, then its specifics). |
 | Oct 17, 2026 | The web app is chat-first, after NotebookLM's three panes: Sources and Studio are rails that collapse to an icon strip (sheets below `lg`), and one chat follows the session state, a grounded ask on the checked sources with no session and a tutor turn with one ("Sources only" sends `/ask`). Every wait shows its step and elapsed time, and every empty pane names the next action. | BL-047–049. During a session an ask already goes through the tutor's own NotebookLM conversation (P66), so one stream shows what the API does; and a tutor turn or the Analyzer can take minutes, so a wait must say what it is waiting for. |
 | Oct 17, 2026 | A no-session `ask` marks its course in `Engine.asking` until its answer returns; seed and exam create return 409 `ask_running` meanwhile. Both sides check under `Engine.lock`. | P100. Their fresh conversation on the jobs worker would delete the ask's mid-answer, and holding the lock over the query would block those submits for a NotebookLM round trip. |

@@ -87,13 +87,13 @@ def test_doctor_runs_the_checks(api, monkeypatch):
 
     canned = [
         ("Config", lambda: Check("Config", Status.OK, "fine")),
-        ("Ollama", lambda: Check("Ollama", Status.OFF, "arrives later")),
+        ("Later", lambda: Check("Later", Status.OFF, "arrives later")),
         ("Boom", boom),
     ]
     monkeypatch.setattr("core.doctor.checks", lambda config: canned)
     assert client.get("/api/doctor").json() == [
         {"name": "Config", "status": "ok", "detail": "fine"},
-        {"name": "Ollama", "status": "not configured", "detail": "arrives later"},
+        {"name": "Later", "status": "not configured", "detail": "arrives later"},
         {"name": "Boom", "status": "fail", "detail": "RuntimeError: kaput"},
     ]
 

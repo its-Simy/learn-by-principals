@@ -3,8 +3,8 @@
 Rules are checked in order; the first match wins. Source-code extensions are checked after the
 syllabus/exam/lab/assignment keywords (starter code stays with its assignment) and before the
 lecture/reading keywords (lecture demo code goes to ``code``). When no rule matches, the title is
-ambiguous: a ``fallback`` (``ModelClassifier``: the local Ollama model, only when it's AVAILABLE)
-may name the bucket instead of ``other`` (BL-036).
+ambiguous: a ``fallback`` (``ModelClassifier``: one model provider, only when it's AVAILABLE)
+may name the bucket instead of ``other`` (BL-036). Nothing wires one up today.
 """
 
 from __future__ import annotations
@@ -90,9 +90,9 @@ CLASSIFY_SYSTEM = (
 
 
 class ModelClassifier:
-    """The ``classify`` task on the local model, asked only when that provider is AVAILABLE."""
+    """The ``classify`` task on one named provider, asked only when that provider is AVAILABLE."""
 
-    def __init__(self, router: Router, provider: str = "ollama") -> None:
+    def __init__(self, router: Router, provider: str) -> None:
         self._router = router
         self._provider = provider
 
