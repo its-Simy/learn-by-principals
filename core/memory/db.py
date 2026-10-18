@@ -137,6 +137,17 @@ class Manifest:
 
 
 FOLDER_NAME = re.compile(r"[A-Za-z0-9_-]{1,32}")
+# Names Windows reserves for devices: a folder can't be called CON or AUX there.
+RESERVED_FOLDER_NAMES = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }
+)
 
 # A derived course code keeps room for a "-NN" dedupe suffix within FOLDER_NAME's 32.
 CODE_BASE_LENGTH = 28
@@ -159,7 +170,10 @@ class BadFolderName(CourseError):
     """A course code or term that can't be a folder name; ``field`` is ``course`` or ``term``."""
 
     def __init__(self, field: str, label: str, value: str) -> None:
-        super().__init__(f"{label} {value!r} must be 1-32 letters, digits, _ or -")
+        if value.upper() in RESERVED_FOLDER_NAMES:
+            super().__init__(f"{label} {value!r} is a name Windows reserves for a device")
+        else:
+            super().__init__(f"{label} {value!r} must be 1-32 letters, digits, _ or -")
         self.field = field
 
 
@@ -185,7 +199,7 @@ class Courses:
     def add(self, course: str, name: str, term: str) -> CourseRow:
         # Code and term become folder names, so neither may carry a path separator or "..".
         for field, label, value in (("course", "course code", course), ("term", "term", term)):
-            if not FOLDER_NAME.fullmatch(value):
+            if not FOLDER_NAME.fullmatch(value) or value.upper() in RESERVED_FOLDER_NAMES:
                 raise BadFolderName(field, label, value)
         if self.get(course) is not None:
             raise DuplicateCourse(f"course {course} already exists")
@@ -207,7 +221,7 @@ class Courses:
         base = re.sub(r"[^A-Z0-9]+", "-", ascii_name.upper()).strip("-")[:CODE_BASE_LENGTH]
         base = base.rstrip("-") or "COURSE"
         code, n = base, 2
-        while self.get(code) is not None:
+        while self.get(code) is not None or code in RESERVED_FOLDER_NAMES:
             code, n = f"{base}-{n}", n + 1
         return code
 

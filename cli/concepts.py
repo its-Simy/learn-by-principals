@@ -46,7 +46,7 @@ def seed_cmd(course: str = typer.Option(..., help="Course code, e.g. CSE220.")) 
         conn.close()
     diff = draft_diff(previous, path)
     if previous is None:
-        console.print(Syntax(path.read_text(), "yaml"))
+        console.print(Syntax(path.read_text(encoding="utf-8"), "yaml"))
     elif diff:
         console.print(Syntax(diff, "diff"))
     else:

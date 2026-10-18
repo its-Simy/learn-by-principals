@@ -1,7 +1,8 @@
 """Claude Code on the Pro/Max subscription, via ``claude -p … --output-format json``.
 
 Flags checked against ``claude --help`` and a live run (Claude Code 2.1.302, Oct 17, 2026; the
-output is ``tests/fixtures/cli/claude_hi.json``): ``-p/--print``, ``--output-format json``,
+output is ``tests/fixtures/cli/claude_hi.json``): ``-p/--print`` (the prompt itself arrives on
+stdin, see ``cli_base``), ``--output-format json``,
 ``--tools ""`` (no tools), ``--no-session-persistence``, ``--strict-mcp-config`` and
 ``--system-prompt``. The last two are always passed: without them the CLI sends its coding-agent
 prompt, the user's MCP tool definitions and the git state of the working directory, 17k tokens
@@ -39,11 +40,14 @@ class ClaudeCodeProvider(CLIModelProvider):
         return cls(config.home / "scratch" / "claude", timeout_s=config.model_timeout_s)
 
     def argv(self, task: TaskPackage) -> list[str]:
-        argv = ["-p", task.user, "--output-format", "json", "--tools", ""]
+        argv = ["-p", "--output-format", "json", "--tools", ""]
         argv += ["--no-session-persistence", "--strict-mcp-config"]
         # Always given, or the CLI's own coding-agent prompt goes out with every call.
         argv += ["--system-prompt", task.system or DEFAULT_SYSTEM_PROMPT]
         return argv
+
+    def stdin_text(self, task: TaskPackage) -> str:
+        return task.user
 
     def parse(self, done: Completed) -> tuple[str, str | None, UsageHint | None]:
         try:

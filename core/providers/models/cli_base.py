@@ -1,7 +1,11 @@
 """Shared plumbing for model CLIs run as subprocesses (``claude -p``, ``codex exec``).
 
 Each call runs in a scratch directory, with ``ANTHROPIC_API_KEY`` removed from the environment
-so a subscription CLI can never fall back to metered API billing (principle 1).
+so a subscription CLI can never fall back to metered API billing (principle 1). The prompt goes
+to the CLI on stdin, never on the command line: an npm ``.cmd`` shim on Windows re-parses argv
+through cmd.exe, which truncates at a newline, interprets ``% & | ^``, and caps the line at 8191
+characters, less than one tutor package. Output is decoded as UTF-8 whatever the console's code
+page, and a timed-out CLI is killed with every process it started.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import time
 from abc import abstractmethod
@@ -85,7 +90,12 @@ class CLIModelProvider(ModelProvider):
     # -- subclass hooks ----------------------------------------------------------------------
 
     @abstractmethod
-    def argv(self, task: TaskPackage) -> list[str]: ...
+    def argv(self, task: TaskPackage) -> list[str]:
+        """The command line: flags only; the prompt itself goes through ``stdin_text``."""
+
+    @abstractmethod
+    def stdin_text(self, task: TaskPackage) -> str:
+        """What the CLI reads on stdin: the prompt."""
 
     @abstractmethod
     def parse(self, done: Completed) -> tuple[str, str | None, UsageHint | None]:
@@ -94,7 +104,7 @@ class CLIModelProvider(ModelProvider):
     # -- ModelProvider -----------------------------------------------------------------------
 
     def run(self, task: TaskPackage) -> ModelResult:
-        done = self._exec(self.argv(task))
+        done = self._exec(self.argv(task), self.stdin_text(task))
         try:
             text, model, hint = self.parse(done)
         except ModelRateLimited as exc:
@@ -138,9 +148,19 @@ class CLIModelProvider(ModelProvider):
         exe = self.executable()
         if exe is None:
             return None
-        proc = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, timeout=30, env=self.env()
-        )
+        try:
+            proc = subprocess.run(
+                [exe, "--version"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                env=self.env(),
+                stdin=subprocess.DEVNULL,
+            )
+        except subprocess.TimeoutExpired:
+            return "(no answer to --version in 30 s)"
         return (proc.stdout or proc.stderr).strip() or None
 
     # -- internals ---------------------------------------------------------------------------
@@ -151,29 +171,57 @@ class CLIModelProvider(ModelProvider):
             env.pop(key, None)
         return env
 
-    def _exec(self, argv: list[str]) -> Completed:
+    def _exec(self, argv: list[str], stdin_text: str) -> Completed:
         exe = self.executable()
         if exe is None:
             self.state = ProviderState.DISABLED
             raise ModelError(f"`{self.binary}` is not on PATH")
         self.scratch_dir.mkdir(parents=True, exist_ok=True)
         t0 = time.monotonic()
+        proc = subprocess.Popen(
+            [exe, *argv],
+            cwd=self.scratch_dir,
+            env=self.env(),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            **_own_process_group(),
+        )
         try:
-            proc = subprocess.run(
-                [exe, *argv],
-                cwd=self.scratch_dir,
-                env=self.env(),
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_s,
-                stdin=subprocess.DEVNULL,
-            )
+            stdout, stderr = proc.communicate(stdin_text, timeout=self.timeout_s)
         except subprocess.TimeoutExpired as exc:
+            _kill_tree(proc)
             self.state = ProviderState.LIMITED
             raise ModelTimeout(f"`{self.binary}` timed out after {self.timeout_s:.0f}s") from exc
-        return Completed(
-            proc.returncode, proc.stdout, proc.stderr, int((time.monotonic() - t0) * 1000)
+        return Completed(proc.returncode, stdout, stderr, int((time.monotonic() - t0) * 1000))
+
+
+def _own_process_group() -> dict[str, object]:
+    """Popen options that put the CLI (and whatever it spawns) in a group of its own."""
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Kill the CLI and its children: a `.cmd` shim or a wrapper would otherwise leave the real
+    process holding the pipes, and ``communicate`` would wait for it."""
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False
         )
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    try:
+        proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 def classify_failure(text: str, binary: str) -> ModelError:

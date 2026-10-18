@@ -292,10 +292,10 @@ def test_without_a_build_every_page_says_how_to_build(tmp_path):
 def test_a_build_serves_files_and_the_spa_for_deep_links(tmp_path):
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
-    (dist / "index.html").write_text("<!doctype html><title>BrightLearn</title>")
-    (dist / "assets" / "x.js").write_text("console.log('x')")
-    (dist / "favicon.svg").write_text("<svg/>")
-    (tmp_path / "secret.txt").write_text("not for you")
+    (dist / "index.html").write_text("<!doctype html><title>BrightLearn</title>", encoding="utf-8")
+    (dist / "assets" / "x.js").write_text("console.log('x')", encoding="utf-8")
+    (dist / "favicon.svg").write_text("<svg/>", encoding="utf-8")
+    (tmp_path / "secret.txt").write_text("not for you", encoding="utf-8")
     client = web_client(dist)
 
     for path in ("/", "/index.html", "/courses/X", "/courses/X/exams/e1/take"):
@@ -308,6 +308,9 @@ def test_a_build_serves_files_and_the_spa_for_deep_links(tmp_path):
     assert client.get("/assets/missing.js").status_code == 404
     assert "not for you" not in client.get("/..%2fsecret.txt").text
     assert client.get("/%00").status_code == 404
+    # Judged before resolve(): a UNC or drive path would make Windows reach out to the network.
+    for hostile in ("/%5C%5Chost%5Cshare%5Cx", "/%2F%2Fhost%2Fshare%2Fx", "/C:/Windows/win.ini"):
+        assert client.get(hostile).status_code == 404, hostile
     api = client.get("/api/nope")
     assert api.status_code == 404 and api.json()["detail"] == "No API route /api/nope"
 

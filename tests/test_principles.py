@@ -13,7 +13,7 @@ SCANNED = ("core", "cli", "dashboard", "api")  # tests may use SDK test doubles 
 
 def _imports(path: Path) -> set[str]:
     names: set[str] = set()
-    for node in ast.walk(ast.parse(path.read_text())):
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Import):
             names.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
@@ -23,7 +23,7 @@ def _imports(path: Path) -> set[str]:
 
 def _calls_model_cli(path: Path) -> bool:
     """Imports subprocess and mentions the claude/codex binaries as string literals."""
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     strings = {
         n.value.strip().lower()
         for n in ast.walk(tree)

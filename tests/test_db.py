@@ -109,6 +109,7 @@ def test_a_duplicate_that_slips_past_the_check_is_still_a_duplicate(monkeypatch)
         ("CSE220", "CSE220"),
         ("  Intro to (Systems) / Networks!  ", "INTRO-TO-SYSTEMS-NETWORKS"),
         ("!!!", "COURSE"),
+        ("Aux", "AUX-2"),  # a Windows device name is treated as taken
         ("Systems Fundamentals and Architecture of Computers", "SYSTEMS-FUNDAMENTALS-AND-ARC"),
     ],
 )
@@ -151,6 +152,8 @@ def test_find_is_deterministic_with_a_duplicate_name():
     [
         ("", "Fall-2026"),
         ("CSE 220", "Fall-2026"),
+        ("aux", "Fall-2026"),  # a Windows device name
+        ("CSE220", "NUL"),
         ("../x", "Fall-2026"),
         ("X" * 33, "Fall-2026"),
         ("CSE220", "../up"),

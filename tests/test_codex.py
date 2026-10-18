@@ -28,7 +28,7 @@ def fake(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
 
     def calls():
-        return [json.loads(line) for line in log.read_text().splitlines()]
+        return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
 
     return calls
 
@@ -59,7 +59,8 @@ def test_success_reads_last_message_and_model_from_output(provider, fake, monkey
     argv = call["argv"]
     assert argv[:2] == ["exec", "--skip-git-repo-check"]
     assert argv[argv.index("--sandbox") + 1] == "read-only"
-    assert argv[-1] == "You write exam questions.\n\n---\n\nSay hi"
+    assert argv[-2] == "-o" and not argv[-1].startswith("You write")  # no prompt in argv
+    assert call["stdin"] == "You write exam questions.\n\n---\n\nSay hi"
     assert call["api_key"] is False
     assert call["cwd"] == str((tmp_path / "scratch").resolve())
     assert list((tmp_path / "scratch").iterdir()) == []  # -o file cleaned up

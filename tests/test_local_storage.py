@@ -90,6 +90,11 @@ def test_versions_are_copied_where_hard_links_fail(storage, tmp_path, monkeypatc
         (".pdf", "pdf"),
         ("notes.tar. gz", "notes.tar.gz"),
         ("bad\x00name\n.c", "badname.c"),
+        # What Windows refuses: these characters, a trailing dot, device names.
+        ('lec<1>: "a|b"?*.pdf', "lec1 ab.pdf"),
+        ("notes.pdf.", "notes.pdf"),
+        ("CON.pdf", "CON_.pdf"),
+        ("aux", "aux_"),
     ],
 )
 def test_sanitize_filename(name, expected):
@@ -165,7 +170,7 @@ def test_list_missing_folder_is_empty(storage):
 def test_health(storage, tmp_path):
     assert storage.health() is ProviderState.AVAILABLE
     blocked = tmp_path / "file"
-    blocked.write_text("not a dir")
+    blocked.write_text("not a dir", encoding="utf-8")
     assert LocalStorageBackend(blocked / "courses").health() is ProviderState.BROKEN
 
 

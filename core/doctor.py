@@ -42,6 +42,8 @@ class Check:
 
 def check_config(config: Config) -> Check:
     detail = f"home {config.home}, term {config.term}"
+    if os.name == "nt":  # st_mode is 0o777 for every folder there; ACLs decide, not bits
+        return Check("Config", Status.OK, f"{detail} (permissions not checked on Windows)")
     if config.home.exists() and stat.S_IMODE(config.home.stat().st_mode) & 0o077:
         return Check("Config", Status.WARN, f"{detail}; {config.home} is readable by others")
     return Check("Config", Status.OK, detail)
@@ -52,7 +54,8 @@ def check_db(config: Config) -> Check:
         return Check(
             "DB schema", Status.WARN, "no database yet; `brightlearn courses add` creates it"
         )
-    conn = sqlite3.connect(f"file:{config.db_path}?mode=ro", uri=True)
+    # as_uri(): a drive letter or a `?` in the path would break a hand-built file: URI.
+    conn = sqlite3.connect(f"{config.db_path.resolve().as_uri()}?mode=ro", uri=True)
     try:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
     finally:

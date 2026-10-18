@@ -47,7 +47,7 @@ def podcast(
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         folder.mkdir(parents=True, exist_ok=True)
         instructions = folder / f"{stamp}-podcast.md"
-        instructions.write_text(context.text)
+        instructions.write_text(context.text, encoding="utf-8")
         dest = folder / f"{stamp}-podcast{audio.suffix}"
         shutil.move(audio, dest)
         PodcastStore(conn).record(course, context.concept_ids, instructions, dest)

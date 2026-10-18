@@ -111,7 +111,7 @@ def test_seed_job_writes_a_draft(studio, config):
     result = job["result"]
     assert result["count"] == 2 and result["previous"] is None and result["diff"] == ""
     draft = config.vault_root / "courses" / COURSE / result["draft"]
-    assert "reviewed: false" in draft.read_text()
+    assert "reviewed: false" in draft.read_text(encoding="utf-8")
     again = run_job(client, engine, client.post(f"{BASE}/concepts/seed"))["result"]
     assert again["previous"] == result["draft"] and again["draft"] != result["draft"]
     assert draft.exists()  # an earlier draft is never overwritten (P65)
@@ -197,7 +197,7 @@ def test_a_draft_apply_could_not_load_is_refused_on_save(studio, config):
     assert by_id["cse220/pointers"]["week"] == 3
 
     folder = config.vault_root / "courses" / COURSE
-    (folder / "notes.yaml").write_text("course: CSE220\n")
+    (folder / "notes.yaml").write_text("course: CSE220\n", encoding="utf-8")
     for bad in ("%2E%2E", "notes.yaml", "concepts.draft.20990101-000000.yaml"):
         assert client.get(f"{BASE}/concepts/drafts/{bad}").status_code == 404, bad
         assert client.put(f"{BASE}/concepts/drafts/{bad}", json={"text": before}).status_code == 404
@@ -234,7 +234,7 @@ def create_exam(client, engine, spec=SPEC) -> dict:
 
 def exam_file(config, exam_id) -> dict:
     path = config.vault_root / "courses" / COURSE / "exams" / f"{exam_id}.json"
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def take_all(client, config, exam_id, wrong=lambda q: q["difficulty"] == "hard") -> list[dict]:
@@ -513,9 +513,9 @@ def test_a_bad_attempt_in_a_file_is_left_out_not_a_500(studio, config, caplog):
     exam_id = create_exam(client, engine)["exam_id"]
     client.post(f"{BASE}/exams/{exam_id}/take")
     path = config.vault_root / "courses" / COURSE / "exams" / f"{exam_id}.json"
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     exam["attempts"].append({"answers": {}})  # a hand edit: no number, no start time
-    path.write_text(json.dumps(exam))
+    path.write_text(json.dumps(exam), encoding="utf-8")
 
     (listed,) = client.get(f"{BASE}/exams").json()
 
@@ -645,7 +645,9 @@ def test_a_podcasts_exam_is_never_read_from_a_path(studio, tmp_path):
     """The CLI's --exam takes a spec file; the API looks in the vault's created exams only."""
     client, _, _, engine, _ = studio
     spec_file = tmp_path / "midterm.yaml"
-    spec_file.write_text(yaml.dump(SPEC))  # a valid spec, which find_spec would read
+    spec_file.write_text(
+        yaml.dump(SPEC), encoding="utf-8"
+    )  # a valid spec, which find_spec would read
 
     response = client.post(f"{BASE}/podcast", json={"exam": str(spec_file)})
 

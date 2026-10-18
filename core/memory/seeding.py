@@ -101,8 +101,8 @@ def draft_diff(previous: Path | None, current: Path) -> str:
         return ""
     return "".join(
         difflib.unified_diff(
-            previous.read_text().splitlines(keepends=True),
-            current.read_text().splitlines(keepends=True),
+            previous.read_text(encoding="utf-8").splitlines(keepends=True),
+            current.read_text(encoding="utf-8").splitlines(keepends=True),
             fromfile=previous.name,
             tofile=current.name,
         )
@@ -173,7 +173,7 @@ def write_draft(path: Path, course: str, concepts: list[DraftConcept]) -> None:
         "# Draft from NotebookLM. Edit freely, then set `reviewed: true` and run\n"
         f"# `brightlearn concepts apply --course {course}` (newest draft; --draft picks another).\n"
     )
-    with path.open("x") as f:
+    with path.open("x", encoding="utf-8") as f:
         f.write(header + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
 
 
@@ -217,7 +217,7 @@ def check_draft(text: str, course: str) -> None:
 def is_reviewed(path: Path) -> bool:
     """What ``apply`` checks first; a draft that doesn't parse isn't reviewed."""
     try:
-        doc = yaml.safe_load(path.read_text())
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
         return False
     return isinstance(doc, dict) and doc.get("reviewed") is True
@@ -252,7 +252,7 @@ def apply(path: Path, learner: LearnerMemory) -> ApplyResult:
     """
     if not path.exists():
         raise SeedingError(f"No draft at {path}; run `brightlearn concepts seed` first")
-    doc = yaml.safe_load(path.read_text()) or {}
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if doc.get("reviewed") is not True:
         raise DraftNotReviewed(f"{path.name} still says `reviewed: false`; review it, then flip it")
     course = doc["course"]

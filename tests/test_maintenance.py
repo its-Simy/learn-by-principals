@@ -90,7 +90,7 @@ def test_old_ended_sessions_are_archived_not_deleted(world):
         clock.now = T0 - timedelta(days=age)
         row = learner.start_session("CSE220")
         vault.session_transcript_path(row.session_id).parent.mkdir(parents=True, exist_ok=True)
-        vault.session_transcript_path(row.session_id).write_text(f"# {name}")
+        vault.session_transcript_path(row.session_id).write_text(f"# {name}", encoding="utf-8")
         if ended:
             row.ended_at = iso(clock.now + timedelta(hours=1))
             row.summary_path = str(vault.write_session_summary(row, name))
@@ -103,7 +103,7 @@ def test_old_ended_sessions_are_archived_not_deleted(world):
     old, stuck = rows["old"].session_id, rows["stuck"].session_id
     assert report.closed == [stuck]  # idle for 60 days: closed (BL-040), then old enough to archive
     assert report.archived == [old, stuck]
-    assert (archive / f"{old}.md").read_text() == "# old"
+    assert (archive / f"{old}.md").read_text(encoding="utf-8") == "# old"
     assert (archive / f"{old}.summary.md").exists()
     assert not vault.session_transcript_path(old).exists()
     assert learner.get_session(old).summary_path == str(archive / f"{old}.summary.md")

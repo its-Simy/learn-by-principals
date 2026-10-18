@@ -51,7 +51,7 @@ def load(name: str, directory: Path = PERSONAS_DIR) -> Persona:
     path = directory / f"{name}.md"
     if not path.exists():
         raise PersonaError(f"No persona {name!r} in {directory}")
-    match = _FRONT_MATTER.match(path.read_text())
+    match = _FRONT_MATTER.match(path.read_text(encoding="utf-8"))
     if not match:
         raise PersonaError(f"{path} has no front matter")
     meta: dict[str, Any] = yaml.safe_load(match.group(1)) or {}

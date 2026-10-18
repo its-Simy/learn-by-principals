@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -12,7 +13,10 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-DEFAULT_TMP_DIR = Path("/tmp/brightlearn")
+# Upload staging. /tmp on macOS and Linux as always; Windows has no /tmp, so its temp folder.
+DEFAULT_TMP_DIR = (
+    Path(tempfile.gettempdir()) / "brightlearn" if os.name == "nt" else Path("/tmp/brightlearn")
+)
 
 # v0 routing: provider order per purpose, overridable in config.toml [routing]. Benchmarks-driven
 # routing replaces this in Phase 10 (principle 8; see the decision log in CLAUDE.md).
@@ -98,7 +102,8 @@ def load_routing(path: Path) -> dict[str, tuple[str, ...]]:
     if not path.exists():
         return routing
     try:
-        table = tomllib.loads(path.read_text()).get("routing", {})
+        with path.open("rb") as f:  # TOML is UTF-8 by definition; tomllib decodes it itself
+            table = tomllib.load(f).get("routing", {})
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
     for purpose, order in table.items():

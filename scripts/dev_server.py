@@ -192,7 +192,7 @@ class DevKnowledge(FakeKnowledge):
                 if not (row.notebook_source_id and row.notebook_id and row.local_path):
                     continue
                 path = Path(row.local_path)
-                text = path.read_text(errors="replace") if path.exists() else ""
+                text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
                 self.sources[row.notebook_source_id] = FakeSource(
                     row.notebook_source_id, row.notebook_id, path, text
                 )
@@ -351,7 +351,7 @@ def seed(config: Config, conn: sqlite3.Connection, knowledge: DevKnowledge) -> N
     try:
         for bucket, name, text in FILES:
             src = staging / name
-            src.write_text(text)
+            src.write_text(text, encoding="utf-8")
             importer.import_file(src, COURSE, name, bucket)
     finally:
         shutil.rmtree(staging, ignore_errors=True)

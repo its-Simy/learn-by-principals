@@ -54,7 +54,8 @@ def test_unknown_persona(tmp_path):
 
 def test_missing_section_is_rejected(tmp_path):
     (tmp_path / "broken.md").write_text(
-        "---\nname: broken\ngroup: teaching\ntask_types: [explain]\n---\n## Goal\nx\n"
+        "---\nname: broken\ngroup: teaching\ntask_types: [explain]\n---\n## Goal\nx\n",
+        encoding="utf-8",
     )
     with pytest.raises(PersonaError, match="missing sections"):
         load("broken", tmp_path)

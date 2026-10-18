@@ -128,7 +128,7 @@ def test_every_tutor_query_uses_the_sessions_conversation(tmp_path):
     assert answer.startswith("Pointers store addresses.")
     assert len(kp.conversations) == 3
     assert set(kp.conversations) == {tutor.session.conversation.conversation_id}
-    text = tutor.transcript_path.read_text()
+    text = tutor.transcript_path.read_text(encoding="utf-8")
     assert "**Ask (NotebookLM):** Where are pointers introduced?" in text
     assert tutor.handle("/ask") == "Usage: /ask <question>"
 

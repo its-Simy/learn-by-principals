@@ -35,7 +35,7 @@ class Mismatch:
 
 
 def read_front_matter(path: Path) -> dict[str, Any]:
-    match = _FRONT_MATTER.match(path.read_text())
+    match = _FRONT_MATTER.match(path.read_text(encoding="utf-8"))
     if not match:
         return {}
     return yaml.safe_load(match.group(1)) or {}
@@ -44,7 +44,7 @@ def read_front_matter(path: Path) -> dict[str, Any]:
 def _write(path: Path, front_matter: dict[str, Any], body: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     header = yaml.safe_dump(front_matter, sort_keys=False, allow_unicode=True).strip()
-    path.write_text(f"---\n{header}\n---\n\n{body.strip()}\n")
+    path.write_text(f"---\n{header}\n---\n\n{body.strip()}\n", encoding="utf-8")
     return path
 
 

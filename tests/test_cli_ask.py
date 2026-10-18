@@ -22,7 +22,7 @@ def setup(tmp_path, monkeypatch):
     notebook_id = kp.ensure_notebook("CSE220")
     for n, bucket, name in [(1, "syllabus", "syllabus.pdf"), (2, "lectures", "lec3.pdf")]:
         path = tmp_path / name
-        path.write_text(f"{name} text about pointers")
+        path.write_text(f"{name} text about pointers", encoding="utf-8")
         source_id = kp.add_file(notebook_id, path)
         db.upsert(
             ResourceRow(

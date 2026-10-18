@@ -117,7 +117,9 @@ def test_session_row_and_summary_record_the_analysis(learner, models, tmp_path):
     assert saved.analyzer_provider == "codex"
     front = read_front_matter(tmp_path / "memory" / "sessions" / f"{row.session_id}.summary.md")
     assert front["analyzer_provider"] == "codex"
-    text = (tmp_path / "memory" / "sessions" / f"{row.session_id}.summary.md").read_text()
+    text = (tmp_path / "memory" / "sessions" / f"{row.session_id}.summary.md").read_text(
+        encoding="utf-8"
+    )
     assert "needs_challenge: cse220/pointer-arithmetic 0 -> 3" in text
 
 
@@ -196,7 +198,8 @@ def test_routing_order_comes_from_config_toml(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     (home / "config.toml").write_text(
-        '[routing]\nteaching = ["codex", "claude"]\nanalysis = ["claude", "codex"]\n'
+        '[routing]\nteaching = ["codex", "claude"]\nanalysis = ["claude", "codex"]\n',
+        encoding="utf-8",
     )
     monkeypatch.setenv("BRIGHTLEARN_HOME", str(home))
     monkeypatch.setenv("BRIGHTLEARN_VAULT", str(tmp_path / "memory"))

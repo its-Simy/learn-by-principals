@@ -88,7 +88,7 @@ def list_course_drafts(course: CourseDep, cfg: ConfigDep) -> list[DraftOut]:
 
 @router.get("/courses/{course}/concepts/drafts/{name}")
 def get_draft(course: CourseDep, name: str, cfg: ConfigDep) -> TextOut:
-    return TextOut(text=draft_path(cfg, course, name).read_text())
+    return TextOut(text=draft_path(cfg, course, name).read_text(encoding="utf-8"))
 
 
 @router.get("/courses/{course}/concepts/drafts/{name}/diff")
@@ -109,7 +109,7 @@ def save_draft(course: CourseDep, name: str, body: TextIn, cfg: ConfigDep) -> Dr
     check_draft(body.text, course)
     part = path.with_name(f".{path.name}.{uuid.uuid4().hex}.part")
     try:
-        part.write_text(body.text)
+        part.write_text(body.text, encoding="utf-8")
         os.replace(part, path)  # never a half-written draft
     finally:
         part.unlink(missing_ok=True)
@@ -129,7 +129,7 @@ def apply_draft(
             raise HTTPException(404, f"No draft for {course}; seed one first")
     else:
         path = draft_path(cfg, course, name)
-    check_draft(path.read_text(), course)
+    check_draft(path.read_text(encoding="utf-8"), course)
     result = apply(path, LearnerMemory(conn))
     return ApplyOut.from_core(path.name, result)
 

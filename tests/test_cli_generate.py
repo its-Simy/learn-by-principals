@@ -40,13 +40,15 @@ def test_quiz_is_saved_as_json(kp, tmp_path):
     assert result.exit_code == 0, result.output
     (name,) = generated(tmp_path)
     assert name.endswith("-quiz.json")
-    saved = json.loads((tmp_path / "home/courses/Fall-2026/CSE220/_generated" / name).read_text())
+    saved = json.loads(
+        (tmp_path / "home/courses/Fall-2026/CSE220/_generated" / name).read_text(encoding="utf-8")
+    )
     assert saved == kp.quiz
 
 
 def test_audio_uses_prompt_file_format_and_length(kp, tmp_path):
     prompt = tmp_path / "focus.md"
-    prompt.write_text("Cover only grading policy.")
+    prompt.write_text("Cover only grading policy.", encoding="utf-8")
     result = runner.invoke(
         app,
         [
@@ -79,7 +81,7 @@ def test_flashcards_json_and_report_markdown(kp, tmp_path):
 
 def test_report_prompt_file_becomes_the_custom_prompt(kp, tmp_path):
     prompt = tmp_path / "p.md"
-    prompt.write_text("Summarise week 3.")
+    prompt.write_text("Summarise week 3.", encoding="utf-8")
     runner.invoke(app, ["generate", "report", "--course", "CSE220", "--prompt-file", str(prompt)])
     assert kp.calls[-1] == ("generate", ("report", {"prompt": "Summarise week 3."}))
 
@@ -88,7 +90,7 @@ def test_out_overrides_destination(kp, tmp_path):
     out = tmp_path / "elsewhere" / "q.json"
     result = runner.invoke(app, ["generate", "quiz", "--course", "CSE220", "--out", str(out)])
     assert result.exit_code == 0, result.output
-    assert json.loads(out.read_text()) == kp.quiz
+    assert json.loads(out.read_text(encoding="utf-8")) == kp.quiz
     assert generated(tmp_path) == []
 
 

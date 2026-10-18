@@ -53,7 +53,7 @@ def test_turn_compiles_routes_to_claude_and_appends_transcript(tutor, models, co
     (task,) = models["claude"].tasks
     assert task.persona == "simplifier"
     assert "Pointers store addresses." in task.user
-    text = tutor.transcript_path.read_text()
+    text = tutor.transcript_path.read_text(encoding="utf-8")
     assert "**Learner:** What is a pointer?" in text
     assert "**Tutor (simplifier · claude):** Claude says hi." in text
     (run,) = runs(conn)
@@ -112,7 +112,7 @@ def test_ask_grounds_in_the_sessions_conversation_with_citations(conn, models, t
     learner = LearnerMemory(conn)
     kp = FakeKnowledge(answer_text="Pointers store addresses.")
     lecture = tmp_path / "lec3.pdf"
-    lecture.write_text("lec3 text about pointers")
+    lecture.write_text("lec3 text about pointers", encoding="utf-8")
     source_id = kp.add_file(kp.ensure_notebook("CSE220"), lecture)
     router = Router(models, Ledger(conn), ["claude", "codex"])
     compiler = ContextCompiler(kp, learner)
@@ -129,7 +129,7 @@ def test_ask_grounds_in_the_sessions_conversation_with_citations(conn, models, t
     assert t.ground("Where is swap()?") == flat
     assert t.ground("Where is swap()?") == compiler.ground("Where is swap()?", "CSE220", t.session)
     assert set(kp.conversations) == {t.session.conversation.conversation_id}  # one conversation
-    text = t.transcript_path.read_text()
+    text = t.transcript_path.read_text(encoding="utf-8")
     assert text.count("**Ask (NotebookLM):** Where is swap()?") == 3  # once per ask
     assert f"> Pointers store addresses.\n> [1] {source_id}: lec3 text" in text
     assert t.ground("") == "Usage: /ask <question>"
@@ -141,7 +141,12 @@ def test_ask_grounds_in_the_sessions_conversation_with_citations(conn, models, t
     with pytest.raises(KnowledgeError):
         t.ground_answer("Again?")
     assert t.ground("Again?") == "(course sources unavailable: notebook gone)"
-    assert t.transcript_path.read_text().count("> (course sources unavailable: notebook gone)") == 2
+    assert (
+        t.transcript_path.read_text(encoding="utf-8").count(
+            "> (course sources unavailable: notebook gone)"
+        )
+        == 2
+    )
 
 
 def test_persona_switch_mid_session(tutor, models):
@@ -149,7 +154,7 @@ def test_persona_switch_mid_session(tutor, models):
     assert tutor.handle("/persona exemplar") == "Persona: exemplar"
     tutor.handle("Show me one")
     assert [t.persona for t in models["claude"].tasks] == ["simplifier", "exemplar"]
-    assert "Persona switched to exemplar" in tutor.transcript_path.read_text()
+    assert "Persona switched to exemplar" in tutor.transcript_path.read_text(encoding="utf-8")
 
 
 def test_analogist_without_anchor_is_refused(tutor):
@@ -207,7 +212,7 @@ def test_cli_repl(tmp_path, monkeypatch, models):
     assert result.exit_code == 0, result.output
     assert "Claude says hi." in result.output
     (transcript,) = (tmp_path / "memory" / "sessions").glob("*.md")
-    assert transcript.read_text().count("**Learner:**") == 2
+    assert transcript.read_text(encoding="utf-8").count("**Learner:**") == 2
     conn = connect(load_config().db_path)
     assert conn.execute("SELECT ended_at FROM sessions").fetchone()[0] is not None
 
@@ -233,4 +238,4 @@ def test_rate_records_the_learners_rating_for_the_last_answer(tutor, conn):
     assert tutor.handle("/rate 9") == "Usage: /rate 1-5"
     assert tutor.handle("/rate 4") == "Rated the last answer 4/5."
     assert Benchmarks(conn).for_task("explain")["claude"].learner_rating == 4
-    assert "_Rated 4/5 (claude)._" in tutor.transcript_path.read_text()
+    assert "_Rated 4/5 (claude)._" in tutor.transcript_path.read_text(encoding="utf-8")

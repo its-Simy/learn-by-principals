@@ -110,7 +110,8 @@ def test_misconceptions_and_profile_come_from_the_vault(learner, tmp_path):
     vault.write_concept_note(pointers, None, ["*p and p are the same thing"], [])
     (tmp_path / "learner").mkdir()
     (tmp_path / "learner/profile.md").write_text(
-        "---\nkind: profile\n---\n# Me\n- examples first\n- analogies to cooking\n"
+        "---\nkind: profile\n---\n# Me\n- examples first\n- analogies to cooking\n",
+        encoding="utf-8",
     )
 
     text = compile_podcast_context("CSE220", None, learner, vault)
@@ -136,7 +137,7 @@ def test_word_cap_is_enforced(tmp_path):
         if i % 2:
             mem.set_mastery(f"cse220/c{i}", 5, 0.9, [e])
     (tmp_path / "learner").mkdir()
-    (tmp_path / "learner/profile.md").write_text(" ".join(["verbose"] * 500))
+    (tmp_path / "learner/profile.md").write_text(" ".join(["verbose"] * 500), encoding="utf-8")
 
     text = compile_podcast_context("CSE220", None, mem, vault)
 
@@ -176,7 +177,7 @@ def test_cli_generates_audio_saves_both_files_and_records_the_episode(cli_env):
     (audio,) = folder.glob("*-podcast.mp3")
     (brief,) = folder.glob("*-podcast.md")
     assert audio.stem == brief.stem  # side by side
-    assert brief.read_text() == instructions
+    assert brief.read_text(encoding="utf-8") == instructions
     conn = connect(load_config().db_path)
     (episode,) = PodcastStore(conn).all("CSE220")
     assert episode.audio_path == str(audio) and episode.instruction_path == str(brief)
@@ -208,7 +209,7 @@ def test_cli_exam_by_name_uses_the_created_exams_spec(cli_env):
         "exclude": [],
     }
     (exams / "midterm-1-20260920-100000.json").write_text(
-        json.dumps({"spec": spec, "questions": []})
+        json.dumps({"spec": spec, "questions": []}), encoding="utf-8"
     )
 
     result = CliRunner().invoke(app, ["podcast", "--course", "CSE220", "--exam", "midterm1"])

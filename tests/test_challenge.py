@@ -190,7 +190,7 @@ def test_session_opens_with_the_probe_and_grading_resolves_it(learner, store, mo
     assert learner.get_mastery(POINTERS) is None  # grading an exchange never applies ±1 itself
     # the probe isn't a tutoring turn: nothing for the end-of-session Analyzer to double count
     assert tutor.session.turns == []
-    assert "**Learner:**" not in tutor.transcript_path.read_text()
+    assert "**Learner:**" not in tutor.transcript_path.read_text(encoding="utf-8")
 
 
 def test_a_resolved_challenge_is_not_asked_again(learner, store, models, tmp_path):

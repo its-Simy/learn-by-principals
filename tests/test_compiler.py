@@ -44,7 +44,7 @@ def knowledge(tmp_path):
     kp = FakeKnowledge(answer_text=LONG)
     nb = kp.ensure_notebook("CSE220")
     lecture = tmp_path / "lec3.pdf"
-    lecture.write_text("Lecture 3: pointers and pointer arithmetic. " * 20)
+    lecture.write_text("Lecture 3: pointers and pointer arithmetic. " * 20, encoding="utf-8")
     kp.add_file(nb, lecture)
     return kp
 

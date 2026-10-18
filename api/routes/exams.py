@@ -128,7 +128,7 @@ def create_job(spec: ExamSpec, r: Resources) -> dict[str, Any]:
     json_path, md_path = new_paths(r.config.vault_root, spec.course, spec.slug, datetime.now())
     exam = new_exam(json_path.stem, coverage, report)
     save(json_path, exam)
-    md_path.write_text(to_markdown(exam))
+    md_path.write_text(to_markdown(exam), encoding="utf-8")
     return {
         "exam_id": json_path.stem,
         "questions": len(report.questions),

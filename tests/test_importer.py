@@ -161,7 +161,7 @@ def test_ambiguous_names_ask_the_fallback(storage, db, conn, tmp_path):
 
     importer = Importer(storage, db, Courses(conn), classify_fallback=fallback)
     src = tmp_path / "dweight2.csv"
-    src.write_text("1,2")
+    src.write_text("1,2", encoding="utf-8")
     assert importer.import_file(src, "CSE220", "dweight2.csv").row.bucket == "labs"
     assert asked == [("dweight2", "dweight2.csv")]
 

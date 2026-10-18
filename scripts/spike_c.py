@@ -121,12 +121,12 @@ async def main(args: argparse.Namespace) -> None:
 
         # 5. audio overview from a prompt file
         prompt_file = out_dir / "spike_prompt.md"
-        prompt_file.write_text(PROMPT + "\n")
+        prompt_file.write_text(PROMPT + "\n", encoding="utf-8")
         status = await steps.run(
             "artifacts.generate_audio(brief, short)",
             client.artifacts.generate_audio(
                 nb.id,
-                instructions=prompt_file.read_text(),
+                instructions=prompt_file.read_text(encoding="utf-8"),
                 audio_format=AudioFormat.BRIEF,
                 audio_length=AudioLength.SHORT,
             ),

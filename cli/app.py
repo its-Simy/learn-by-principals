@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import typer
 from rich.console import Console
@@ -42,6 +43,11 @@ def main(
     ctx: typer.Context,
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logging."),
 ) -> None:
+    # A Windows console or a redirected stdout may use a legacy code page; model answers and
+    # Rich's table glyphs are UTF-8. Reconfigure (a no-op where it already is).
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(message)s",

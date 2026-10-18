@@ -27,7 +27,7 @@ def dashboard(
     finally:
         conn.close()
     path = config.home / "dashboard.html"
-    path.write_text(html)
+    path.write_text(html, encoding="utf-8")
     console.print(f"Dashboard -> {path}")
     if open_page:
         webbrowser.open(path.as_uri())

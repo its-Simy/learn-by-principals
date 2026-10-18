@@ -50,7 +50,7 @@ class FakeKnowledge(KnowledgeProvider):
     def add_file(self, notebook_id: str, path: Path) -> str:
         self.calls.append(("add_file", path))
         source_id = f"src{next(self._ids)}"
-        text = path.read_text(errors="replace") if path.exists() else ""
+        text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
         self.sources[source_id] = FakeSource(source_id, notebook_id, path, text)
         return source_id
 

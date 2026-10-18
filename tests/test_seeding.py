@@ -73,14 +73,14 @@ def db():
 
 
 def mark_reviewed(path):
-    path.write_text(path.read_text().replace("reviewed: false", "reviewed: true"))
+    path.write_text(path.read_text(encoding="utf-8").replace("reviewed: false", "reviewed: true"))
 
 
 def test_seed_writes_an_unreviewed_draft(kp, db, tmp_path):
     path, concepts = seed(kp, db, "CSE220", tmp_path / "memory", now=datetime(2026, 9, 23, 14, 30))
 
     assert path == tmp_path / "memory/courses/CSE220/concepts.draft.20260923-143000.yaml"
-    doc = yaml.safe_load(path.read_text())
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert doc["reviewed"] is False
     assert [c["name"] for c in doc["concepts"]] == ["Pointers", "Data representation"]
     assert doc["concepts"][0]["week"] == 3
@@ -127,7 +127,8 @@ def test_apply_reports_prerequisites_missing_from_the_draft(tmp_path, db):
                 "reviewed": True,
                 "concepts": [{"name": "Pointers", "prerequisites": ["Addresses"]}],
             }
-        )
+        ),
+        encoding="utf-8",
     )
     result = apply(path, LearnerMemory(db.conn))
     assert result.unknown_prerequisites == ["Addresses"]
@@ -169,12 +170,12 @@ def test_reseeding_keeps_the_reviewed_draft_and_writes_a_new_one(kp, db, tmp_pat
     vault = tmp_path / "memory"
     first, _ = seed(kp, db, "CSE220", vault, now=datetime(2026, 9, 23, 14, 30))
     mark_reviewed(first)
-    reviewed = first.read_text()
+    reviewed = first.read_text(encoding="utf-8")
 
     kp.answer_text = canned_answer().replace("Pointers", "Pointer basics")
     second, _ = seed(kp, db, "CSE220", vault, now=datetime(2026, 9, 24, 9, 0))
 
-    assert first.read_text() == reviewed
+    assert first.read_text(encoding="utf-8") == reviewed
     assert second.name == "concepts.draft.20260924-090000.yaml"
     assert list_drafts(vault, "CSE220") == [first, second]
     diff = draft_diff(first, second)
@@ -200,10 +201,10 @@ def test_same_second_seed_gets_a_suffix_not_an_overwrite(kp, db, tmp_path):
 def test_legacy_draft_counts_as_the_oldest(kp, db, tmp_path):
     legacy = drafts_dir(tmp_path, "CSE220") / "concepts.draft.yaml"
     legacy.parent.mkdir(parents=True)
-    legacy.write_text("course: CSE220\nreviewed: true\nconcepts: []\n")
+    legacy.write_text("course: CSE220\nreviewed: true\nconcepts: []\n", encoding="utf-8")
     new, _ = seed(kp, db, "CSE220", tmp_path)
     assert list_drafts(tmp_path, "CSE220") == [legacy, new]
-    assert legacy.read_text().startswith("course: CSE220")
+    assert legacy.read_text(encoding="utf-8").startswith("course: CSE220")
 
 
 def test_cli_seed_prints_a_diff_against_the_newest_draft(kp, tmp_path, monkeypatch):
@@ -225,7 +226,7 @@ def test_cli_seed_prints_a_diff_against_the_newest_draft(kp, tmp_path, monkeypat
     assert again.exit_code == 0, again.output
     assert f"--- {first.name}" in again.output
     assert "+- name: Pointer basics" in again.output
-    assert "reviewed: true" in first.read_text()
+    assert "reviewed: true" in first.read_text(encoding="utf-8")
     assert len(list_drafts(tmp_path / "memory", "CSE220")) == 2
 
     # apply takes the newest draft, which isn't reviewed yet; --draft picks the reviewed one
@@ -264,7 +265,10 @@ def test_cli_seed_refuses_while_a_tutor_session_is_open(kp, tmp_path, monkeypatc
 
 def write_reviewed(path, concepts):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump({"course": "CSE220", "reviewed": True, "concepts": concepts}))
+    path.write_text(
+        yaml.safe_dump({"course": "CSE220", "reviewed": True, "concepts": concepts}),
+        encoding="utf-8",
+    )
 
 
 def test_missing_concepts_are_retired_never_deleted(tmp_path, db):

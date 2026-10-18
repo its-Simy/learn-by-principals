@@ -44,7 +44,7 @@ def test_concept_note_front_matter_round_trips(vault, mem):
     assert path == vault.root / "concepts" / "cse220-pointer-arithmetic.md"
     concept = mem.get_concept("cse220/pointer-arithmetic")
     assert read_front_matter(path) == concept_row(concept, mem.get_mastery(concept.concept_id))
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert "# Pointer arithmetic" in text
     assert "- ptr + 1 advances one byte" in text
     assert "applied (strong)" in text
@@ -53,7 +53,7 @@ def test_concept_note_front_matter_round_trips(vault, mem):
 
 def test_vault_check_flags_a_hand_edited_note(vault, mem):
     path = write_note(vault, mem)
-    path.write_text(path.read_text().replace("level: 3", "level: 5"))
+    path.write_text(path.read_text(encoding="utf-8").replace("level: 3", "level: 5"))
 
     (mismatch,) = vault.vault_check(mem)
 
@@ -71,7 +71,9 @@ def test_vault_check_flags_db_changes_since_the_note(vault, mem):
 
 def test_vault_check_flags_notes_for_unknown_concepts(vault, mem, tmp_path):
     path = write_note(vault, mem)
-    path.write_text(path.read_text().replace("cse220/pointer-arithmetic", "cse220/gone"))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("cse220/pointer-arithmetic", "cse220/gone")
+    )
     (mismatch,) = vault.vault_check(mem)
     assert (mismatch.field, mismatch.note) == ("concept_id", "cse220/gone")
 
@@ -93,10 +95,10 @@ def test_session_summary(vault, mem):
     front = read_front_matter(path)
     assert front["session_id"] == session.session_id
     assert front["tutor_provider"] == "claude"
-    assert "cse220/pointer-arithmetic: applied (strong)" in path.read_text()
+    assert "cse220/pointer-arithmetic: applied (strong)" in path.read_text(encoding="utf-8")
 
 
 def test_read_front_matter_of_plain_markdown_is_empty(tmp_path):
     path = tmp_path / "x.md"
-    path.write_text("# no front matter\n")
+    path.write_text("# no front matter\n", encoding="utf-8")
     assert read_front_matter(path) == {}

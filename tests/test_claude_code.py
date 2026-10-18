@@ -31,7 +31,7 @@ def fake(tmp_path, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-must-not-leak")
 
     def calls():
-        return [json.loads(line) for line in log.read_text().splitlines()]
+        return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
 
     return calls
 
@@ -57,7 +57,8 @@ def test_success_parses_text_model_and_usage(provider, fake, monkeypatch, tmp_pa
     assert provider.state is ProviderState.AVAILABLE
     assert provider.usage_hint() == result.usage_hint
     (call,) = fake()
-    assert call["argv"][:4] == ["-p", "Say hi", "--output-format", "json"]
+    assert call["argv"][:3] == ["-p", "--output-format", "json"]
+    assert call["stdin"] == "Say hi"  # the prompt never goes on the command line
     assert call["argv"][call["argv"].index("--system-prompt") + 1] == "You are a patient tutor."
     assert call["argv"][call["argv"].index("--tools") + 1] == ""
     assert "--strict-mcp-config" in call["argv"]
@@ -67,7 +68,7 @@ def test_success_parses_text_model_and_usage(provider, fake, monkeypatch, tmp_pa
 
 def test_the_real_cli_output_parses(provider, fake, monkeypatch):
     """The shape the live CLI produced (P50): the reply, the model and the token counts."""
-    monkeypatch.setenv("FAKE_STDOUT", REAL_OUTPUT.read_text())
+    monkeypatch.setenv("FAKE_STDOUT", REAL_OUTPUT.read_text(encoding="utf-8"))
 
     result = provider.run(task())
 

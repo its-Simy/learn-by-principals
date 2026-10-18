@@ -69,7 +69,7 @@ class ExamSpec:
 
 def load_spec(path: Path) -> ExamSpec:
     try:
-        doc = yaml.safe_load(path.read_text())
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         raise SpecError(f"{path}: not valid YAML: {exc}") from exc
     except OSError as exc:
@@ -111,7 +111,7 @@ def _saved(vault_root: Path, course: str, name: str) -> ExamSpec | None:
     wanted = _key(name)
     for exam_file in sorted(exams_dir(vault_root, course).glob("*.json"), reverse=True):
         try:
-            saved = json.loads(exam_file.read_text()).get("spec") or {}
+            saved = json.loads(exam_file.read_text(encoding="utf-8")).get("spec") or {}
         except (OSError, json.JSONDecodeError):
             continue
         if _key(str(saved.get("exam", ""))) == wanted:

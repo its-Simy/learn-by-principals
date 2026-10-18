@@ -38,7 +38,7 @@ def test_master_spec_example_parses(tmp_path):
     import yaml
 
     path = tmp_path / "cse220-midterm1.yaml"
-    path.write_text(yaml.safe_dump(SPEC))
+    path.write_text(yaml.safe_dump(SPEC), encoding="utf-8")
     s = load_spec(path)
     assert (s.course, s.exam, s.slug, s.mode) == ("CSE220", "Midterm 1", "midterm-1", "realistic")
     assert s.total_questions == 18
@@ -259,10 +259,12 @@ def test_saved_spec_reads_created_exams_and_never_a_file(tmp_path):
     import yaml
 
     spec_file = tmp_path / "midterm.yaml"
-    spec_file.write_text(yaml.safe_dump(SPEC))
+    spec_file.write_text(yaml.safe_dump(SPEC), encoding="utf-8")
     exams = tmp_path / "vault/courses/CSE220/exams"
     exams.mkdir(parents=True)
-    (exams / "midterm-1-20260920-100000.json").write_text(json.dumps({"spec": SPEC}))
+    (exams / "midterm-1-20260920-100000.json").write_text(
+        json.dumps({"spec": SPEC}), encoding="utf-8"
+    )
 
     assert find_spec(tmp_path, "CSE220", str(spec_file)).exam == "Midterm 1"
     with pytest.raises(SpecError, match="No created CSE220 exam"):

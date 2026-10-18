@@ -141,7 +141,7 @@ def _note_misconceptions(vault: Vault, concept: Concept) -> list[str]:
     path = vault.concept_path(concept)
     if not path.exists():
         return []
-    body = _FRONT_MATTER.sub("", path.read_text())
+    body = _FRONT_MATTER.sub("", path.read_text(encoding="utf-8"))
     match = re.search(r"^## Misconceptions\n(.*?)(?=^## |\Z)", body, re.MULTILINE | re.DOTALL)
     if not match:
         return []
@@ -155,7 +155,7 @@ def _preference(vault: Vault | None) -> str:
     path = vault.root / "learner" / "profile.md"
     if not path.exists():
         return DEFAULT_PREFERENCE
-    body = _FRONT_MATTER.sub("", path.read_text())
+    body = _FRONT_MATTER.sub("", path.read_text(encoding="utf-8"))
     lines = [ln.strip().lstrip("-*").strip() for ln in body.splitlines()]
     text = "; ".join(ln for ln in lines if ln and not ln.startswith("#"))
     return _clip(text, PREFERENCE_WORDS) or DEFAULT_PREFERENCE

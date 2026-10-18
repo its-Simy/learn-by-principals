@@ -81,7 +81,7 @@ def new_exam(exam_id: str, plan: CoveragePlan, report: GenerationReport) -> dict
 
 def load(path: Path) -> dict[str, Any]:
     try:
-        exam = json.loads(path.read_text())
+        exam = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ExamFileError(f"{path}: {exc}") from exc
     if not isinstance(exam, dict) or not isinstance(exam.get("questions"), list):
@@ -95,7 +95,7 @@ def save(path: Path, exam: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_name(f".{path.name}.{uuid.uuid4().hex}.part")
     try:
-        part.write_text(json.dumps(exam, indent=2, ensure_ascii=False) + "\n")
+        part.write_text(json.dumps(exam, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(part, path)
     finally:
         part.unlink(missing_ok=True)

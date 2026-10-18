@@ -1,3 +1,5 @@
+import os
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -17,7 +19,10 @@ def test_env_overrides(tmp_path):
     assert config.home == tmp_path
     assert config.term == "Fall-2026"
     assert config.db_path == tmp_path / "brightlearn.db"
-    assert config.tmp_dir == Path("/tmp/brightlearn")
+    if os.name == "nt":
+        assert config.tmp_dir == Path(tempfile.gettempdir()) / "brightlearn"
+    else:
+        assert config.tmp_dir == Path("/tmp/brightlearn")
     assert config.storage_root == tmp_path / "courses"
 
 
@@ -43,7 +48,9 @@ def test_routing_defaults_and_config_toml(tmp_path):
         "housekeeping": ("claude", "codex"),
         "classify": ("claude", "codex"),
     }
-    (tmp_path / "config.toml").write_text('[routing]\nteaching = ["codex", "claude"]\n')
+    (tmp_path / "config.toml").write_text(
+        '[routing]\nteaching = ["codex", "claude"]\n', encoding="utf-8"
+    )
     routing = load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing
     assert routing["teaching"] == ("codex", "claude")
     assert routing["analysis"] == ("codex", "claude")
@@ -51,7 +58,9 @@ def test_routing_defaults_and_config_toml(tmp_path):
 
 def test_unknown_provider_names_are_dropped_with_a_warning(tmp_path, caplog):
     """A stale name (Ollama left in BL-052) degrades the order instead of failing every job."""
-    (tmp_path / "config.toml").write_text('[routing]\nclassify = ["ollama", "codex"]\n')
+    (tmp_path / "config.toml").write_text(
+        '[routing]\nclassify = ["ollama", "codex"]\n', encoding="utf-8"
+    )
     routing = load_config({"BRIGHTLEARN_HOME": str(tmp_path)}).routing
     assert routing["classify"] == ("codex",)
     assert "unknown provider(s) ['ollama']" in caplog.text
@@ -62,7 +71,7 @@ def test_a_purpose_with_no_known_provider_is_refused(tmp_path):
 
     from core.config import ConfigError
 
-    (tmp_path / "config.toml").write_text('[routing]\nteaching = ["ollama"]\n')
+    (tmp_path / "config.toml").write_text('[routing]\nteaching = ["ollama"]\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="no known provider"):
         load_config({"BRIGHTLEARN_HOME": str(tmp_path)})
 
@@ -72,6 +81,6 @@ def test_bad_routing_is_refused(tmp_path):
 
     from core.config import ConfigError
 
-    (tmp_path / "config.toml").write_text('[routing]\nteaching = "claude"\n')
+    (tmp_path / "config.toml").write_text('[routing]\nteaching = "claude"\n', encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config({"BRIGHTLEARN_HOME": str(tmp_path)})

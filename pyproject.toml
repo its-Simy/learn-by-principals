@@ -39,7 +39,11 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# PLW1514 (a preview rule, enabled on its own): every text read or write names its encoding, so
+# a Windows console's code page never garbles a transcript or a persona file.
+select = ["E", "F", "I", "UP", "B", "PLW1514"]
+preview = true
+explicit-preview-rules = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -21,12 +21,28 @@ VERSIONS_DIR = "_versions"
 _CHUNK = 1 << 20
 
 
+# Names Windows reserves for devices, with or without an extension (CON.pdf is still CON).
+RESERVED_NAMES = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }
+)
+
+
 def sanitize_filename(name: str) -> str:
-    """Strip path separators and control characters, collapse whitespace, keep the extension."""
-    name = re.sub(r"[/\\\x00-\x1f]", "", name)
+    """Strip path separators, control characters and what Windows won't take (``<>:"|?*``,
+    trailing dots or spaces, device names), collapse whitespace, keep the extension."""
+    name = re.sub(r'[/\\\x00-\x1f<>:"|?*]', "", name)
     stem, ext = os.path.splitext(name)
     stem = re.sub(r"\s+", " ", stem).strip().lstrip(".").strip()
-    ext = re.sub(r"\s+", "", ext)
+    ext = re.sub(r"\s+", "", ext).rstrip(". ")
+    if stem.upper() in RESERVED_NAMES:
+        stem = f"{stem}_"
     return (stem or "untitled") + ext
 
 

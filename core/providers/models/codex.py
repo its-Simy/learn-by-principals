@@ -2,8 +2,9 @@
 
 Flags are NOT verified: ``codex`` wasn't installed when this was written (see problems.md).
 Expected: ``codex exec [--skip-git-repo-check] [--sandbox read-only] [--color never]
-[-o FILE] PROMPT``. The final message is read from the ``-o`` file; the model name and token count
-are parsed from the run's header/footer text, never hardcoded. ``codex exec`` has no system-prompt
+[-o FILE]`` with the prompt on stdin (``codex exec`` reads it there when no prompt argument is
+given). The final message is read from the ``-o`` file; the model name and token count are
+parsed from the run's header/footer text, never hardcoded. ``codex exec`` has no system-prompt
 flag, so the system prompt is prepended to the prompt.
 """
 
@@ -43,7 +44,6 @@ class CodexProvider(CLIModelProvider):
 
     def argv(self, task: TaskPackage) -> list[str]:
         self._last_message = self.scratch_dir / f"last-{uuid.uuid4().hex}.txt"
-        prompt = f"{task.system}\n\n---\n\n{task.user}" if task.system else task.user
         return [
             "exec",
             "--skip-git-repo-check",
@@ -53,14 +53,16 @@ class CodexProvider(CLIModelProvider):
             "never",
             "-o",
             str(self._last_message),
-            prompt,
         ]
+
+    def stdin_text(self, task: TaskPackage) -> str:
+        return f"{task.system}\n\n---\n\n{task.user}" if task.system else task.user
 
     def parse(self, done: Completed) -> tuple[str, str | None, UsageHint | None]:
         output = f"{done.stderr}\n{done.stdout}"
         text = ""
         if self._last_message is not None and self._last_message.exists():
-            text = self._last_message.read_text().strip()
+            text = self._last_message.read_text(encoding="utf-8").strip()
             self._last_message.unlink()
         if done.returncode != 0 or not text:
             if RATE_LIMIT_RE.search(output):

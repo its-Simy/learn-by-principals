@@ -239,7 +239,7 @@ def transcript(session_id: str, conn: DbDep, cfg: ConfigDep) -> TextOut:
     path = Vault(cfg.vault_root).session_transcript_path(session_id)
     for candidate in (path, path.parent / "archive" / path.name):
         if candidate.is_file():
-            return TextOut(text=candidate.read_text())
+            return TextOut(text=candidate.read_text(encoding="utf-8"))
     raise HTTPException(404, f"No transcript for session {session_id}")
 
 

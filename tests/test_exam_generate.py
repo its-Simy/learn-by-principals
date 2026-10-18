@@ -47,7 +47,7 @@ def env(tmp_path):
     manifest = Manifest(conn)
     for n, bucket in [(1, "lectures"), (2, "exams"), (3, "labs")]:
         path = tmp_path / f"{bucket}.pdf"
-        path.write_text(bucket)
+        path.write_text(bucket, encoding="utf-8")
         manifest.upsert(
             ResourceRow(
                 resource_id=f"r{n}",

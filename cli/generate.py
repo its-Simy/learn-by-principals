@@ -46,7 +46,7 @@ def generate(
 ) -> None:
     """Generate a NotebookLM artifact from a course's sources."""
     course = course.upper()
-    instructions = prompt_file.read_text() if prompt_file else None
+    instructions = prompt_file.read_text(encoding="utf-8") if prompt_file else None
     config = load_config()
     conn = connect(config.db_path)
     try:
@@ -57,7 +57,7 @@ def generate(
                 spec = {"instructions": instructions} if instructions else {}
                 quiz = knowledge.generate_quiz(notebook_id, spec)
                 dest = _destination(folder, kind, ".json", out)
-                dest.write_text(json.dumps(quiz, indent=2))
+                dest.write_text(json.dumps(quiz, indent=2), encoding="utf-8")
             elif kind is Kind.audio:
                 path = knowledge.generate_audio(notebook_id, instructions or "", format, length)
                 dest = _move(path, _destination(folder, kind, path.suffix, out))

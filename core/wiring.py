@@ -77,7 +77,9 @@ def session_end_hook(
         analyzer = Analyzer(analysis, LearnerMemory(conn), Vault(config.vault_root))
         try:
             report = analyzer.analyze(
-                tutor.row, tutor.transcript_path.read_text(), estimate[1] if estimate else None
+                tutor.row,
+                tutor.transcript_path.read_text(encoding="utf-8"),
+                estimate[1] if estimate else None,
             )
         except AnalysisError as exc:
             return str(exc)

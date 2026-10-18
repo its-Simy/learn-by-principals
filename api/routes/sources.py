@@ -46,6 +46,17 @@ class NameTooLong(ValueError):
         )
 
 
+# Windows reports a name or path past its limit as WinError 206 (name too long) or 3 (path not
+# found, for a path past MAX_PATH), which Python maps to ENAMETOOLONG or ENOENT.
+WINDOWS_TOO_LONG = frozenset({206, 3})
+
+
+def name_too_long(exc: OSError) -> bool:
+    if exc.errno == errno.ENAMETOOLONG:
+        return True
+    return getattr(exc, "winerror", None) in WINDOWS_TOO_LONG
+
+
 @router.get("/courses/{course}/sources")
 def list_sources(course: CourseDep, conn: DbDep) -> list[SourceOut]:
     """Oldest upload first, the order the link step fills NotebookLM's slots in."""
@@ -87,7 +98,7 @@ def upload(
                 except OSError as exc:
                     # Storing derives longer names (a replaced file's ``_versions`` copy), which
                     # can pass the limit when the name itself is close to it.
-                    if exc.errno == errno.ENAMETOOLONG:
+                    if name_too_long(exc):
                         raise NameTooLong(name) from exc
                     raise
                 imported.append(SourceOut.from_core(result.row))

@@ -63,7 +63,7 @@ def podcast_job(
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True, exist_ok=True)
     instructions = folder / f"{stamp}-podcast.md"
-    instructions.write_text(context.text)
+    instructions.write_text(context.text, encoding="utf-8")
     dest = folder / f"{stamp}-podcast{audio.suffix}"
     shutil.move(audio, dest)
     episode = PodcastStore(r.conn).record(course, context.concept_ids, instructions, dest)
@@ -95,7 +95,7 @@ def podcast_audio(podcast_id: int, conn: DbDep) -> FileResponse:
 def podcast_brief(podcast_id: int, conn: DbDep) -> TextOut:
     """The instructions the episode was generated from."""
     path = episode_file(episode(conn, podcast_id).instruction_path, podcast_id)
-    return TextOut(text=path.read_text())
+    return TextOut(text=path.read_text(encoding="utf-8"))
 
 
 def episode(conn: sqlite3.Connection, podcast_id: int) -> Episode:

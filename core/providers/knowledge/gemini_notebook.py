@@ -215,7 +215,7 @@ class LibraryTransport:
             result = await artifacts.generate_mind_map(
                 notebook_id, source_ids=source_ids, instructions=instructions
             )
-            dest.write_text(json.dumps(result.mind_map, indent=2))
+            dest.write_text(json.dumps(result.mind_map, indent=2), encoding="utf-8")
             return dest
 
         if kind == "audio":
@@ -401,7 +401,7 @@ class GeminiNotebookProvider(KnowledgeProvider):
     def generate_quiz(self, notebook_id: str, spec: dict[str, Any] | None = None) -> dict:
         path = self._generate("generate_quiz", notebook_id, "quiz", dict(spec or {}))
         try:
-            return json.loads(path.read_text())
+            return json.loads(path.read_text(encoding="utf-8"))
         finally:
             path.unlink(missing_ok=True)
 
@@ -589,7 +589,13 @@ def auth_check(config: Config, timeout_s: float = 60.0) -> tuple[bool, str]:
     ]
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout_s, env=notebooklm_env(config)
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_s,
+            env=notebooklm_env(config),
         )
     except subprocess.TimeoutExpired:
         return False, f"`notebooklm auth check` timed out after {timeout_s:.0f}s"

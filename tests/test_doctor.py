@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 import pytest
@@ -8,6 +9,7 @@ from core.memory.db import connect
 from core.memory.schema import SCHEMA_VERSION
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows folders carry ACLs, not mode bits")
 def test_config_warns_when_home_is_readable_by_others(config):
     config.home.mkdir(mode=0o755)
     config.home.chmod(0o755)
@@ -35,7 +37,7 @@ def test_db_check_does_not_create_the_database(config):
 def test_storage_root(config, tmp_path):
     assert doctor.check_storage(config).status is Status.OK
     blocker = tmp_path / "blocker"
-    blocker.write_text("")
+    blocker.write_text("", encoding="utf-8")
     blocked = doctor.Config(**{**config.__dict__, "storage_root": blocker / "courses"})
     assert doctor.check_storage(blocked).status is Status.FAIL
 
@@ -44,7 +46,7 @@ def test_tmp_dir(config):
     assert doctor.check_tmp(config).status is Status.OK
     config.tmp_dir.mkdir()
     assert doctor.check_tmp(config).status is Status.OK
-    (config.tmp_dir / "leftover").write_text("")
+    (config.tmp_dir / "leftover").write_text("", encoding="utf-8")
     assert doctor.check_tmp(config).status is Status.FAIL
 
 

@@ -51,7 +51,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(wiring, "open_knowledge", fake_open_knowledge)
     monkeypatch.setattr(wiring, "open_model", lambda name, config: models[name])
     spec = tmp_path / "cse220-midterm1.yaml"
-    spec.write_text(yaml.safe_dump(SPEC))
+    spec.write_text(yaml.safe_dump(SPEC), encoding="utf-8")
     return spec, models, tmp_path
 
 
@@ -97,12 +97,12 @@ def test_create_writes_json_and_markdown(env):
     spec, models, tmp = env
     path, result = create(spec)
 
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     assert path.name.startswith("midterm-1-")
     assert len(exam["questions"]) == 6
     assert exam["generation"]["critic_provider"] == "codex"
     assert "6 of 6 questions" in result.output
-    md = path.with_suffix(".md").read_text()
+    md = path.with_suffix(".md").read_text(encoding="utf-8")
     assert md.startswith("# Midterm 1 · CSE220")
     assert md.index("## Answer key") > md.index("## 6.")
     assert [t.task_type for t in models["codex"].tasks] == ["critique"]
@@ -111,12 +111,12 @@ def test_create_writes_json_and_markdown(env):
 def test_create_take_grade_writes_one_evidence_row_per_answer(env):
     spec, models, _ = env
     path, _ = create(spec)
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
 
     taken = runner.invoke(app, ["exam", "take", str(path)], input=script(exam))
     assert taken.exit_code == 0, taken.output
     assert "All answered" in taken.output
-    attempt = json.loads(path.read_text())["attempts"][0]
+    attempt = json.loads(path.read_text(encoding="utf-8"))["attempts"][0]
     assert attempt["finished_at"] and len(attempt["answers"]) == 6
     assert all(a["answered_at"] for a in attempt["answers"].values())
 
@@ -141,7 +141,9 @@ def test_create_take_grade_writes_one_evidence_row_per_answer(env):
 def test_grading_twice_does_not_duplicate_evidence(env):
     spec, models, _ = env
     path, _ = create(spec)
-    runner.invoke(app, ["exam", "take", str(path)], input=script(json.loads(path.read_text())))
+    runner.invoke(
+        app, ["exam", "take", str(path)], input=script(json.loads(path.read_text(encoding="utf-8")))
+    )
     first = runner.invoke(app, ["exam", "grade", str(path)])
     before = evidence_rows()
     conn = connect(load_config().db_path)
@@ -159,7 +161,7 @@ def test_grading_twice_does_not_duplicate_evidence(env):
 def test_mastery_moves_through_the_analyzer_rule_and_history(env):
     spec, _, _ = env
     path, _ = create(spec)
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     runner.invoke(app, ["exam", "take", str(path)], input=script(exam, wrong=lambda q: False))
     graded = runner.invoke(app, ["exam", "grade", str(path)])
     assert graded.exit_code == 0, graded.output
@@ -186,7 +188,9 @@ def test_skipped_questions_write_no_evidence(env):
     spec, _, _ = env
     path, _ = create(spec)
     taken = runner.invoke(
-        app, ["exam", "take", str(path)], input=script(json.loads(path.read_text()), skip={0})
+        app,
+        ["exam", "take", str(path)],
+        input=script(json.loads(path.read_text(encoding="utf-8")), skip={0}),
     )
     assert taken.exit_code == 0, taken.output
     graded = runner.invoke(app, ["exam", "grade", str(path)])
@@ -197,14 +201,14 @@ def test_skipped_questions_write_no_evidence(env):
 def test_take_resumes_after_quit_and_rejects_bad_choices(env):
     spec, _, _ = env
     path, _ = create(spec)
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     first_mc = next(q for q in exam["questions"] if q["format"] == "multiple_choice")
     assert first_mc["index"] == 0  # MC questions come first for the first concept here
 
     quit_early = runner.invoke(app, ["exam", "take", str(path)], input="Z\nb\n/quit\n")
     assert quit_early.exit_code == 0, quit_early.output
     assert "pick one of the options by letter" in quit_early.output
-    attempt = json.loads(path.read_text())["attempts"][0]
+    attempt = json.loads(path.read_text(encoding="utf-8"))["attempts"][0]
     assert list(attempt["answers"]) == ["0"] and attempt["finished_at"] is None
 
     refused = runner.invoke(app, ["exam", "grade", str(path)])
@@ -214,14 +218,16 @@ def test_take_resumes_after_quit_and_rejects_bad_choices(env):
     resumed = runner.invoke(app, ["exam", "take", str(path)], input="\n".join(lines) + "\n")
     assert resumed.exit_code == 0, resumed.output
     assert "Resuming attempt 1" in resumed.output
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     assert len(exam["attempts"]) == 1 and len(exam["attempts"][0]["answers"]) == 6
 
 
 def test_failed_open_grading_is_retried_without_regrading_the_rest(env):
     spec, models, _ = env
     path, _ = create(spec)
-    runner.invoke(app, ["exam", "take", str(path)], input=script(json.loads(path.read_text())))
+    runner.invoke(
+        app, ["exam", "take", str(path)], input=script(json.loads(path.read_text(encoding="utf-8")))
+    )
     models["codex"].limited = True
     partial = runner.invoke(app, ["exam", "grade", str(path)])
     assert partial.exit_code == 0, partial.output
@@ -252,7 +258,7 @@ def test_create_refuses_while_a_tutor_session_is_open(env):
 
 def test_invalid_spec_is_a_usage_error(env, tmp_path):
     bad = tmp_path / "bad.yaml"
-    bad.write_text(yaml.safe_dump({**SPEC, "length": 60}))
+    bad.write_text(yaml.safe_dump({**SPEC, "length": 60}), encoding="utf-8")
     result = runner.invoke(app, ["exam", "create", "--spec", str(bad)])
     assert result.exit_code == 2
 
@@ -268,31 +274,30 @@ def test_a_single_provider_makes_an_uncritiqued_exam(env, monkeypatch):
 
     path, result = create(spec)
 
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     assert exam["review"] == "uncritiqued"
     assert "Uncritiqued" in result.output
-    assert (
-        "**Uncritiqued:** no second model reviewed these questions."
-        in path.with_suffix(".md").read_text()
-    )
+    assert "**Uncritiqued:** no second model reviewed these questions." in path.with_suffix(
+        ".md"
+    ).read_text(encoding="utf-8")
     assert models["codex"].tasks == []
 
 
 def test_a_critiqued_exam_says_so(env):
     spec, _, _ = env
     path, result = create(spec)
-    assert json.loads(path.read_text())["review"] == "critiqued"
+    assert json.loads(path.read_text(encoding="utf-8"))["review"] == "critiqued"
     assert "Uncritiqued" not in result.output
 
 
 def test_the_grader_never_runs_on_a_question_writer(env):
     spec, models, _ = env
     path, _ = create(spec)
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     runner.invoke(app, ["exam", "take", str(path)], input=script(exam))
-    exam = json.loads(path.read_text())
+    exam = json.loads(path.read_text(encoding="utf-8"))
     exam["generation"]["generator_providers"] = ["claude", "codex"]  # both wrote questions
-    path.write_text(json.dumps(exam))
+    path.write_text(json.dumps(exam), encoding="utf-8")
 
     graded = runner.invoke(app, ["exam", "grade", str(path)])
 

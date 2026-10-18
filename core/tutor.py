@@ -81,7 +81,8 @@ class Tutor:
         path.write_text(
             f"---\nsession_id: {self.row.session_id}\ncourse: {self.course}\n"
             f"started_at: '{self.row.started_at}'\n---\n\n"
-            f"# Tutor session {self.row.session_id} · {self.course}\n"
+            f"# Tutor session {self.row.session_id} · {self.course}\n",
+            encoding="utf-8",
         )
         if self._challenges is not None:
             self._queue = self._challenges.pending(self.course)
@@ -272,5 +273,5 @@ class Tutor:
             self._learner.touch_session(self.row)
 
     def _append(self, text: str) -> None:
-        with self.transcript_path.open("a") as f:
+        with self.transcript_path.open("a", encoding="utf-8") as f:
             f.write(text)

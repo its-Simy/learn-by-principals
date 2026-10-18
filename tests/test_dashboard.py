@@ -138,7 +138,7 @@ def test_cli_writes_the_page(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["dashboard"])
     assert result.exit_code == 0, result.output
     path = load_config().home / "dashboard.html"
-    assert path.read_text().startswith("<!doctype html>")
+    assert path.read_text(encoding="utf-8").startswith("<!doctype html>")
     assert opened == [path.as_uri()]
     assert CliRunner().invoke(app, ["dashboard", "--no-open"]).exit_code == 0
     assert len(opened) == 1

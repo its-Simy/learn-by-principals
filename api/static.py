@@ -8,7 +8,8 @@ the router's 405.
 
 from __future__ import annotations
 
-from pathlib import Path
+import mimetypes
+from pathlib import Path, PureWindowsPath
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse, Response
@@ -19,6 +20,25 @@ from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocketClose
 
 DIST = Path(__file__).resolve().parents[1] / "web" / "dist"
+# `mimetypes` reads the Windows registry, where .js is sometimes text/plain; a browser then
+# refuses the bundle and the app is blank.
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+
+
+def outside_dist(path: str) -> bool:
+    """A request path that could name something other than a file under dist, judged before
+    ``resolve()`` touches it: on Windows a UNC path (``//host/share``) would make the server
+    open an outbound SMB connection just by resolving it."""
+    return (
+        path.startswith("/")
+        or "\\" in path
+        or PureWindowsPath(path).is_absolute()
+        or PureWindowsPath(path).drive != ""
+        or ".." in path.split("/")
+    )
+
+
 NOT_BUILT = "The web app isn't built yet: run `pnpm --dir web build`, then reload.\n"
 # index.html names the hashed bundles, so the browser must ask again after every build.
 INDEX_HEADERS = {"Cache-Control": "no-cache"}
@@ -59,6 +79,8 @@ def mount_web(app: FastAPI, dist: Path = DIST) -> None:
         index = dist / "index.html"
         if not index.is_file():
             return PlainTextResponse(NOT_BUILT)
+        if outside_dist(path):
+            raise HTTPException(404, "Not a file")
         try:
             file = (dist / path).resolve()
         except ValueError:  # e.g. an embedded NUL byte (/%00)

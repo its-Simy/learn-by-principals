@@ -87,7 +87,7 @@ class FakeTransport:
 
     async def generate(self, notebook_id, kind, options, dest: Path, timeout_s):
         await self._step(f"generate {kind}")
-        dest.write_text(json.dumps({"questions": [{"question": "Q?"}]}))
+        dest.write_text(json.dumps({"questions": [{"question": "Q?"}]}), encoding="utf-8")
         return dest
 
     async def close(self):
@@ -542,7 +542,7 @@ def test_auth_check_without_a_login_explains_where_to_log_in(config, monkeypatch
 
     stray = tmp_path / "nohome/.notebooklm/profiles/default/storage_state.json"
     stray.parent.mkdir(parents=True)
-    stray.write_text("{}")
+    stray.write_text("{}", encoding="utf-8")
     ok, detail = gn.auth_check(config)
     assert not ok and "~/.notebooklm" in detail
 

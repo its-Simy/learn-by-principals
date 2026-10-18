@@ -20,7 +20,7 @@ def kp() -> FakeKnowledge:
 
 def add_row(db, tmp_path, n, bucket, state="synced", added_at="now", **kw) -> ResourceRow:
     path = tmp_path / f"{n}.pdf"
-    path.write_text(f"file {n}")
+    path.write_text(f"file {n}", encoding="utf-8")
     row = ResourceRow(
         resource_id=f"r{n}",
         course="CSE220",

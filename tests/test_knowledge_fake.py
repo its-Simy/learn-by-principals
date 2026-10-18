@@ -10,7 +10,7 @@ def test_fake_knowledge_smoke(tmp_path):
     assert kp.notebooks == {"BrightLearn/CSE220": nb}
 
     syllabus = tmp_path / "syllabus.pdf"
-    syllabus.write_text("Grading: exams 60%, labs 40%")
+    syllabus.write_text("Grading: exams 60%, labs 40%", encoding="utf-8")
     source_id = kp.add_file(nb, syllabus)
     assert [s.source_id for s in kp.list_sources(nb)] == [source_id]
 
