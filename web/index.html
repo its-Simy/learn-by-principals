@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BrightLearn</title>
+    <script>
+      // Pre-paint copy of src/lib/theme.ts (same key, same default: light unless "dark" was saved) so a
+      // saved dark theme never flashes light. theme.ts owns the logic; change both together.
+      try {
+        if (localStorage.getItem("brightlearn.theme") === "dark") {
+          document.documentElement.classList.add("dark")
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

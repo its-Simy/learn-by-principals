@@ -1,0 +1,210 @@
+# BrightLearn — CLAUDE.md
+
+Personal learning platform: course files uploaded by hand → local course folder → NotebookLM (grounded intelligence) → Claude Code / Codex (reasoning, optional) → SQLite + Markdown learner memory. You use it through a local web app (`brightlearn start`: Sources | Chat | Studio) or the CLI. V1 is a one-student prototype with zero metered LLM API spend; anyone can clone it, run `setup.sh` / `setup.cmd` and `start.sh` / `start.cmd`. Tickets: `TICKETS-4.md`; the web design: `docs/web-plan.md`; the dev loop: `CONTRIBUTING.md`.
+
+## Principles (every change must respect these)
+
+1. **No dependency that charges per request.** Free official APIs are fine. Claude, Codex, NotebookLM run on subscription quota.
+2. **Every external dependency lives behind an interface in `core/providers/`.** Nothing outside that directory imports `notebooklm` or makes subprocess calls to `claude` or `codex`.
+3. **Don't delete anything; retrieve selectively.** Archive everything; send models a compiled package of a few thousand tokens.
+4. **Mastery needs evidence.** No score without the `evidence` rows that justify it.
+5. **Infer learning from normal interaction.** No forced quizzes.
+6. **Teaching and evaluation run on different models.**
+7. **Bounded deliberation.** One model, one task by default; cross-model rounds capped at two.
+8. **Measure model strengths; never hardcode them.** Routing reads the `benchmarks` table.
+9. **Course coverage and learner coverage are separate tables.**
+10. **Our ledger (`model_runs`) is the source of truth for usage.**
+11. **Subscriptions power the prototype, not a product.** `ModelProvider` exists so an API swap costs nothing later.
+
+## Repo layout
+
+```
+brightlearn/
+├── core/
+│   ├── config.py
+│   ├── providers/
+│   │   ├── storage/      # base.py, local.py
+│   │   ├── knowledge/    # base.py, gemini_notebook.py (Phase 2)
+│   │   └── models/       # base.py, cli_base.py, claude_code.py, codex.py (Phase 5+)
+│   ├── memory/           # schema.py, db.py, learner.py, vault.py, seeding.py, migrations/vNNN_*.py
+│   ├── sync/             # classify.py, importer.py, link.py
+│   ├── context/          # Context Compiler (Phase 5)
+│   ├── tutor.py          # tutoring session (BL-026)
+│   ├── analysis/         # Analyzer (BL-027), Challenger loop (BL-030)
+│   ├── exams/            # spec, coverage, generate, paper, take, grade (BL-031–033)
+│   ├── podcast/          # compiler.py (learner state -> Audio Overview brief), episodes.py
+│   ├── personas.py       # load / list / render persona files
+│   ├── router/           # router.py (v1: config order, health, benchmarks), benchmarks.py, health.py
+│   ├── maintenance.py    # retention decay + session archive, auto-run daily (BL-038)
+│   ├── wiring.py         # real provider factories and the tutor's assembly; tests patch it (BL-043)
+│   ├── sessions.py       # guard(): one live NotebookLM conversation per course (P66)
+│   ├── doctor.py         # the read-only checks behind `brightlearn doctor`
+│   └── ledger/
+├── personas/             # Markdown skill files, shared by Claude Code and Codex
+├── api/                  # FastAPI behind `brightlearn web`: localhost only, no auth (BL-044)
+│   ├── app.py            # create_app, lifespan, the Host/Origin guard, register_errors (core error → status)
+│   ├── engine.py         # Resources, the interactive + jobs worker threads, Jobs, Engine (lock, tutors, asking)
+│   ├── deps.py           # config, engine, per-request db, course_code, named_file
+│   ├── errors.py         # Conflict (409 {code, detail}), Refused (422 {code, detail}), the 502 body with provider and resets_at
+│   ├── static.py         # serves web/dist with SPA fallback
+│   ├── routes/           # system, courses, sources, chat, concepts, exams, podcasts
+│   └── schemas/          # pydantic models with from_core (system, courses, sources, chat, studio); the only pydantic
+├── cli/                  # app.py (typer root); courses.py, sync.py, ask.py, tutor.py, sessions.py, concepts.py,
+│                         # exam.py, podcast.py, generate.py, web.py (`brightlearn web`), dev.py, …
+├── web/                  # Vite + React + shadcn SPA: src/api (generated types, hooks), src/features/{sources,chat,studio,exams}, src/components
+├── dashboard/            # data.py (queries), render.py (self-contained HTML, inline SVG)
+├── scripts/              # spike_c.py (throwaway spike), dev_server.py (the API on the test fakes, no accounts),
+│                         # env.sh / env.ps1 (what the setup and start scripts share)
+├── tests/                # fakes/
+│   └── e2e/              # the Playwright tour of the web app on scripts/dev_server.py's fakes (BL-053)
+├── setup.sh  setup.cmd (+ setup.ps1)   # one-command setup: uv, pnpm, Node, uv sync, web build, `brightlearn setup`
+├── start.sh  start.cmd  BrightLearn.command   # `uv run brightlearn start`, no activation
+└── .github/workflows/ci.yml   # tests, lint and the web build on macOS, Windows and Ubuntu, plus the scripts
+```
+
+Nothing personal lives in the repo. The vault (transcripts, concept notes, drafts) is at `~/.brightlearn/vault/`; `personas/` stays in the repo because it is code.
+
+Secrets live under `~/.brightlearn/` only: notebooklm-py's `master_token.json` + `storage_state.json` under `~/.brightlearn/notebooklm/` (set `NOTEBOOKLM_HOME` there when running `notebooklm login`). All gitignored. Never write them into the repo, tests, or logs.
+
+## Config
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `home` | `~/.brightlearn` | Secrets directory, mode 700; `BRIGHTLEARN_HOME` overrides |
+| `term` | from the date, e.g. `Fall-2026` | Only the default for new courses (`BRIGHTLEARN_TERM`); `courses add --term` overrides it (the New course dialog asks for a name only). Each course keeps its own term in `courses`. |
+| `storage_root` | `~/.brightlearn/courses` | Canonical course files |
+| `tmp_dir` | `/tmp/brightlearn` (the OS temp folder on Windows) | Upload staging; always emptied; `ensure_home` creates it |
+| `db_path` | `~/.brightlearn/brightlearn.db` | |
+| `vault_root` | `~/.brightlearn/vault` | Markdown vault; `BRIGHTLEARN_VAULT` overrides |
+| `retention_half_life_days` | `21` | `BRIGHTLEARN_RETENTION_HALF_LIFE_DAYS` |
+| `routing` | teaching `claude, codex`; analysis `codex, claude`; housekeeping `claude, codex`; classify `claude, codex` | `[routing]` in `~/.brightlearn/config.toml`; keys are purposes or task types (a task type's own key wins). Unknown provider names are dropped with a warning. |
+
+Everything else is set with `BRIGHTLEARN_*` environment variables; `~/.brightlearn/config.toml` holds only `[routing]` so far (`brightlearn setup` writes it once, every line commented out). The web app's port is not config: `brightlearn web --port` (default `8765`, always on 127.0.0.1).
+
+## Provider interfaces
+
+```python
+class StorageBackend(ABC):
+    def ensure_folder(self, path: str) -> Path                            # absolute path of storage_root/path
+    def store(self, src: Path, rel_dir: str, name: str) -> StoreResult    # StoreResult(path, sha256, size); hash computed on write;
+                                                                          # a replaced file is kept as rel_dir/_versions/{name}.{old_hash[:8]}
+    def exists(self, rel_path: str) -> bool
+    def list(self, rel_dir: str) -> list[Path]
+
+class KnowledgeProvider(ABC):
+    def ensure_notebook(self, course: str) -> str
+    def add_file(self, notebook_id: str, path: Path) -> str                # file upload; returns source_id
+    def remove_source(self, source_id: str) -> None
+    def list_sources(self, notebook_id: str) -> list[SourceMeta]
+    def refresh_source(self, source_id: str) -> None
+    def query(self, notebook_id: str, question: str, source_ids=None, conversation=None) -> GroundedAnswer
+                                                  # conversation=None: fresh NotebookLM conversation; a Conversation handle: one per tutor session
+    def source_fulltext(self, source_id: str) -> str
+    def generate_quiz(self, notebook_id: str, spec) -> dict
+    def generate_audio(self, notebook_id: str, instructions_md: str, format: str, length: str) -> Path
+    def generate(self, notebook_id: str, kind: str, options: dict) -> Path
+    def health(self) -> ProviderState
+
+class ModelProvider(ABC):
+    def run(self, task: TaskPackage) -> ModelResult
+    def health(self) -> ProviderState
+    def usage_hint(self) -> UsageHint | None
+```
+
+Provider states: `AVAILABLE → LIMITED → RATE_LIMITED → AUTH_EXPIRED → BROKEN → DISABLED`.
+
+Implementations (V1): `LocalStorageBackend` · `GeminiNotebookProvider` (Android/gRPC transport primary, web fallback) · `ClaudeCodeProvider`, `CodexProvider`.
+
+## Data model (SQLite)
+
+Migrations live one per file in `core/memory/migrations/vNNN_<name>.py`, applied in order and tracked in `PRAGMA user_version` (rules under Conventions).
+
+```
+courses:     course (PK: the code in folder and notebook names), name, term, created_at  (v13, BL-042)
+resources:   resource_id (PK), course, title, filename, bucket, local_path, hash, size, url,
+             notebook_id, notebook_source_id, source_hash,
+             sync_state (synced|stale|failed|link|deferred), added_at                    (v13, BL-042)
+             -- one row per stored course file; a re-upload of the same name in the same bucket
+             -- is a new version of that row (stale once linked, the old bytes in _versions/)
+             -- hash: sha256 of the local file; source_hash: hash of the file currently in NotebookLM
+             -- rows from before v13 keep their files and links, with ids `topic:{n}`
+notebooks:   course (PK), notebook_id, created_at   -- the course's NotebookLM notebook    (BL-014)
+model_runs:  run_id, provider, model, task_type, persona, started_at, duration_ms, success,
+             input_tokens_est, output_tokens_est, fallback_from, error
+concepts:    concept_id (PK), course, name, module, prerequisites, exam_tags, week,
+             status (active|retired)   -- retired, never deleted                        (Phase 4)
+mastery:     concept_id, level 0-5, confidence, evidence_count, last_evidence_at,
+             retention_confidence, last_reviewed                                         (Phase 4)
+evidence:    evidence_id, concept_id, session_id, type, strength, source_provider,
+             excerpt_ref, recorded_at   (append-only)                                    (Phase 4)
+sessions:    session_id, course, started_at, ended_at, tutor_provider, analyzer_provider,
+             summary_path, last_turn_at                                                  (Phase 4)
+mastery_history: id, concept_id, old_level, new_level, confidence, evidence_ids (JSON),
+             changed_at, changed_by (analyzer|manual|challenger)
+             (append-only; one row per set_mastery)
+challenges:  id, concept_id, session_id, reason, question,
+             status (pending|asked|answered|resolved), created_at,
+             proposed_level (the Analyzer's jump; NULL if raised by a tutor estimate),
+             evidence_ids (JSON: the evidence behind that proposal)
+             -- at most one unresolved challenge per concept                             (BL-030)
+podcasts:    id, course, concepts (JSON concept ids), instruction_path, audio_path,
+             created_at                                                                  (BL-034)
+benchmarks:  provider, task_type, accuracy, groundedness, format_compliance,
+             latency_ms, learner_rating, sample_count                                    (BL-035)
+             -- a VIEW averaging benchmark_samples (provider, task_type, metric, value,
+             -- recorded_at; append-only); sample_count = runs measured
+provider_health: provider (PK), state, checked_at, cooldown_until, detail               (BL-035)
+maintenance_runs: id, ran_at, trigger (manual|auto), decayed, archived, closed          (BL-038)
+```
+
+Storage tree: `storage_root/{term}/{course_code}/{bucket}/{filename}`, the term from the course's `courses` row, with buckets `syllabus | lectures | assignments | labs | readings | exams | code | other`. Every bucket but `code` is linked to NotebookLM. A stored file is identified by `local_path` + `hash`. Generated artifacts and podcasts go in the course folder's `_generated/`; exams, concept drafts and transcripts go in the vault.
+
+## Conventions
+
+- Python 3.12, `ruff`, `pytest`. Type hints everywhere. Dataclasses for models.
+- Setup, safe in any worktree: `./setup.sh --dev --skip-login` (`setup.cmd --dev --skip-login` on Windows). It uses uv's own Python 3.12, syncs from `uv.lock`, builds the web app and keeps the environment outside an iCloud- or OneDrive-synced folder (the sync re-hides the editable install's `.pth`; `.venv` is then a link to `~/.venvs/<repo>`). Never a bare `pip install`; after editing `pyproject.toml`, `uv lock` and re-run the script. Details in `CONTRIBUTING.md`.
+- Before committing: `uv run pytest -q` (the `unit` and `integration` tiers), `uv run ruff check .` and `uv run ruff format --check .`; for a web change, `pnpm --dir web typecheck && pnpm --dir web build` too. Before promoting `dev` to `main`: the `e2e` tier, `uv run pytest -m e2e tests/e2e` (the Playwright tour). CI runs the suite, lint and the web build on macOS, Windows and Ubuntu, and the tour on Ubuntu; the tiers are in `tests/README.md`. The web app's own conventions are in `web/README.md`.
+- Windows is a target: every text read and write names `encoding="utf-8"` (ruff `PLW1514`), prompts go to a model CLI on stdin, paths are compared with `as_posix()` or `Path`, and a POSIX-only test is skipped on `os.name == "nt"`, not deleted.
+- Tests use fakes in `tests/fakes/`; no network in tests. `scripts/dev_server.py` serves the API on the same fakes against a scratch `--home`, so the UI can be tried with no accounts.
+- `api/` never imports `cli/`; both sit on `core/` (`tests/test_principles.py` checks it). The API holds no business logic of its own: a rule it needs goes in `core/`, and a route makes the same core calls as its CLI command.
+- Routes are plain `def`, so FastAPI runs them in its threadpool and a five-minute model call never blocks the event loop. Pydantic lives only under `api/schemas/`, each model with a `from_core`; core stays dataclasses.
+- The contract step: whenever a route or schema changes, run `brightlearn dev openapi --out web/openapi.json && pnpm --dir web gen` and commit both files. `tests/test_api_openapi.py` fails until `web/openapi.json` matches the app.
+- `dev` commands skip auto-maintenance, as `doctor`, `setup` and `maintain` do, so `brightlearn dev openapi` never opens or migrates the real database (P102).
+- Uploads stage in `config.tmp_dir/{uuid}`, always deleted in a `finally`.
+- Log with `logging`, never `print`, except in CLI output via `rich`.
+- Branches: work lands on `dev`; `main` is promoted from `dev` by pull request once CI is green and the tour has passed, and is never pushed to directly (`CONTRIBUTING.md` has the protection settings). Commit messages are unchanged.
+- Commit message format: `BL-0XX: <ticket title>`.
+- Migrations: sequential integers, one file each (`core/memory/migrations/vNNN_<name>.py`, literal SQL that never imports shared constants). Never renumber or edit a committed one; a schema change is a new file. `tests/test_migrations.py` checksums every committed migration and applies them all from v0 on an empty database.
+
+## Not in V1
+
+- Drive automation (can return via StorageBackend)
+- Auth or remote access for the web app: it serves 127.0.0.1 only
+
+## Decision log
+
+Newest first. Add a row whenever a principle is bent or a provider choice changes.
+
+| Date | Decision | Why |
+| --- | --- | --- |
+| Oct 18, 2026 | Work lands on `dev`, and `main` is promoted from `dev` by pull request once CI is green and the Playwright tour passes, never pushed to directly; CI runs on pushes to both and on every pull request. Tests are tiered by a marker set from their path (`unit`, `integration`, `e2e`): `uv run pytest -q` runs the first two, and `uv run pytest -m e2e tests/e2e` runs the tour, which drives the built web app on `scripts/dev_server.py`'s fakes and runs in CI as its own `e2e` job. CI also holds the suite to a coverage threshold. | BL-053, BL-054. Open-sourcing needs a branch anyone can target and a gate that exercises the UI, not only the API; the fakes make the tour deterministic and let it run without accounts. |
+| Oct 18, 2026 | One-command setup and start for anyone who clones: `setup.sh` / `setup.cmd` install uv (and its Python 3.12), pnpm and Node when missing, sync from a committed `uv.lock`, build the web app and hand over to `brightlearn setup`; `start.sh` / `start.cmd` run `brightlearn start`. notebooklm-py is a plain dependency (the minimum product is NotebookLM alone); Claude Code and Codex are optional tiers the app names when they are missing. The environment lives outside an iCloud/OneDrive-synced folder via `UV_PROJECT_ENVIRONMENT`. Prompts reach the model CLIs on stdin. CI runs on macOS, Windows and Ubuntu. | BL-052. Open-sourcing: a clone must run on a stranger's Mac or Windows machine without the author's shell habits (`env -u CONDA_PREFIX`, `chflags`), and an npm `.cmd` shim on Windows re-parses argv through cmd.exe. |
+| Oct 18, 2026 | Ollama is removed for now: the provider, its config and doctor row, and its place in the routing defaults. A name in `[routing]` that no provider implements is dropped with a warning. | BL-052. Simon's call: two model CLIs are enough for V1, and a local model can return later behind `ModelProvider` with no change to the router (its `task_types` rule stays). |
+| Oct 18, 2026 | The web app reads as a general learning tool, closer to NotebookLM: a new course asks for a name only and `Courses.code_for` derives the code (the upper-cased slug, deduped with `-2`, `-3`), so the card, the top bar, the jobs popover and the dashboard show the name and the term is set only by `courses add --term`; the top bar is the word "BrightLearn" with no mark; both themes use NotebookLM's greys (light `#f8fafd` page / white panels, dark `#1f1f1f` / `#28292a`) with light as the default and the OS preference ignored; Studio opens on tiles, then the chosen tool's view, with the course's jobs and a compact list of everything made under the tiles. | BL-051. Simon's decisions: it is a learning tool that happens to work for school, so a course code and a term are storage details, and the Studio should read like NotebookLM's (pick a box, then its specifics). |
+| Oct 17, 2026 | The web app is chat-first, after NotebookLM's three panes: Sources and Studio are rails that collapse to an icon strip (sheets below `lg`), and one chat follows the session state, a grounded ask on the checked sources with no session and a tutor turn with one ("Sources only" sends `/ask`). Every wait shows its step and elapsed time, and every empty pane names the next action. | BL-047–049. During a session an ask already goes through the tutor's own NotebookLM conversation (P66), so one stream shows what the API does; and a tutor turn or the Analyzer can take minutes, so a wait must say what it is waiting for. |
+| Oct 17, 2026 | A no-session `ask` marks its course in `Engine.asking` until its answer returns; seed and exam create return 409 `ask_running` meanwhile. Both sides check under `Engine.lock`. | P100. Their fresh conversation on the jobs worker would delete the ask's mid-answer, and holding the lock over the query would block those submits for a NotebookLM round trip. |
+| Oct 17, 2026 | Taking and grading an exam never overlap: take steps return 409 `job_running` while an `exam_grade` job is queued or running on the course, and Grade queues only a handed-in attempt (422 otherwise). | P101. The grader rewrites the exam file from the copy it loaded, so an answer saved in between would be lost. |
+| Oct 17, 2026 | `brightlearn web` is FastAPI over the core with no business logic of its own, on 127.0.0.1 with no auth; a Host check (400) and a same-origin check on writes (403 `cross_origin`) keep other sites' pages out. Two worker threads (`interactive`: tutor and asks; `jobs`: link, seed, exams, podcast) each own a NotebookLM provider, the model providers and a connection; reads and DB-only writes use a per-request SQLite connection; and one `Engine.lock` covers each check-then-register between them. | BL-044, BL-045 (P98, P99). The provider, the router and a live tutor aren't thread-safe, so each gets one owner thread; binding localhost keeps other machines out, but not DNS rebinding or a cross-site form post. |
+| Oct 17, 2026 | Uploads in the `other` bucket are linked to NotebookLM; only `code` is skipped. | P96. Every file is now chosen by hand, so `other` is not junk; names without a keyword were never reaching NotebookLM. |
+| Oct 17, 2026 | Brightspace automation removed; files are uploaded by hand. `LMSProvider` is gone; the storage tree, buckets and link step are unchanged. Courses are rows of their own (`courses add`), each with its term folder; v13 keys `resources` by `resource_id` and keeps every old row as `topic:{id}`. `sync` only links stored files to NotebookLM. | BL-042. The Playwright login and `/d2l/api` downloads can't be used, so Simon adds course files himself; principles 1 and 2 no longer mention Brightspace or `playwright`. |
+| Sept 24, 2026 | Migrations are sequential integers, one file each under `core/memory/migrations/`, never renumbered or edited once committed. A test checksums each one and applies them all from v0 on an empty database. | BL-040 (P70). A committed migration may already have run on a real database, so changing it would split the history. |
+| Sept 24, 2026 | A tutor session with no turn for 2 hours is stale: `ask` and the other guarded commands say so and offer `sessions close`. `maintain` closes sessions idle more than 24 hours, without running the Analyzer. Sessions record `last_turn_at` (v12). | BL-040 (P67). A crashed session shouldn't block a course for long. |
+| Sept 24, 2026 | One fallback per task, recorded in `fallback_from`; a preferred provider skipped as unusable counts as that fallback. The Critic and the exam grader never run on a provider that wrote the questions. With only one provider, critique is skipped and the exam is marked `"review": "uncritiqued"`. | BL-040 (P79, P80, P85). |
+| Sept 24, 2026 | `concepts apply` upserts by concept id, keeping the `{course}/{slug(name)}` format. Concepts missing from the reviewed draft get `status = retired` (v11), never deleted, with mastery and evidence untouched. An optional `aliases: [...]` maps a renamed concept to its existing row. `apply` prints added / updated / retired counts. | BL-040. Requested under "P74", but this is P46 (concept ids); Simon chose to keep today's id format. P74 (weeks) is unchanged. |
+| Sept 24, 2026 | A Challenger probe on an Analyzer-proposed jump, resolved in the learner's favour (its grade proposes the challenged level or more), sets mastery to the Analyzer's full proposed level, citing the original evidence plus the exchange, `changed_by = "challenger"` (v9, v10). A failed probe writes its evidence only, resolves the challenge and changes no level. A probe raised by a tutor-estimate disagreement never changes a level. Never an average. | BL-040 (P72). Simon's decisions. |
+| Sept 23, 2026 | Router v1 replaces v0: the `[routing]` order per task type, minus unusable providers, re-ordered by the `benchmarks` composite once every candidate has 10+ measured runs. It falls back on any model error, not only rate limits. Principle 8's exception now covers only the config order used before there's data. | BL-035. The benchmarks are measured, not decreed, and the config order is only the cold start. |
+| Sept 23, 2026 | While a course has an open tutor session, nothing else starts a NotebookLM conversation on it: `ask`, `concepts seed` and a second `tutor` refuse; `/ask` inside the session uses its conversation. `brightlearn sessions close` ends a stuck one. | A fresh conversation deletes the latest one, which is the live tutor's (P66). |
+| Sept 23, 2026 | Model routing v0 is a fixed order per purpose, read from `[routing]` in `~/.brightlearn/config.toml` (teaching `claude, codex`; analysis `codex, claude`). A temporary exception to principle 8 until the benchmarks table exists (Phase 10). | The ticket asked for v0; keeping the order in config makes it data, not code. |
+| Sept 23, 2026 | The vault moves out of the repo to `~/.brightlearn/vault/`; it is no longer git-versioned. | Transcripts and mastery are personal; nothing personal should be committable. |
+| Sept 23, 2026 | Every NotebookLM query starts a fresh conversation (the provider deletes the notebook's latest one first); a tutor session keeps one conversation of its own. NotebookLM's chat history for BrightLearn notebooks is not kept; the ledger and transcripts are the record. | Otherwise NotebookLM carries hidden history into the Context Compiler's minimal package. |
+| Sept 23, 2026 | A changed course file is kept in `_versions/` before it is replaced. | Principle 3: a corrected lecture's old version is exactly what you'd want back. |

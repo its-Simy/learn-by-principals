@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-pending: var(--pending);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/*
+ * NotebookLM's greys: a light grey page with white panels, or a dark grey page with lighter grey
+ * panels, never pure black. Light is the default (lib/theme.ts); the tokens do all the work and no
+ * component carries a `dark:` class of its own.
+ *
+ * Semantic state colours: the only colours a StateBadge or HealthDot uses, always next to text.
+ * Each passes 4.5:1 as text on bg-muted (the lowest-contrast surface in each theme):
+ *   light, on #f0f4f9   success #047857 4.97:1   warning #9a4a00 5.67:1   pending #1d4ed8 6.07:1
+ *   dark,  on #303134   success #34d399 6.77:1   warning #fbbf24 7.79:1   pending #60a5fa 5.12:1
+ */
+:root {
+    color-scheme: light;
+    --success: #047857;
+    --warning: #9a4a00;
+    --pending: #1d4ed8;
+    --radius: 0.625rem;
+    --background: #f8fafd;
+    --foreground: #1f1f1f;
+    --card: #ffffff;
+    --card-foreground: #1f1f1f;
+    --popover: #ffffff;
+    --popover-foreground: #1f1f1f;
+    --primary: #1f1f1f;
+    --primary-foreground: #ffffff;
+    --secondary: #e9eef6;
+    --secondary-foreground: #1f1f1f;
+    --muted: #f0f4f9;
+    --muted-foreground: #444746;
+    --accent: #e9eef6;
+    --accent-foreground: #1f1f1f;
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: #dadce0;
+    --input: #c4c7c5;
+    --ring: #747775;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: #ffffff;
+    --sidebar-foreground: #1f1f1f;
+    --sidebar-primary: #1f1f1f;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e9eef6;
+    --sidebar-accent-foreground: #1f1f1f;
+    --sidebar-border: #dadce0;
+    --sidebar-ring: #747775;
+}
+
+.dark {
+    color-scheme: dark;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --pending: #60a5fa;
+    --background: #1f1f1f;
+    --foreground: #e3e3e3;
+    --card: #28292a;
+    --card-foreground: #e3e3e3;
+    --popover: #333537;
+    --popover-foreground: #e3e3e3;
+    --primary: #e3e3e3;
+    --primary-foreground: #1f1f1f;
+    --secondary: #333537;
+    --secondary-foreground: #e3e3e3;
+    --muted: #303134;
+    --muted-foreground: #c4c7c5;
+    --accent: #333537;
+    --accent-foreground: #e3e3e3;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #444746;
+    --input: #5f6368;
+    --ring: #8e918f;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: #28292a;
+    --sidebar-foreground: #e3e3e3;
+    --sidebar-primary: #e3e3e3;
+    --sidebar-primary-foreground: #1f1f1f;
+    --sidebar-accent: #333537;
+    --sidebar-accent-foreground: #e3e3e3;
+    --sidebar-border: #444746;
+    --sidebar-ring: #8e918f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+}

@@ -1,0 +1,461 @@
+"""Learner memory: concepts, mastery, append-only evidence, tutoring sessions.
+
+Mastery levels: 0 unseen, 1 exposed, 2 explained, 3 applied, 4 transferred, 5 retained.
+Retention confidence decays with time since the last evidence; the level itself never decays.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import uuid
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+
+from core.ledger.ledger import utcnow
+from core.memory.schema import EVIDENCE_STRENGTHS, EVIDENCE_TYPES, MASTERY_CHANGERS
+
+# Retention decay: halves every HALF_LIFE_DAYS since the concept's latest evidence (BL-038;
+# `retention_half_life_days` in config).
+HALF_LIFE_DAYS = 21.0
+
+
+class LearnerError(Exception):
+    pass
+
+
+class MasteryWithoutEvidence(LearnerError):
+    """Principle 4: a mastery score needs the evidence rows that justify it."""
+
+
+@dataclass
+class Concept:
+    concept_id: str
+    course: str
+    name: str
+    module: str | None = None
+    prerequisites: list[str] = field(default_factory=list)
+    exam_tags: list[str] = field(default_factory=list)
+    week: int | None = None
+    status: str = "active"  # "retired" once a reviewed draft drops it (never deleted)
+
+
+@dataclass
+class Mastery:
+    concept_id: str
+    level: int = 0
+    confidence: float = 0.0
+    evidence_count: int = 0
+    last_evidence_at: str | None = None
+    retention_confidence: float | None = None
+    last_reviewed: str | None = None
+
+
+@dataclass(frozen=True)
+class Evidence:
+    evidence_id: str
+    concept_id: str
+    session_id: str | None
+    type: str
+    strength: str
+    source_provider: str | None
+    excerpt_ref: str | None
+    recorded_at: str
+
+
+@dataclass(frozen=True)
+class MasteryChange:
+    id: int
+    concept_id: str
+    old_level: int | None
+    new_level: int
+    confidence: float
+    evidence_ids: list[str]
+    changed_at: str
+    changed_by: str
+
+
+@dataclass
+class SessionRow:
+    session_id: str
+    course: str
+    started_at: str
+    ended_at: str | None = None
+    tutor_provider: str | None = None
+    analyzer_provider: str | None = None
+    summary_path: str | None = None
+    last_turn_at: str | None = None
+
+
+def idle_for(session: SessionRow, now: datetime) -> timedelta:
+    """How long since the session's last turn (or its start, if it never had one)."""
+    return now - _as_datetime(session.last_turn_at or session.started_at)
+
+
+def _as_datetime(value: str | datetime) -> datetime:
+    return value if isinstance(value, datetime) else datetime.fromisoformat(value)
+
+
+def retention(
+    confidence: float, days_since_evidence: float, half_life_days: float = HALF_LIFE_DAYS
+) -> float:
+    return confidence * 0.5 ** (max(days_since_evidence, 0.0) / half_life_days)
+
+
+@dataclass(frozen=True)
+class RetentionChange:
+    concept_id: str
+    old: float | None
+    new: float
+    days_since_evidence: float
+
+
+def _concept(row: sqlite3.Row) -> Concept:
+    return Concept(
+        concept_id=row["concept_id"],
+        course=row["course"],
+        name=row["name"],
+        module=row["module"],
+        prerequisites=json.loads(row["prerequisites"]),
+        exam_tags=json.loads(row["exam_tags"]),
+        week=row["week"],
+        status=row["status"],
+    )
+
+
+def _mastery(row: sqlite3.Row) -> Mastery:
+    return Mastery(**{k: row[k] for k in Mastery.__dataclass_fields__})
+
+
+class LearnerMemory:
+    def __init__(self, conn: sqlite3.Connection, now: Callable[[], str] = utcnow) -> None:
+        self.conn = conn
+        self._now = now
+
+    # -- concepts ----------------------------------------------------------------------------
+
+    def upsert_concept(self, concept: Concept) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO concepts (concept_id, course, name, module, prerequisites, exam_tags,"
+                " week, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (concept_id) DO UPDATE"
+                " SET course = excluded.course, name = excluded.name, module = excluded.module,"
+                " prerequisites = excluded.prerequisites, exam_tags = excluded.exam_tags,"
+                " week = excluded.week, status = excluded.status",
+                (
+                    concept.concept_id,
+                    concept.course,
+                    concept.name,
+                    concept.module,
+                    json.dumps(concept.prerequisites),
+                    json.dumps(concept.exam_tags),
+                    concept.week,
+                    concept.status,
+                ),
+            )
+
+    def get_concept(self, concept_id: str) -> Concept | None:
+        row = self.conn.execute(
+            "SELECT * FROM concepts WHERE concept_id = ?", (concept_id,)
+        ).fetchone()
+        return _concept(row) if row else None
+
+    def concepts(self, course: str, include_retired: bool = False) -> list[Concept]:
+        """The course's concepts; retired ones only when asked for."""
+        sql = "SELECT * FROM concepts WHERE course = ?"
+        if not include_retired:
+            sql += " AND status = 'active'"
+        rows = self.conn.execute(sql + " ORDER BY concept_id", (course,))
+        return [_concept(r) for r in rows]
+
+    def retire_concept(self, concept_id: str) -> None:
+        """Mark a concept retired. Its row, mastery and evidence stay exactly as they are."""
+        with self.conn:
+            self.conn.execute(
+                "UPDATE concepts SET status = 'retired' WHERE concept_id = ?", (concept_id,)
+            )
+
+    # -- mastery and evidence ----------------------------------------------------------------
+
+    def get_mastery(self, concept_id: str) -> Mastery | None:
+        row = self.conn.execute(
+            "SELECT * FROM mastery WHERE concept_id = ?", (concept_id,)
+        ).fetchone()
+        return _mastery(row) if row else None
+
+    def add_evidence(
+        self,
+        concept_id: str,
+        type: str,
+        strength: str,
+        session_id: str | None = None,
+        source_provider: str | None = None,
+        excerpt_ref: str | None = None,
+    ) -> str:
+        if type not in EVIDENCE_TYPES:
+            raise LearnerError(f"Evidence type {type!r} is not one of {EVIDENCE_TYPES}")
+        if strength not in EVIDENCE_STRENGTHS:
+            raise LearnerError(f"Evidence strength {strength!r} is not one of {EVIDENCE_STRENGTHS}")
+        if self.get_concept(concept_id) is None:
+            raise LearnerError(f"Unknown concept {concept_id!r}")
+        evidence_id = uuid.uuid4().hex
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO evidence (evidence_id, concept_id, session_id, type, strength,"
+                " source_provider, excerpt_ref, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    evidence_id,
+                    concept_id,
+                    session_id,
+                    type,
+                    strength,
+                    source_provider,
+                    excerpt_ref,
+                    self._now(),
+                ),
+            )
+        return evidence_id
+
+    def evidence(self, concept_id: str) -> list[Evidence]:
+        rows = self.conn.execute(
+            "SELECT * FROM evidence WHERE concept_id = ? ORDER BY recorded_at, rowid", (concept_id,)
+        )
+        return [Evidence(**dict(r)) for r in rows]
+
+    def set_mastery(
+        self,
+        concept_id: str,
+        level: int,
+        confidence: float,
+        evidence_ids: Iterable[str],
+        changed_by: str = "manual",
+    ) -> Mastery:
+        """Set a concept's mastery, justified by ``evidence_ids`` (which must be this concept's).
+
+        Every call also appends a ``mastery_history`` row naming those evidence ids.
+        """
+        evidence_ids = list(evidence_ids)
+        if not evidence_ids:
+            raise MasteryWithoutEvidence(f"set_mastery({concept_id!r}) needs evidence ids")
+        if changed_by not in MASTERY_CHANGERS:
+            raise LearnerError(f"changed_by {changed_by!r} is not one of {MASTERY_CHANGERS}")
+        if not 0 <= level <= 5:
+            raise LearnerError(f"Mastery level {level} is outside 0-5")
+        if not 0.0 <= confidence <= 1.0:
+            raise LearnerError(f"Confidence {confidence} is outside 0-1")
+        marks = ", ".join("?" for _ in evidence_ids)
+        found = {
+            r["evidence_id"]
+            for r in self.conn.execute(
+                "SELECT evidence_id FROM evidence"
+                f" WHERE concept_id = ? AND evidence_id IN ({marks})",
+                (concept_id, *evidence_ids),
+            )
+        }
+        missing = sorted(set(evidence_ids) - found)
+        if missing:
+            raise MasteryWithoutEvidence(f"Evidence {missing} doesn't exist for {concept_id!r}")
+        count, last = self.conn.execute(
+            "SELECT count(*), max(recorded_at) FROM evidence WHERE concept_id = ?", (concept_id,)
+        ).fetchone()
+        previous = self.get_mastery(concept_id)
+        mastery = Mastery(
+            concept_id=concept_id,
+            level=level,
+            confidence=confidence,
+            evidence_count=count,
+            last_evidence_at=last,
+            retention_confidence=confidence,
+            last_reviewed=self._now(),
+        )
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO mastery (concept_id, level, confidence, evidence_count,"
+                " last_evidence_at, retention_confidence, last_reviewed)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    mastery.concept_id,
+                    mastery.level,
+                    mastery.confidence,
+                    mastery.evidence_count,
+                    mastery.last_evidence_at,
+                    mastery.retention_confidence,
+                    mastery.last_reviewed,
+                ),
+            )
+            self.conn.execute(
+                "INSERT INTO mastery_history (concept_id, old_level, new_level, confidence,"
+                " evidence_ids, changed_at, changed_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    concept_id,
+                    previous.level if previous else None,
+                    level,
+                    confidence,
+                    json.dumps(evidence_ids),
+                    mastery.last_reviewed,
+                    changed_by,
+                ),
+            )
+        return mastery
+
+    def mastery_history(self, concept_id: str) -> list[MasteryChange]:
+        rows = self.conn.execute(
+            "SELECT * FROM mastery_history WHERE concept_id = ? ORDER BY id", (concept_id,)
+        )
+        return [
+            MasteryChange(**{**dict(r), "evidence_ids": json.loads(r["evidence_ids"])})
+            for r in rows
+        ]
+
+    def weakest(
+        self, course: str, n: int, exam_tag: str | None = None
+    ) -> list[tuple[Concept, Mastery]]:
+        """Lowest level first, then lowest retention, then lowest confidence. Unseen = level 0."""
+        sql = (
+            "SELECT c.*, m.level, m.confidence, m.evidence_count, m.last_evidence_at,"
+            " m.retention_confidence, m.last_reviewed"
+            " FROM concepts c LEFT JOIN mastery m ON m.concept_id = c.concept_id"
+            " WHERE c.course = ? AND c.status = 'active'"
+        )
+        args: list[object] = [course]
+        if exam_tag is not None:
+            sql += " AND EXISTS (SELECT 1 FROM json_each(c.exam_tags) WHERE value = ?)"
+            args.append(exam_tag)
+        sql += (
+            " ORDER BY coalesce(m.level, 0), coalesce(m.retention_confidence, 0),"
+            " coalesce(m.confidence, 0), c.name LIMIT ?"
+        )
+        args.append(n)
+        result = []
+        for row in self.conn.execute(sql, args):
+            mastery = Mastery(
+                concept_id=row["concept_id"],
+                level=row["level"] or 0,
+                confidence=row["confidence"] or 0.0,
+                evidence_count=row["evidence_count"] or 0,
+                last_evidence_at=row["last_evidence_at"],
+                retention_confidence=row["retention_confidence"],
+                last_reviewed=row["last_reviewed"],
+            )
+            result.append((_concept(row), mastery))
+        return result
+
+    def decay_retention(
+        self,
+        now: str | datetime,
+        half_life_days: float = HALF_LIFE_DAYS,
+        fresh_since: str | datetime | None = None,
+    ) -> list[RetentionChange]:
+        """Recompute retention_confidence from the time since each concept's latest evidence.
+
+        Concepts with evidence newer than ``fresh_since`` (the previous maintenance run) are left
+        untouched. Idempotent for a given ``now``: retention is derived from ``confidence``, not
+        from its own previous value. Returns the rows that changed.
+        """
+        now_dt = _as_datetime(now)
+        fresh_dt = _as_datetime(fresh_since) if fresh_since is not None else None
+        rows = self.conn.execute(
+            "SELECT m.concept_id, m.confidence, m.retention_confidence,"
+            " coalesce((SELECT max(recorded_at) FROM evidence e"
+            "           WHERE e.concept_id = m.concept_id), m.last_evidence_at) AS latest"
+            " FROM mastery m"
+        ).fetchall()
+        changes = []
+        for row in rows:
+            if row["latest"] is None:
+                continue
+            latest = _as_datetime(row["latest"])
+            if fresh_dt is not None and latest > fresh_dt:
+                continue  # fresh evidence since the last run: untouched
+            days = (now_dt - latest).total_seconds() / 86400
+            value = round(retention(row["confidence"], days, half_life_days), 6)
+            if value != row["retention_confidence"]:
+                changes.append(
+                    RetentionChange(row["concept_id"], row["retention_confidence"], value, days)
+                )
+        with self.conn:
+            for change in changes:
+                self.conn.execute(
+                    "UPDATE mastery SET retention_confidence = ? WHERE concept_id = ?",
+                    (change.new, change.concept_id),
+                )
+        return changes
+
+    # -- sessions ----------------------------------------------------------------------------
+
+    def start_session(self, course: str, tutor_provider: str | None = None) -> SessionRow:
+        started = self._now()
+        session = SessionRow(
+            session_id=f"{started[:16].replace(':', '')}-{uuid.uuid4().hex[:6]}",
+            course=course,
+            started_at=started,
+            tutor_provider=tutor_provider,
+            last_turn_at=started,
+        )
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO sessions (session_id, course, started_at, tutor_provider,"
+                " last_turn_at) VALUES (?, ?, ?, ?, ?)",
+                (session.session_id, course, started, tutor_provider, started),
+            )
+        return session
+
+    def touch_session(self, session: SessionRow) -> None:
+        """Record a turn now, so the session isn't taken for idle (BL-040)."""
+        session.last_turn_at = self._now()
+        with self.conn:
+            self.conn.execute(
+                "UPDATE sessions SET last_turn_at = ? WHERE session_id = ?",
+                (session.last_turn_at, session.session_id),
+            )
+
+    def update_session(self, session: SessionRow) -> None:
+        with self.conn:
+            self.conn.execute(
+                "UPDATE sessions SET ended_at = ?, tutor_provider = ?, analyzer_provider = ?,"
+                " summary_path = ?, last_turn_at = ? WHERE session_id = ?",
+                (
+                    session.ended_at,
+                    session.tutor_provider,
+                    session.analyzer_provider,
+                    session.summary_path,
+                    session.last_turn_at,
+                    session.session_id,
+                ),
+            )
+
+    def get_session(self, session_id: str) -> SessionRow | None:
+        row = self.conn.execute(
+            "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
+        ).fetchone()
+        return SessionRow(**dict(row)) if row else None
+
+    def sessions(self, course: str | None = None, open_only: bool = False) -> list[SessionRow]:
+        """Newest first."""
+        sql, args = "SELECT * FROM sessions WHERE 1 = 1", []
+        if course is not None:
+            sql += " AND course = ?"
+            args.append(course)
+        if open_only:
+            sql += " AND ended_at IS NULL"
+        rows = self.conn.execute(sql + " ORDER BY started_at DESC, rowid DESC", args)
+        return [SessionRow(**dict(r)) for r in rows]
+
+    def open_sessions(self, course: str | None = None) -> list[SessionRow]:
+        """Sessions with no ``ended_at``: each holds a live NotebookLM conversation (P66)."""
+        return self.sessions(course, open_only=True)
+
+    def close_session(self, session_id: str, at: str | datetime | None = None) -> SessionRow:
+        """Mark an open session ended (now, or ``at``). Transcript and analysis are left as
+        they are."""
+        session = self.get_session(session_id)
+        if session is None:
+            raise LearnerError(f"No session {session_id!r}")
+        if session.ended_at is not None:
+            raise LearnerError(f"Session {session_id} already ended at {session.ended_at}")
+        if isinstance(at, datetime):
+            at = at.isoformat(timespec="seconds")
+        session.ended_at = at or self._now()
+        self.update_session(session)
+        return session

@@ -1,0 +1,130 @@
+# The gate for every change: tests, lint and the web build on the three OSes BrightLearn runs on
+# (with coverage on Ubuntu), the setup scripts themselves on each, and the Playwright tour of the
+# web app on Ubuntu. tests/README.md says what each job runs.
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+env:
+  PYTHONUTF8: "1"
+  UV_MANAGED_PYTHON: "1"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - name: pytest
+        if: runner.os != 'Linux'
+        run: uv run --no-sync pytest -q --basetemp="${{ runner.temp }}/pt"
+      # The threshold is five points under the total measured when it was set (tests/README.md).
+      - name: pytest with coverage
+        if: runner.os == 'Linux'
+        run: uv run --no-sync pytest -q --basetemp="${{ runner.temp }}/pt" --cov --cov-report=term --cov-fail-under=88
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web typecheck
+      - run: pnpm --dir web build
+      - name: The committed API contract and types match the app
+        if: runner.os == 'Linux'
+        run: |
+          uv run --no-sync brightlearn dev openapi --out "${{ runner.temp }}/openapi.json"
+          diff "${{ runner.temp }}/openapi.json" web/openapi.json
+          pnpm --dir web gen
+          git diff --exit-code -- web/src/api/types.ts
+      - name: requirements.txt matches uv.lock
+        if: runner.os == 'Linux'
+        run: |
+          uv export --no-dev --format requirements.txt --no-hashes --no-emit-project -o "${{ runner.temp }}/requirements.txt"
+          diff <(tail -n +3 "${{ runner.temp }}/requirements.txt") <(tail -n +3 requirements.txt)
+
+  setup-scripts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      BRIGHTLEARN_HOME: ${{ runner.temp }}/brightlearn-home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+      - name: setup.sh
+        if: runner.os != 'Windows'
+        run: ./setup.sh --yes --skip-login
+      - name: setup.cmd
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: setup.cmd --yes --skip-login
+      - name: A second run is a no-op, and the app imports
+        run: |
+          uv run --no-sync brightlearn setup --yes --skip-login
+          uv run --no-sync brightlearn --help
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - name: Build the web app (the dev server serves web/dist)
+        run: pnpm --dir web build
+      - name: The installed Playwright version
+        id: playwright
+        run: |
+          version=$(uv run --no-sync python -c "import importlib.metadata as m; print(m.version('playwright'))")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - run: uv run --no-sync playwright install --with-deps chromium
+      - name: The Playwright tour
+        env:
+          CI: "1"
+        run: uv run --no-sync pytest -m e2e tests/e2e -q --basetemp="${{ runner.temp }}/pt" --tracing retain-on-failure --screenshot only-on-failure --output test-results
+      - name: Traces and screenshots of the failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
